@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 280" width="160" height="280">
+  <defs>
+    <pattern id="pexMesh" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
+      <rect width="8" height="8" fill="#22252A"/>
+      <circle cx="4" cy="4" r="0.9" fill="#2E3339"/>
+    </pattern>
+  </defs>
+  <!-- Dark Graphite Rounded Card matching PEX Green (2).png -->
+  <rect width="160" height="280" rx="8" fill="#22252A"/>
+  <rect width="160" height="280" rx="8" fill="url(#pexMesh)"/>
+  
+  <!-- Left Side: Lime Green Striding Figure (#C6D92C) -->
+  <g fill="#C6D92C">
+    <!-- Cap / Helmet with visor -->
+    <path d="M 64 34 C 64 34 92 34 92 64 L 48 64 C 48 64 48 56 58 56 L 64 56 Z" />
+    
+    <!-- Torso, Arms and Striding Legs -->
+    <path d="M 52 72 L 90 72 L 90 134 L 102 182 L 66 254 L 44 254 L 76 186 L 68 142 L 30 186 L 8 170 L 52 106 Z" />
+  </g>
+
+  <!-- Right Side: Official 'paramount' Vertical Typography -->
+  <g transform="translate(138, 34) rotate(90)">
+    <text x="0" y="0" fill="#C6D92C" font-family="'Segoe UI', -apple-system, BlinkMacSystemFont, Arial, sans-serif" font-size="36" font-weight="900" letter-spacing="1">paramount</text>
+  </g>
+</svg>

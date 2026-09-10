@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <rect width="100" height="100" rx="20" fill="#0d9488"/>
+  <rect x="6" y="6" width="88" height="88" rx="16" fill="#0f172a"/>
+  <!-- Box / Clipboard / Procurement Icon -->
+  <path d="M 30 25 L 70 25 L 70 35 L 30 35 Z" fill="#14b8a6"/>
+  <rect x="25" y="32" width="50" height="46" rx="6" fill="none" stroke="#2dd4bf" stroke-width="4"/>
+  <line x1="35" y1="46" x2="65" y2="46" stroke="#f8fafc" stroke-width="4" stroke-linecap="round"/>
+  <line x1="35" y1="56" x2="55" y2="56" stroke="#94a3b8" stroke-width="4" stroke-linecap="round"/>
+  <line x1="35" y1="66" x2="60" y2="66" stroke="#2dd4bf" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="72" cy="72" r="14" fill="#0d9488" stroke="#0f172a" stroke-width="3"/>
+  <path d="M 67 72 L 71 76 L 78 68" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

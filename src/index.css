@@ -1,0 +1,218 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  /* Semantic Light Theme Variables */
+  --bg-primary: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-elevated: #f1f5f9;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --border-subtle: #e2e8f0;
+  --border-elevated: #cbd5e1;
+  --accent-primary: #059669;
+  --accent-primary-hover: #047857;
+  --accent-tint: #ecfdf5;
+  --shadow-color: rgba(15, 23, 42, 0.08);
+}
+
+:root[data-theme="dark"],
+.dark {
+  /* Semantic Dark Theme Variables (Strictly avoiding pure #000000) */
+  --bg-primary: #0f172a;
+  --bg-surface: #1e293b;
+  --bg-elevated: #334155;
+  --text-main: #f1f5f9;
+  --text-muted: #94a3b8;
+  --border-subtle: rgba(255, 255, 255, 0.09);
+  --border-elevated: rgba(255, 255, 255, 0.16);
+  --accent-primary: #10b981;
+  --accent-primary-hover: #34d399;
+  --accent-tint: rgba(16, 185, 129, 0.12);
+  --shadow-color: rgba(0, 0, 0, 0.35);
+}
+
+@layer base {
+  html, body {
+    font-family: "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-color: var(--bg-primary);
+    color: var(--text-main);
+  }
+
+  /* Dark mode font weight reduction to prevent text blooming */
+  .dark body,
+  [data-theme="dark"] body {
+    font-weight: 400;
+  }
+
+  /* Image dimming filter in dark mode */
+  .dark img:not([media-theme="light-only"]),
+  [data-theme="dark"] img:not([media-theme="light-only"]) {
+    filter: brightness(0.88) contrast(1.12);
+  }
+
+  /* SVG dynamic currentColor inheritance */
+  svg {
+    stroke: currentColor;
+  }
+  
+  /* Custom clean scrollbars for Excel data grids & panels */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.45);
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(100, 116, 139, 0.65);
+  }
+  .dark ::-webkit-scrollbar-thumb {
+    background: rgba(71, 85, 105, 0.55);
+  }
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background: rgba(100, 116, 139, 0.75);
+  }
+}
+
+@layer utilities {
+  @media print {
+    @page {
+      size: A4 portrait;
+      margin: 10mm 12mm 10mm 12mm;
+    }
+
+    *, *:before, *:after {
+      box-shadow: none !important;
+      text-shadow: none !important;
+    }
+
+    html, body {
+      background-color: #ffffff !important;
+      color: #0f172a !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      font-size: 11pt !important;
+    }
+
+    /* Hide standard UI elements during print */
+    .no-print,
+    nav,
+    header,
+    footer,
+    button,
+    .modal-backdrop-overlay,
+    .excel-ribbon-bar,
+    .excel-formula-bar,
+    .excel-sheet-tabs,
+    .toast-container {
+      display: none !important;
+    }
+
+    /* Expand printable document container to standard A4 sheet */
+    .printable-document-modal {
+      position: absolute !important;
+      left: 0 !important;
+      top: 0 !important;
+      width: 100% !important;
+      min-height: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      background: #ffffff !important;
+      border: none !important;
+      box-shadow: none !important;
+      display: block !important;
+      z-index: 999999 !important;
+    }
+
+    .printable-document {
+      width: 100% !important;
+      max-width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      border: none !important;
+      background-color: #ffffff !important;
+      color: #0f172a !important;
+      box-shadow: none !important;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+    }
+
+    .stationery-sheet {
+      border: 1.5pt solid #0f172a !important;
+      padding: 6mm 8mm !important;
+      background-color: #ffffff !important;
+      margin: 0 auto !important;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+    }
+
+    .stationery-sheet table {
+      border-collapse: collapse !important;
+      width: 100% !important;
+    }
+
+    .stationery-sheet th,
+    .stationery-sheet td {
+      border: 0.75pt solid #334155 !important;
+      padding: 4pt 6pt !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    .stationery-sheet thead tr {
+      background-color: #f1f5f9 !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    .stationery-sheet tr:nth-child(even) {
+      background-color: #f8fafc !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    .stationery-sheet .logo-container {
+      background-color: #22252a !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      min-width: 60px !important;
+    }
+
+    .stationery-sheet .logo-container img {
+      display: block !important;
+      max-height: 64px !important;
+      width: auto !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    .printable-document-modal,
+    .printable-document-modal > div,
+    .printable-document-modal .printable-document,
+    .printable-document-modal div[class*="overflow-y-auto"] {
+      overflow: visible !important;
+      max-height: none !important;
+    }
+  }
+}
+
+/* Master Stock Sheet: Modern Comfortable Row Height & High Contrast Styling */
+.stock-table-row {
+  min-height: 48px;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.stock-table-row td {
+  vertical-align: middle;
+}
+

@@ -1,0 +1,8 @@
+{
+  "name": "Paramount Exports — Stationery & Cleaning Inventory",
+  "description": "Paramount Exports automated Stationery & Cleaning Stock Inventory Management Progressive Web Application.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
