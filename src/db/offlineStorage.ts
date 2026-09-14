@@ -31,6 +31,7 @@ import {
   DEFAULT_BACKUPS_SEEDS,
 } from './defaultSeeds';
 import { getLocalClientId } from './crdtLwwEngine';
+import type { SyncDocument } from './backgroundSync';
 
 export interface ProcureSimDB extends DBSchema {
   master_stock: { key: string; value: StockItem };
@@ -44,11 +45,13 @@ export interface ProcureSimDB extends DBSchema {
   adjustment_requests: { key: string; value: StockAdjustmentRequest };
   backups: { key: string; value: BackupSnapshot };
   mutation_queue: { key: string; value: OfflineMutation };
+  large_documents: { key: string; value: SyncDocument };
+  sync_queue: { key: string; value: SyncDocument & { sync_id: string } };
   settings: { key: string; value: { key: string; value: any } };
 }
 
 const DB_NAME = 'ProcureSim_Offline_DB_v3';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 let dbPromise: Promise<IDBPDatabase<ProcureSimDB>> | null = null;
 
@@ -88,6 +91,12 @@ export function getOfflineDB(): Promise<IDBPDatabase<ProcureSimDB>> {
         }
         if (!db.objectStoreNames.contains('mutation_queue')) {
           db.createObjectStore('mutation_queue', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('large_documents')) {
+          db.createObjectStore('large_documents', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('sync_queue')) {
+          db.createObjectStore('sync_queue', { keyPath: 'sync_id', autoIncrement: true });
         }
         if (!db.objectStoreNames.contains('settings')) {
           db.createObjectStore('settings', { keyPath: 'key' });
@@ -327,7 +336,34 @@ export async function enqueueOfflineMutation(mutation: OfflineMutation): Promise
       try {
         const registration = await navigator.serviceWorker.ready;
         if ('sync' in registration) {
-          await (registration as any).sync.register('sync-procurement-mutations');
+          await (registration as any).sync.register('sync-documents');
+        }
+
+        export async function putSyncDocument(document: SyncDocument & { sync_id: string }): Promise<void> {
+          const db = await getOfflineDB();
+          await db.put('sync_queue', document);
+        }
+
+        export async function enqueueSyncDocument(document: SyncDocument): Promise<string> {
+          const db = await getOfflineDB();
+          const syncDocument = { ...document, sync_id: crypto.randomUUID() };
+          const tx = db.transaction(['large_documents', 'sync_queue'], 'readwrite');
+          await tx.objectStore('large_documents').put(document);
+          await tx.objectStore('sync_queue').put(syncDocument);
+          await tx.done;
+          return syncDocument.sync_id;
+        }
+
+        export async function getPendingSyncDocuments(): Promise<Array<SyncDocument & { sync_id: string }>> {
+          const db = await getOfflineDB();
+          return (await db.getAll('sync_queue')).sort(
+            (a, b) => new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
+          );
+        }
+
+        export async function removeSyncDocument(syncId: string): Promise<void> {
+          const db = await getOfflineDB();
+          await db.delete('sync_queue', syncId);
         }
       } catch (syncErr) {
         // Tolerant if background sync not permitted

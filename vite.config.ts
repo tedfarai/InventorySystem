@@ -10,6 +10,9 @@ export default defineConfig(() => {
       react(),
       tailwindcss(),
       VitePWA({
+        strategies: 'injectManifest',
+        srcDir: '.',
+        filename: 'sw.js',
         registerType: 'autoUpdate',
         includeAssets: [
           'favicon.svg',
@@ -72,38 +75,9 @@ export default defineConfig(() => {
             },
           ],
         },
-        workbox: {
+        injectManifest: {
           globPatterns: ['**/*.{js,css,html,svg,png,ico,txt,woff2,wasm}'],
           maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10 MiB for SQLite WASM and complete offline bundle
-          runtimeCaching: [
-            {
-              urlPattern: ({ request }) =>
-                request.destination === 'document' ||
-                request.destination === 'script' ||
-                request.destination === 'style' ||
-                request.destination === 'image' ||
-                request.destination === 'font',
-              handler: 'StaleWhileRevalidate',
-              options: {
-                cacheName: 'procuresim-static-cache-v1',
-                expiration: {
-                  maxEntries: 200,
-                  maxAgeSeconds: 30 * 24 * 60 * 60, // 30 Days
-                },
-              },
-            },
-            {
-              urlPattern: /.*\.wasm$/,
-              handler: 'CacheFirst',
-              options: {
-                cacheName: 'procuresim-wasm-cache-v1',
-                expiration: {
-                  maxEntries: 10,
-                  maxAgeSeconds: 60 * 24 * 60 * 60, // 60 Days
-                },
-              },
-            },
-          ],
         },
       }),
     ],

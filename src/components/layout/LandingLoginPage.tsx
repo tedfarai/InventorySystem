@@ -47,6 +47,7 @@ export const LandingLoginPage: React.FC<LandingLoginPageProps> = ({
   const [errorMsg, setErrorMsg] = useState('');
   const [isRecoveryModalOpen, setIsRecoveryModalOpen] = useState(false);
   const [recoveryTargetUser, setRecoveryTargetUser] = useState<AdminUser | null>(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(true);
 
   const passwordInputRef = useRef<HTMLInputElement>(null);
 
@@ -163,6 +164,22 @@ export const LandingLoginPage: React.FC<LandingLoginPageProps> = ({
           </div>
         </div>
       </header>
+
+      {isInstallable && onOpenInstallModal && showInstallBanner && (
+        <aside className="pwa-install-banner fixed bottom-4 left-4 right-4 z-40 mx-auto flex max-w-2xl items-center gap-4 rounded-2xl p-4 shadow-2xl" aria-live="polite">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white">
+            <Download className="h-5 w-5" aria-hidden="true" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <strong className="block text-sm text-slate-900 dark:text-white">Install Paramount Stock</strong>
+            <span className="block text-xs text-slate-600 dark:text-slate-300">Install app for full workspace features and reliable offline document access.</span>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <button type="button" onClick={onOpenInstallModal} className="min-h-11 rounded-xl bg-emerald-600 px-4 text-xs font-bold text-white hover:bg-emerald-500">Install Now</button>
+            <button type="button" onClick={() => setShowInstallBanner(false)} className="min-h-11 rounded-xl bg-slate-200 px-4 text-xs font-bold text-slate-700 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-200">Maybe Later</button>
+          </div>
+        </aside>
+      )}
 
       {/* Main Content: Hero & User Selection Grid */}
       <main className="flex-1 w-full px-4 sm:px-8 lg:px-12 py-6 sm:py-10 flex flex-col justify-center">
