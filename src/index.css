@@ -216,3 +216,43 @@
   vertical-align: middle;
 }
 
+.network-status-pill {
+  min-height: 44px;
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+}
+
+.network-status-pill--online {
+  background: rgba(16, 185, 129, 0.15);
+  color: #065f46;
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.network-status-pill--offline {
+  background: rgba(239, 68, 68, 0.15);
+  color: #991b1b;
+  border-color: rgba(239, 68, 68, 0.3);
+  animation: network-status-pulse 2.4s ease-in-out infinite;
+}
+
+.dark .network-status-pill--online { color: #a7f3d0; }
+.dark .network-status-pill--offline { color: #fecaca; }
+
+@keyframes network-status-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.08); }
+  50% { box-shadow: 0 0 0 5px rgba(239, 68, 68, 0.12); }
+}
+
+.pwa-install-banner {
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background: rgba(255, 255, 255, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  transform: translateY(0);
+  transition: transform 240ms ease, opacity 240ms ease;
+}
+
+.dark .pwa-install-banner {
+  background: rgba(15, 23, 42, 0.72);
+  border-color: rgba(255, 255, 255, 0.12);
+}

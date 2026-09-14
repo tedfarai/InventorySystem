@@ -31,7 +31,7 @@ interface CrossPlatformInstallModalProps {
   onClose: () => void;
   isInstallable: boolean;
   isInstalled: boolean;
-  onInstall: () => Promise<boolean>;
+  onDirectInstall: () => Promise<boolean>;
 }
 
 export const CrossPlatformInstallModal: React.FC<CrossPlatformInstallModalProps> = ({
@@ -39,7 +39,7 @@ export const CrossPlatformInstallModal: React.FC<CrossPlatformInstallModalProps>
   onClose,
   isInstallable,
   isInstalled,
-  onInstall,
+  onDirectInstall,
 }) => {
   const [detected] = useState<PlatformDetails>(() => detectPlatform());
   const [activeTab, setActiveTab] = useState<PlatformType>(detected.platform || 'Windows');
@@ -51,7 +51,7 @@ export const CrossPlatformInstallModal: React.FC<CrossPlatformInstallModalProps>
     if (isInstallable) {
       setIsInstalling(true);
       try {
-        const success = await onInstall();
+        const success = await onDirectInstall();
         if (success) {
           onClose();
         }

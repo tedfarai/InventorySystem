@@ -13,12 +13,12 @@ export const OfflineStatusBadge: React.FC<OfflineStatusBadgeProps> = ({
   showStorageIndicator = true,
 }) => {
   return (
-    <div className={`inline-flex items-center gap-1.5 ${className}`}>
+    <div id="network-status-badge" className={`inline-flex items-center gap-1.5 ${className}`} aria-live="polite">
       {/* Network Connectivity Status Pill */}
       {isOffline ? (
         <div
           title="App running 100% Offline with local CacheStorage & IndexedDB / SQLite persistence"
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30"
+          className="network-status-pill network-status-pill--offline flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border"
         >
           <WifiOff className="w-3.5 h-3.5 animate-pulse text-amber-500" />
           <span className="font-mono text-[11px]">Offline Mode</span>
@@ -26,7 +26,7 @@ export const OfflineStatusBadge: React.FC<OfflineStatusBadgeProps> = ({
       ) : (
         <div
           title="Connected to network. All transactions sync to local IndexedDB & SQLite automatically."
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+          className="network-status-pill network-status-pill--online flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border"
         >
           <Wifi className="w-3.5 h-3.5 text-emerald-500" />
           <span className="font-mono text-[11px] hidden sm:inline">Online / PWA Ready</span>

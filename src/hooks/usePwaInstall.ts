@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { drainSyncQueue, registerBackgroundSync } from '../db/backgroundSync';
 
 export interface PwaInstallState {
   isInstallable: boolean;
@@ -39,7 +40,11 @@ export function usePwaInstall(): PwaInstallState {
       setDeferredPrompt(null);
     };
 
-    const handleOnline = () => setIsOffline(false);
+    const handleOnline = () => {
+      setIsOffline(false);
+      registerBackgroundSync();
+      void drainSyncQueue();
+    };
     const handleOffline = () => setIsOffline(true);
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -65,6 +70,7 @@ export function usePwaInstall(): PwaInstallState {
       setIsUpdateAvailable(true);
     };
     window.addEventListener('pwa-update-available', handleSwUpdate);
+    registerBackgroundSync();
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
