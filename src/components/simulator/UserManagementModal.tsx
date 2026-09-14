@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Shield, Lock, Crown, UserPlus, Edit2, Trash2, CheckCircle, XCircle, AlertTriangle, KeyRound } from 'lucide-react';
 import { AdminUser } from '../../types';
+import { DraggableResizableModal } from '../common/DraggableResizableModal';
 
 interface UserManagementModalProps {
   currentUser: AdminUser | null;
@@ -37,51 +38,56 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
 
   if (!isSuperiorAdmin) {
     return (
-      <div className="fixed inset-0 bg-slate-950/35 flex items-center justify-center p-4 z-50">
-        <div className="bg-slate-900 rounded-2xl shadow-2xl border-2 border-rose-600/80 w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200">
-          {/* Access Denied Header */}
-          <div className="bg-rose-950 text-white px-4 py-3 flex items-center justify-between border-b border-rose-800">
-            <div className="flex items-center space-x-2">
-              <Lock className="w-5 h-5 text-rose-400" />
-              <span className="font-mono text-xs font-bold uppercase tracking-wider text-rose-200">
-                Security Violation — Access Denied
-              </span>
-            </div>
+      <DraggableResizableModal
+        onClose={onClose}
+        modalId="user-management-access-denied"
+        className="bg-slate-900 rounded-2xl shadow-2xl border-2 border-rose-600/80 w-full max-w-lg overflow-hidden my-auto"
+      >
+        {/* Access Denied Header */}
+        <div
+          data-drag-handle="true"
+          className="bg-rose-950 text-white px-4 py-3 flex items-center justify-between border-b border-rose-800 cursor-grab active:cursor-grabbing select-none"
+        >
+          <div className="flex items-center space-x-2">
+            <Lock className="w-5 h-5 text-rose-400" />
+            <span className="font-mono text-xs font-bold uppercase tracking-wider text-rose-200">
+              Security Violation — Access Denied
+            </span>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-rose-300 hover:text-white text-xs font-bold px-2 py-1 rounded hover:bg-rose-900 cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="p-6 space-y-5 text-center flex-1 min-h-0 overflow-y-auto">
+          <div className="w-16 h-16 rounded-full bg-rose-950/80 border-2 border-rose-500/50 flex items-center justify-center mx-auto text-rose-400 shadow-lg">
+            <AlertTriangle className="w-9 h-9" />
+          </div>
+
+          <div className="space-y-2">
+            <h3 className="text-base font-bold text-white">Insufficient Admin Authorization</h3>
+            <p className="text-xs text-rose-200 leading-relaxed font-mono bg-rose-950/60 p-3.5 rounded-xl border border-rose-800 text-left">
+              Access Denied: Only Rachel Pickard (Procurement Manager / Superior Admin) has permission to perform User Management and Credential CRUD operations.
+            </p>
+          </div>
+
+          <div className="text-[11px] text-slate-400 italic">
+            Current Session User: <strong className="text-slate-200">{currentUser ? currentUser.IssuerName : 'Guest'}</strong> ({currentUser ? currentUser.Role : 'Unauthorized'})
+          </div>
+
+          <div className="pt-2 flex justify-center">
             <button
               onClick={onClose}
-              className="text-rose-300 hover:text-white text-xs font-bold px-2 py-1 rounded hover:bg-rose-900"
+              className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-md transition cursor-pointer"
             >
-              ✕
+              Acknowledge & Close
             </button>
           </div>
-
-          <div className="p-6 space-y-5 text-center">
-            <div className="w-16 h-16 rounded-full bg-rose-950/80 border-2 border-rose-500/50 flex items-center justify-center mx-auto text-rose-400 shadow-lg">
-              <AlertTriangle className="w-9 h-9" />
-            </div>
-
-            <div className="space-y-2">
-              <h3 className="text-base font-bold text-white">Insufficient Admin Authorization</h3>
-              <p className="text-xs text-rose-200 leading-relaxed font-mono bg-rose-950/60 p-3.5 rounded-xl border border-rose-800 text-left">
-                Access Denied: Only Rachel Pickard (Procurement Manager / Superior Admin) has permission to perform User Management and Credential CRUD operations.
-              </p>
-            </div>
-
-            <div className="text-[11px] text-slate-400 italic">
-              Current Session User: <strong className="text-slate-200">{currentUser ? currentUser.IssuerName : 'Guest'}</strong> ({currentUser ? currentUser.Role : 'Unauthorized'})
-            </div>
-
-            <div className="pt-2 flex justify-center">
-              <button
-                onClick={onClose}
-                className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-md transition"
-              >
-                Acknowledge & Close
-              </button>
-            </div>
-          </div>
         </div>
-      </div>
+      </DraggableResizableModal>
     );
   }
 
@@ -173,26 +179,32 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-950/35 flex items-center justify-center p-4 z-50 overflow-y-auto">
-      <div className="bg-slate-100 dark:bg-slate-800 rounded-2xl shadow-2xl border-2 border-amber-500/80 w-full max-w-4xl overflow-hidden my-auto animate-in fade-in zoom-in duration-200">
-        {/* Superior Admin Header */}
-        <div className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between border-b border-slate-700">
-          <div className="flex items-center space-x-2">
-            <Crown className="w-5 h-5 text-amber-400" />
-            <span className="font-mono text-xs font-bold tracking-wide text-amber-300">
-              frmUserManagement — Superior Admin Credentials & Privilege CRUD
-            </span>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-white text-xs font-bold px-2 py-1 rounded hover:bg-slate-800"
-          >
-            ✕ Close
-          </button>
+    <DraggableResizableModal
+      onClose={onClose}
+      modalId="user-management-modal"
+      className="bg-slate-100 dark:bg-slate-800 rounded-2xl shadow-2xl border-2 border-amber-500/80 w-full max-w-4xl overflow-hidden my-auto"
+    >
+      {/* Superior Admin Header */}
+      <div
+        data-drag-handle="true"
+        className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between border-b border-slate-700 cursor-grab active:cursor-grabbing select-none"
+      >
+        <div className="flex items-center space-x-2">
+          <Crown className="w-5 h-5 text-amber-400" />
+          <span className="font-mono text-xs font-bold tracking-wide text-amber-300">
+            frmUserManagement — Superior Admin Credentials & Privilege CRUD
+          </span>
         </div>
+        <button
+          onClick={onClose}
+          className="text-slate-400 hover:text-white text-xs font-bold px-2 py-1 rounded hover:bg-slate-800 cursor-pointer"
+        >
+          ✕ Close
+        </button>
+      </div>
 
-        {/* UserForm Body */}
-        <div className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
+      {/* UserForm Body */}
+      <div className="p-6 space-y-5 flex-1 min-h-0 overflow-y-auto">
           {/* Superior Admin Banner */}
           <div className="flex items-center justify-between bg-amber-950/40 border border-amber-500/40 p-3.5 rounded-xl text-amber-200">
             <div className="flex items-center space-x-3">
@@ -404,7 +416,6 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
             </div>
           </div>
         </div>
-      </div>
-    </div>
+    </DraggableResizableModal>
   );
 };

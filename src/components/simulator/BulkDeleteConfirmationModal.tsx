@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Trash2, AlertTriangle, X, ShieldAlert, CheckCircle2 } from 'lucide-react';
 import { StockItem } from '../../types';
+import { DraggableResizableModal } from '../common/DraggableResizableModal';
 
 interface BulkDeleteConfirmationModalProps {
   isOpen: boolean;
@@ -33,38 +34,38 @@ export const BulkDeleteConfirmationModal: React.FC<BulkDeleteConfirmationModalPr
   };
 
   return (
-    <div
-      id="bulk-delete-confirmation-modal-backdrop"
-      className="fixed inset-0 bg-slate-950/35 flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto"
+    <DraggableResizableModal
+      onClose={onClose}
+      modalId="bulk-delete-confirmation-modal"
+      className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border-2 border-rose-600/70 w-full max-w-lg overflow-hidden my-auto"
     >
+      {/* Header */}
       <div
-        id="bulk-delete-confirmation-modal-content"
-        className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border-2 border-rose-600/70 w-full max-w-lg overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200"
+        data-drag-handle="true"
+        className="bg-rose-950 text-white px-5 py-4 flex items-center justify-between border-b border-rose-900 cursor-grab active:cursor-grabbing select-none"
       >
-        {/* Header */}
-        <div className="bg-rose-950 text-white px-5 py-4 flex items-center justify-between border-b border-rose-900">
-          <div className="flex items-center space-x-2.5">
-            <div className="p-2 bg-rose-500/20 text-rose-400 rounded-lg">
-              <ShieldAlert className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="font-bold text-sm text-white">Confirm Bulk Stock Deletion</h3>
-              <p className="text-[11px] text-rose-300 font-mono">
-                Admin Action authorized by {issuerName} ({issuerId})
-              </p>
-            </div>
+        <div className="flex items-center space-x-2.5">
+          <div className="p-2 bg-rose-500/20 text-rose-400 rounded-lg">
+            <ShieldAlert className="w-5 h-5" />
           </div>
-          <button
-            onClick={onClose}
-            type="button"
-            className="text-rose-400 hover:text-white p-1 rounded-lg hover:bg-rose-900 transition"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div>
+            <h3 className="font-bold text-sm text-white">Confirm Bulk Stock Deletion</h3>
+            <p className="text-[11px] text-rose-300 font-mono">
+              Admin Action authorized by {issuerName} ({issuerId})
+            </p>
+          </div>
         </div>
+        <button
+          onClick={onClose}
+          type="button"
+          className="text-rose-400 hover:text-white p-1 rounded-lg hover:bg-rose-900 transition cursor-pointer"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
 
-        {/* Content */}
-        <div className="p-5 space-y-4">
+      {/* Content */}
+      <div className="p-5 space-y-4 flex-1 min-h-0 overflow-y-auto">
           <div className="flex items-start gap-3 p-3.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/80 rounded-xl text-rose-900 dark:text-rose-200 text-xs">
             <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
             <div>
@@ -119,7 +120,7 @@ export const BulkDeleteConfirmationModal: React.FC<BulkDeleteConfirmationModalPr
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition"
+            className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition cursor-pointer"
           >
             Cancel
           </button>
@@ -128,13 +129,12 @@ export const BulkDeleteConfirmationModal: React.FC<BulkDeleteConfirmationModalPr
             type="button"
             disabled={!isConfirmed}
             onClick={handleConfirm}
-            className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:pointer-events-none rounded-lg shadow-xs transition flex items-center gap-1.5"
+            className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:pointer-events-none rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer"
           >
             <Trash2 className="w-3.5 h-3.5" />
             Delete {selectedItems.length} Item{selectedItems.length > 1 ? 's' : ''}
           </button>
         </div>
-      </div>
-    </div>
+    </DraggableResizableModal>
   );
 };

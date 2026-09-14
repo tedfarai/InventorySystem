@@ -12,6 +12,7 @@ import {
   Sparkles,
   Edit3,
 } from 'lucide-react';
+import { DraggableResizableModal } from '../common/DraggableResizableModal';
 
 export interface BulkDeliveryReviewItem {
   itemId: string;
@@ -125,25 +126,31 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-950/35 flex items-center justify-center p-4 z-50 no-print">
-      <div className="bg-slate-100 dark:bg-slate-800 rounded-2xl shadow-2xl border-2 border-blue-600/80 w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-        {/* UserForm Header */}
-        <div className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between border-b border-slate-700">
-          <div className="flex items-center space-x-2">
-            <PackagePlus className="w-5 h-5 text-blue-400" />
-            <span className="font-mono text-xs font-bold tracking-wide text-slate-100">
-              frmBulkDeliveryConfirmation — Delivery Review & Quantity Adjustment
-            </span>
-          </div>
-          {!isProcessing && (
-            <button
-              onClick={handleCloseModal}
-              className="text-slate-400 hover:text-white text-xs font-bold px-2 py-0.5 rounded hover:bg-slate-800"
-            >
-              ✕
-            </button>
-          )}
+    <DraggableResizableModal
+      onClose={handleCloseModal}
+      modalId="bulk-delivery-confirmation-modal"
+      className="bg-slate-100 dark:bg-slate-800 rounded-2xl shadow-2xl border-2 border-blue-600/80 w-full max-w-2xl overflow-hidden no-print my-auto"
+    >
+      {/* UserForm Header */}
+      <div
+        data-drag-handle="true"
+        className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between border-b border-slate-700 cursor-grab active:cursor-grabbing select-none"
+      >
+        <div className="flex items-center space-x-2">
+          <PackagePlus className="w-5 h-5 text-blue-400" />
+          <span className="font-mono text-xs font-bold tracking-wide text-slate-100">
+            frmBulkDeliveryConfirmation — Delivery Review & Quantity Adjustment
+          </span>
         </div>
+        {!isProcessing && (
+          <button
+            onClick={handleCloseModal}
+            className="text-slate-400 hover:text-white text-xs font-bold px-2 py-0.5 rounded hover:bg-slate-800 cursor-pointer"
+          >
+            ✕
+          </button>
+        )}
+      </div>
 
         {/* STEP PROGRESS INDICATOR BAR */}
         <div className="bg-slate-950 px-6 py-3 border-b border-slate-800 flex items-center justify-between text-xs font-mono">
@@ -181,7 +188,7 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
         </div>
 
         {/* MODAL CONTENT BODY */}
-        <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
+        <div className="p-6 space-y-5 flex-1 min-h-0 overflow-y-auto">
           {/* STEP 1: EDITABLE SUMMARY TABLE & STATS REVIEW */}
           {currentStep === 1 && (
             <div className="space-y-4">
@@ -471,7 +478,6 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
             </>
           )}
         </div>
-      </div>
-    </div>
+    </DraggableResizableModal>
   );
 };

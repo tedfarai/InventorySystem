@@ -15,6 +15,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { AdminUser } from '../../types';
+import { DraggableResizableModal } from '../common/DraggableResizableModal';
 
 interface LoginDialogProps {
   admins: AdminUser[];
@@ -114,39 +115,45 @@ export const LoginDialog: React.FC<LoginDialogProps> = ({ admins, onSuccess, onC
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-950/35 flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        {/* Title Bar */}
-        <div className="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between border-b border-slate-800 shrink-0">
-          <div className="flex items-center space-x-2.5">
-            <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center font-bold">
-              <ShieldCheck className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-xs tracking-wide text-white">
-                  Paramount Procurement System
-                </span>
-                <span className="text-[10px] font-mono px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded">
-                  Workbook_Open Auth
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400">
-                Registered User Directory &amp; Security Authentication
-              </p>
-            </div>
+    <DraggableResizableModal
+      onClose={onCancel}
+      modalId="login-dialog-modal"
+      className="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-2xl overflow-hidden flex flex-col my-auto"
+    >
+      {/* Title Bar */}
+      <div
+        data-drag-handle="true"
+        className="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between border-b border-slate-800 shrink-0 cursor-grab active:cursor-grabbing select-none"
+      >
+        <div className="flex items-center space-x-2.5">
+          <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center font-bold">
+            <ShieldCheck className="w-4 h-4" />
           </div>
-          <button
-            onClick={onCancel}
-            className="text-slate-400 hover:text-white text-xs font-bold w-6 h-6 rounded-lg hover:bg-slate-800 flex items-center justify-center transition"
-            title="Close dialog"
-          >
-            ✕
-          </button>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-xs tracking-wide text-white">
+                Paramount Procurement System
+              </span>
+              <span className="text-[10px] font-mono px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded">
+                Workbook_Open Auth
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400">
+              Registered User Directory &amp; Security Authentication
+            </p>
+          </div>
         </div>
+        <button
+          onClick={onCancel}
+          className="text-slate-400 hover:text-white text-xs font-bold w-6 h-6 rounded-lg hover:bg-slate-800 flex items-center justify-center transition cursor-pointer"
+          title="Close dialog"
+        >
+          ✕
+        </button>
+      </div>
 
-        {/* Scrollable Content Container */}
-        <div className="p-5 sm:p-6 overflow-y-auto space-y-5">
+      {/* Scrollable Content Container */}
+      <div className="p-5 sm:p-6 overflow-y-auto space-y-5 flex-1 min-h-0">
           {/* Header instructions & Search */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 dark:bg-slate-950/60 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800">
             <div className="space-y-0.5">
@@ -351,7 +358,6 @@ export const LoginDialog: React.FC<LoginDialogProps> = ({ admins, onSuccess, onC
             </div>
           </form>
         </div>
-      </div>
-    </div>
+    </DraggableResizableModal>
   );
 };

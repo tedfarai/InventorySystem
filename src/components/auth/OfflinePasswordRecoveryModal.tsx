@@ -14,6 +14,7 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { AdminUser } from '../../types';
+import { DraggableResizableModal } from '../common/DraggableResizableModal';
 
 interface OfflinePasswordRecoveryModalProps {
   isOpen: boolean;
@@ -193,30 +194,36 @@ export const OfflinePasswordRecoveryModal: React.FC<OfflinePasswordRecoveryModal
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/35 animate-in fade-in duration-150">
-      <div className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        {/* Header */}
-        <div className="p-4 sm:p-5 bg-gradient-to-r from-emerald-700 to-teal-800 text-white flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center font-bold">
-              <KeyRound className="w-5 h-5 text-emerald-100" />
-            </div>
-            <div>
-              <h2 className="text-base sm:text-lg font-bold">Offline Password Recovery</h2>
-              <p className="text-xs text-emerald-100">Local cryptographic authentication reset</p>
-            </div>
+    <DraggableResizableModal
+      onClose={resetAll}
+      modalId="offline-password-recovery-modal"
+      className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col my-auto"
+    >
+      {/* Header */}
+      <div
+        data-drag-handle="true"
+        className="p-4 sm:p-5 bg-gradient-to-r from-emerald-700 to-teal-800 text-white flex items-center justify-between cursor-grab active:cursor-grabbing select-none shrink-0"
+      >
+        <div className="flex items-center space-x-3">
+          <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center font-bold">
+            <KeyRound className="w-5 h-5 text-emerald-100" />
           </div>
-          <button
-            onClick={resetAll}
-            className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition cursor-pointer"
-            aria-label="Close"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div>
+            <h2 className="text-base sm:text-lg font-bold">Offline Password Recovery</h2>
+            <p className="text-xs text-emerald-100">Local cryptographic authentication reset</p>
+          </div>
         </div>
+        <button
+          onClick={resetAll}
+          className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition cursor-pointer"
+          aria-label="Close"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>
 
-        {/* Content Body */}
-        <div className="p-5 sm:p-6 overflow-y-auto space-y-5 flex-1">
+      {/* Content Body */}
+      <div className="p-5 sm:p-6 overflow-y-auto space-y-5 flex-1 min-h-0">
           {successMsg ? (
             <div className="p-6 text-center space-y-3">
               <div className="w-14 h-14 mx-auto rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shadow-xs">
@@ -533,7 +540,6 @@ export const OfflinePasswordRecoveryModal: React.FC<OfflinePasswordRecoveryModal
             </form>
           )}
         </div>
-      </div>
-    </div>
+    </DraggableResizableModal>
   );
 };

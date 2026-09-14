@@ -43,6 +43,7 @@ import {
   ReceivedDocument,
   AdjustmentDocument,
 } from '../../types';
+import { DraggableResizableModal } from '../common/DraggableResizableModal';
 
 interface BackupRecoveryModalProps {
   isOpen: boolean;
@@ -104,59 +105,64 @@ export const BackupRecoveryModal: React.FC<BackupRecoveryModalProps> = ({
   // Strict Superior Super Admin Security Lockout Screen
   if (!isSuperiorAdmin) {
     return (
-      <div className="fixed inset-0 bg-slate-950/35 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border-2 border-rose-600/80 w-full max-w-lg overflow-hidden">
-          <div className="bg-rose-600 text-white px-5 py-4 flex items-center justify-between border-b border-rose-700">
-            <div className="flex items-center space-x-2.5">
-              <ShieldAlert className="w-5 h-5" />
-              <span className="font-bold text-sm">Security Clearance Required — Access Denied</span>
+      <DraggableResizableModal
+        onClose={onClose}
+        modalId="backup-recovery-access-denied"
+        className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border-2 border-rose-600/80 w-full max-w-lg overflow-hidden my-auto"
+      >
+        <div
+          data-drag-handle="true"
+          className="bg-rose-600 text-white px-5 py-4 flex items-center justify-between border-b border-rose-700 cursor-grab active:cursor-grabbing select-none"
+        >
+          <div className="flex items-center space-x-2.5">
+            <ShieldAlert className="w-5 h-5" />
+            <span className="font-bold text-sm">Security Clearance Required — Access Denied</span>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-white/80 hover:text-white hover:bg-rose-700 px-2 py-0.5 rounded text-xs font-bold cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4 text-center flex-1 min-h-0 overflow-y-auto">
+          <div className="w-16 h-16 rounded-2xl bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 mx-auto flex items-center justify-center border border-rose-300 dark:border-rose-800 shadow-inner">
+            <Lock className="w-8 h-8" />
+          </div>
+
+          <div className="space-y-1.5">
+            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+              Superior Super Admin Clearance Required
+            </h3>
+            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed max-w-md mx-auto">
+              Viewing the detailed archive of system backups, inspecting payload states, and executing 1-click point-in-time restores is strictly restricted to <strong>Rachel Pickard (Procurement Manager / Superior Super Admin - ADM001)</strong>.
+            </p>
+          </div>
+
+          <div className="bg-slate-50 dark:bg-slate-800/80 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-mono text-left space-y-1.5">
+            <div className="text-slate-500 text-[11px]">Active Authenticated Session:</div>
+            <div className="font-bold text-slate-900 dark:text-slate-100 flex items-center justify-between">
+              <span>{currentUser ? `${currentUser.IssuerName} (${currentUser.IssuerID})` : 'Unauthenticated Session'}</span>
+              <span className="bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 px-2 py-0.5 rounded text-[10px] font-bold">
+                Restricted Staff
+              </span>
             </div>
+            <div className="text-[11px] text-slate-500">
+              Role: {currentUser?.Role || 'Standard Staff'} • Backup Archive Permissions: DENIED
+            </div>
+          </div>
+
+          <div className="pt-2 flex items-center justify-center space-x-3">
             <button
               onClick={onClose}
-              className="text-white/80 hover:text-white hover:bg-rose-700 px-2 py-0.5 rounded text-xs font-bold"
+              className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-900 font-bold text-xs rounded-xl shadow transition cursor-pointer"
             >
-              ✕
+              Return to Master_Stock Worksheet
             </button>
           </div>
-
-          <div className="p-6 space-y-4 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 mx-auto flex items-center justify-center border border-rose-300 dark:border-rose-800 shadow-inner">
-              <Lock className="w-8 h-8" />
-            </div>
-
-            <div className="space-y-1.5">
-              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
-                Superior Super Admin Clearance Required
-              </h3>
-              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed max-w-md mx-auto">
-                Viewing the detailed archive of system backups, inspecting payload states, and executing 1-click point-in-time restores is strictly restricted to <strong>Rachel Pickard (Procurement Manager / Superior Super Admin - ADM001)</strong>.
-              </p>
-            </div>
-
-            <div className="bg-slate-50 dark:bg-slate-800/80 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-mono text-left space-y-1.5">
-              <div className="text-slate-500 text-[11px]">Active Authenticated Session:</div>
-              <div className="font-bold text-slate-900 dark:text-slate-100 flex items-center justify-between">
-                <span>{currentUser ? `${currentUser.IssuerName} (${currentUser.IssuerID})` : 'Unauthenticated Session'}</span>
-                <span className="bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 px-2 py-0.5 rounded text-[10px] font-bold">
-                  Restricted Staff
-                </span>
-              </div>
-              <div className="text-[11px] text-slate-500">
-                Role: {currentUser?.Role || 'Standard Staff'} • Backup Archive Permissions: DENIED
-              </div>
-            </div>
-
-            <div className="pt-2 flex items-center justify-center space-x-3">
-              <button
-                onClick={onClose}
-                className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-900 font-bold text-xs rounded-xl shadow transition"
-              >
-                Return to Master_Stock Worksheet
-              </button>
-            </div>
-          </div>
         </div>
-      </div>
+      </DraggableResizableModal>
     );
   }
 
@@ -306,36 +312,42 @@ export const BackupRecoveryModal: React.FC<BackupRecoveryModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-950/35 flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border-2 border-purple-600/80 w-full max-w-6xl overflow-hidden my-auto animate-in fade-in zoom-in duration-200">
-        {/* Superior Admin Header */}
-        <div className="bg-slate-950 text-white px-5 py-4 flex items-center justify-between border-b border-slate-800">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center border border-purple-500/30 shrink-0">
-              <Database className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <span className="font-bold text-sm text-slate-100">
-                  Data Storage, Backup & Disaster Recovery Center
-                </span>
-                <span className="bg-purple-950 text-purple-300 px-2 py-0.5 rounded text-[10px] font-mono font-bold border border-purple-800">
-                  Superior Super Admin Only (Rachel Pickard)
-                </span>
-              </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Full granular archive of automated point-in-time backups, payload state inspector, and 1-click restore engine.
-              </p>
-            </div>
+    <DraggableResizableModal
+      onClose={onClose}
+      modalId="backup-recovery-modal"
+      className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border-2 border-purple-600/80 w-full max-w-6xl overflow-hidden my-auto"
+    >
+      {/* Superior Admin Header */}
+      <div
+        data-drag-handle="true"
+        className="bg-slate-950 text-white px-5 py-4 flex items-center justify-between border-b border-slate-800 cursor-grab active:cursor-grabbing select-none"
+      >
+        <div className="flex items-center space-x-3">
+          <div className="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center border border-purple-500/30 shrink-0">
+            <Database className="w-5 h-5" />
           </div>
-
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-slate-800 transition"
-          >
-            ✕ Close
-          </button>
+          <div>
+            <div className="flex items-center space-x-2">
+              <span className="font-bold text-sm text-slate-100">
+                Data Storage, Backup & Disaster Recovery Center
+              </span>
+              <span className="bg-purple-950 text-purple-300 px-2 py-0.5 rounded text-[10px] font-mono font-bold border border-purple-800">
+                Superior Super Admin Only (Rachel Pickard)
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Full granular archive of automated point-in-time backups, payload state inspector, and 1-click restore engine.
+            </p>
+          </div>
         </div>
+
+        <button
+          onClick={onClose}
+          className="text-slate-400 hover:text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-slate-800 transition cursor-pointer"
+        >
+          ✕ Close
+        </button>
+      </div>
 
         {/* Top Metric Summary Cards */}
         <div className="bg-slate-100 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 px-5 py-3 grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
@@ -412,7 +424,7 @@ export const BackupRecoveryModal: React.FC<BackupRecoveryModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="p-5 sm:p-6 max-h-[72vh] overflow-y-auto space-y-5">
+        <div className="p-5 sm:p-6 flex-1 min-h-0 overflow-y-auto space-y-5">
           {/* Notifications */}
           {successMsg && (
             <div className="bg-emerald-50 dark:bg-emerald-950/80 border border-emerald-300 dark:border-emerald-700 text-emerald-900 dark:text-emerald-200 p-3.5 rounded-xl text-xs font-semibold flex items-center space-x-2 animate-in fade-in">
@@ -838,29 +850,36 @@ export const BackupRecoveryModal: React.FC<BackupRecoveryModalProps> = ({
 
         {/* Granular Snapshot Payload Inspection Drawer / Modal */}
         {selectedSnapshotForInspect && (
-          <div className="fixed inset-0 bg-slate-950/35 flex items-center justify-center p-4 z-60 animate-in fade-in">
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border-2 border-purple-500/80 shadow-2xl w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
-              <div className="bg-slate-950 text-white p-4 flex items-center justify-between border-b border-slate-800">
-                <div className="flex items-center space-x-2.5">
-                  <FileCode className="w-5 h-5 text-purple-400" />
-                  <div>
-                    <span className="font-bold text-xs text-slate-100">
-                      Full Snapshot Payload Inspector: {selectedSnapshotForInspect.fileName}
-                    </span>
-                    <div className="text-[10px] font-mono text-purple-400">
-                      Captured at: {selectedSnapshotForInspect.timestamp} ({selectedSnapshotForInspect.type})
-                    </div>
+          <DraggableResizableModal
+            onClose={() => setSelectedSnapshotForInspect(null)}
+            modalId="backup-payload-inspector"
+            zIndex="z-60"
+            className="bg-white dark:bg-slate-900 rounded-2xl border-2 border-purple-500/80 shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col my-auto"
+          >
+            <div
+              data-drag-handle="true"
+              className="bg-slate-950 text-white p-4 flex items-center justify-between border-b border-slate-800 cursor-grab active:cursor-grabbing select-none"
+            >
+              <div className="flex items-center space-x-2.5">
+                <FileCode className="w-5 h-5 text-purple-400" />
+                <div>
+                  <span className="font-bold text-xs text-slate-100">
+                    Full Snapshot Payload Inspector: {selectedSnapshotForInspect.fileName}
+                  </span>
+                  <div className="text-[10px] font-mono text-purple-400">
+                    Captured at: {selectedSnapshotForInspect.timestamp} ({selectedSnapshotForInspect.type})
                   </div>
                 </div>
-                <button
-                  onClick={() => setSelectedSnapshotForInspect(null)}
-                  className="text-slate-400 hover:text-white text-xs font-bold px-2 py-0.5 rounded"
-                >
-                  ✕
-                </button>
               </div>
+              <button
+                onClick={() => setSelectedSnapshotForInspect(null)}
+                className="text-slate-400 hover:text-white text-xs font-bold px-2 py-0.5 rounded cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
 
-              <div className="p-5 space-y-4 overflow-y-auto text-xs">
+            <div className="p-5 space-y-4 overflow-y-auto text-xs flex-1 min-h-0">
                 {/* Meta Grid */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl font-mono text-[11px] border border-slate-200 dark:border-slate-700">
                   <div>
@@ -1093,7 +1112,6 @@ export const BackupRecoveryModal: React.FC<BackupRecoveryModalProps> = ({
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </DraggableResizableModal>
   );
 };

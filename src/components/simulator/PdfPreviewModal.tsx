@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { FileText, Download, CheckCircle2, ShieldCheck, Printer, Mail, FolderCheck, Check, Sparkles, Building, User, Calendar, Hash, FileDown } from 'lucide-react';
 import { IssuedDocument } from '../../types';
 import { getPexGreenLogoDataUrl, PEX_GREEN_LOGO_PUBLIC_PATH } from '../brand/brandLogoData';
+import { DraggableResizableModal } from '../common/DraggableResizableModal';
 import jsPDF from 'jspdf';
 
 interface PdfPreviewModalProps {
@@ -234,18 +235,24 @@ export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({ doc, onClose }
   const totalUnits = safeDocItems.reduce((sum, item) => sum + (item?.Qty || 0), 0);
 
   return (
-    <div className="fixed inset-0 bg-slate-950/35 flex items-center justify-center p-4 z-50 printable-document-modal">
-      <div className="bg-slate-100 dark:bg-slate-800 rounded-xl shadow-2xl border-2 border-emerald-600/80 w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-200 printable-document">
-        {/* Header bar */}
-        <div className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between border-b border-slate-700 no-print">
-          <div className="flex items-center space-x-2">
-            <FileText className="w-5 h-5 text-emerald-400" />
-            <span className="font-mono text-xs font-bold text-slate-100">
-              Stationery Requisition Issue Form — Print Preview & PDF Export
-            </span>
-          </div>
+    <DraggableResizableModal
+      onClose={onClose}
+      modalId="pdf-preview-modal"
+      className="bg-slate-100 dark:bg-slate-800 rounded-xl shadow-2xl border-2 border-emerald-600/80 w-full max-w-2xl overflow-hidden printable-document my-auto"
+    >
+      {/* Header bar */}
+      <div
+        data-drag-handle="true"
+        className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between border-b border-slate-700 no-print cursor-grab active:cursor-grabbing select-none"
+      >
+        <div className="flex items-center space-x-2">
+          <FileText className="w-5 h-5 text-emerald-400" />
+          <span className="font-mono text-xs font-bold text-slate-100">
+            Stationery Requisition Issue Form — Print Preview & PDF Export
+          </span>
+        </div>
 
-          <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2">
             <button
               type="button"
               onClick={handlePrintNow}
@@ -277,7 +284,7 @@ export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({ doc, onClose }
         </div>
 
         {/* Modal Content */}
-        <div className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+        <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
           {/* Toast / Auto-Save Alert Banner */}
           {autoSaveToast && (
             <div className="bg-emerald-600 text-white px-4 py-2.5 rounded-xl shadow-lg flex items-center justify-between text-xs font-mono animate-in fade-in slide-in-from-top-2 no-print">
@@ -500,8 +507,7 @@ export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({ doc, onClose }
             </div>
           </div>
         </div>
-      </div>
-    </div>
+    </DraggableResizableModal>
   );
 };
 

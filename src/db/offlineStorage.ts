@@ -338,33 +338,6 @@ export async function enqueueOfflineMutation(mutation: OfflineMutation): Promise
         if ('sync' in registration) {
           await (registration as any).sync.register('sync-documents');
         }
-
-        export async function putSyncDocument(document: SyncDocument & { sync_id: string }): Promise<void> {
-          const db = await getOfflineDB();
-          await db.put('sync_queue', document);
-        }
-
-        export async function enqueueSyncDocument(document: SyncDocument): Promise<string> {
-          const db = await getOfflineDB();
-          const syncDocument = { ...document, sync_id: crypto.randomUUID() };
-          const tx = db.transaction(['large_documents', 'sync_queue'], 'readwrite');
-          await tx.objectStore('large_documents').put(document);
-          await tx.objectStore('sync_queue').put(syncDocument);
-          await tx.done;
-          return syncDocument.sync_id;
-        }
-
-        export async function getPendingSyncDocuments(): Promise<Array<SyncDocument & { sync_id: string }>> {
-          const db = await getOfflineDB();
-          return (await db.getAll('sync_queue')).sort(
-            (a, b) => new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
-          );
-        }
-
-        export async function removeSyncDocument(syncId: string): Promise<void> {
-          const db = await getOfflineDB();
-          await db.delete('sync_queue', syncId);
-        }
       } catch (syncErr) {
         // Tolerant if background sync not permitted
       }
@@ -372,6 +345,33 @@ export async function enqueueOfflineMutation(mutation: OfflineMutation): Promise
   } catch (err) {
     console.error('[OfflineStorage] Failed to enqueue mutation:', err);
   }
+}
+
+export async function putSyncDocument(document: SyncDocument & { sync_id: string }): Promise<void> {
+  const db = await getOfflineDB();
+  await db.put('sync_queue', document);
+}
+
+export async function enqueueSyncDocument(document: SyncDocument): Promise<string> {
+  const db = await getOfflineDB();
+  const syncDocument = { ...document, sync_id: crypto.randomUUID() };
+  const tx = db.transaction(['large_documents', 'sync_queue'], 'readwrite');
+  await tx.objectStore('large_documents').put(document);
+  await tx.objectStore('sync_queue').put(syncDocument);
+  await tx.done;
+  return syncDocument.sync_id;
+}
+
+export async function getPendingSyncDocuments(): Promise<Array<SyncDocument & { sync_id: string }>> {
+  const db = await getOfflineDB();
+  return (await db.getAll('sync_queue')).sort(
+    (a, b) => new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
+  );
+}
+
+export async function removeSyncDocument(syncId: string): Promise<void> {
+  const db = await getOfflineDB();
+  await db.delete('sync_queue', syncId);
 }
 
 /**

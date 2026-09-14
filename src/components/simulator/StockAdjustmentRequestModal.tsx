@@ -40,6 +40,7 @@ import {
 import { searchStockItems } from '../../utils/searchEngine';
 import { StockItemDropUpSelect } from '../common/StockItemDropUpSelect';
 import { VisualCountdownTimer } from './VisualCountdownTimer';
+import { DraggableResizableModal } from '../common/DraggableResizableModal';
 
 interface StockAdjustmentRequestModalProps {
   isOpen: boolean;
@@ -247,37 +248,42 @@ export const StockAdjustmentRequestModal: React.FC<StockAdjustmentRequestModalPr
   );
 
   return (
-    <div className="fixed inset-0 bg-slate-950/35 flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border-2 border-amber-500/80 w-full max-w-5xl overflow-hidden my-auto animate-in fade-in zoom-in duration-200">
-        
-        {/* Header */}
-        <div className="bg-slate-950 text-white px-5 py-4 flex items-center justify-between border-b border-slate-800">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30 shrink-0">
-              <SlidersHorizontal className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <span className="font-bold text-sm text-slate-100">
-                  Stock Item Adjustment Request & Authorization Portal
-                </span>
-                <span className="bg-amber-950 text-amber-300 px-2 py-0.5 rounded text-[10px] font-mono font-bold border border-amber-800">
-                  Staff: {currentUser?.IssuerName || 'Staff'} ({currentUser?.IssuerID || 'ADM'})
-                </span>
-              </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Standard users create structured adjustment lists. Only Superior Admin (Rachel Pickard) can execute adjustments or grant custom-timed access.
-              </p>
-            </div>
+    <DraggableResizableModal
+      onClose={onClose}
+      modalId="stock-adjustment-request-modal"
+      className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border-2 border-amber-500/80 w-full max-w-5xl overflow-hidden my-auto"
+    >
+      {/* Header */}
+      <div
+        data-drag-handle="true"
+        className="bg-slate-950 text-white px-5 py-4 flex items-center justify-between border-b border-slate-800 cursor-grab active:cursor-grabbing select-none"
+      >
+        <div className="flex items-center space-x-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30 shrink-0">
+            <SlidersHorizontal className="w-5 h-5" />
           </div>
-
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-slate-800 transition"
-          >
-            ✕ Close
-          </button>
+          <div>
+            <div className="flex items-center space-x-2">
+              <span className="font-bold text-sm text-slate-100">
+                Stock Item Adjustment Request & Authorization Portal
+              </span>
+              <span className="bg-amber-950 text-amber-300 px-2 py-0.5 rounded text-[10px] font-mono font-bold border border-amber-800">
+                Staff: {currentUser?.IssuerName || 'Staff'} ({currentUser?.IssuerID || 'ADM'})
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Standard users create structured adjustment lists. Only Superior Admin (Rachel Pickard) can execute adjustments or grant custom-timed access.
+            </p>
+          </div>
         </div>
+
+        <button
+          onClick={onClose}
+          className="text-slate-400 hover:text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-slate-800 transition cursor-pointer"
+        >
+          ✕ Close
+        </button>
+      </div>
 
         {/* Security Protocol Banner Notice */}
         <div className="bg-amber-500/10 border-b border-amber-500/30 px-5 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-amber-900 dark:text-amber-200">
@@ -366,7 +372,7 @@ export const StockAdjustmentRequestModal: React.FC<StockAdjustmentRequestModalPr
         )}
 
         {/* Main Body */}
-        <div className="p-5 sm:p-6 max-h-[72vh] overflow-y-auto">
+        <div className="p-5 sm:p-6 flex-1 min-h-0 overflow-y-auto">
 
           {/* TAB 1: MULTI-STEP CREATION WIZARD */}
           {activeTab === 'create' && (
@@ -969,7 +975,6 @@ export const StockAdjustmentRequestModal: React.FC<StockAdjustmentRequestModalPr
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </DraggableResizableModal>
   );
 };

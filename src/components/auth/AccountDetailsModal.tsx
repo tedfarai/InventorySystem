@@ -16,6 +16,7 @@ import {
   Check,
 } from 'lucide-react';
 import { AdminUser } from '../../types';
+import { DraggableResizableModal } from '../common/DraggableResizableModal';
 
 interface AccountDetailsModalProps {
   isOpen: boolean;
@@ -112,30 +113,36 @@ export const AccountDetailsModal: React.FC<AccountDetailsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/35 animate-in fade-in duration-150">
-      <div className="w-full max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        {/* Header */}
-        <div className="p-4 sm:p-5 bg-gradient-to-r from-emerald-700 via-teal-800 to-slate-900 text-white flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center font-bold">
-              <User className="w-5 h-5 text-emerald-200" />
-            </div>
-            <div>
-              <h2 className="text-base sm:text-lg font-bold">User Account &amp; Profile</h2>
-              <p className="text-xs text-emerald-100">Identity details and security credentials</p>
-            </div>
+    <DraggableResizableModal
+      onClose={onClose}
+      modalId="account-details-modal"
+      className="w-full max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col my-auto"
+    >
+      {/* Header */}
+      <div
+        data-drag-handle="true"
+        className="p-4 sm:p-5 bg-gradient-to-r from-emerald-700 via-teal-800 to-slate-900 text-white flex items-center justify-between cursor-grab active:cursor-grabbing select-none shrink-0"
+      >
+        <div className="flex items-center space-x-3">
+          <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center font-bold">
+            <User className="w-5 h-5 text-emerald-200" />
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition cursor-pointer"
-            aria-label="Close"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div>
+            <h2 className="text-base sm:text-lg font-bold">User Account &amp; Profile</h2>
+            <p className="text-xs text-emerald-100">Identity details and security credentials</p>
+          </div>
         </div>
+        <button
+          onClick={onClose}
+          className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition cursor-pointer"
+          aria-label="Close"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>
 
-        {/* Content Body */}
-        <div className="p-5 sm:p-6 overflow-y-auto space-y-6 flex-1">
+      {/* Content Body */}
+      <div className="p-5 sm:p-6 overflow-y-auto space-y-6 flex-1 min-h-0">
           {/* Section 1: User Account Profile Details */}
           <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl space-y-4">
             <div className="flex items-start justify-between gap-3">
@@ -327,7 +334,6 @@ export const AccountDetailsModal: React.FC<AccountDetailsModalProps> = ({
             </form>
           </div>
         </div>
-      </div>
-    </div>
+    </DraggableResizableModal>
   );
 };

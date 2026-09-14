@@ -13,6 +13,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { Department, IssueCartItem } from '../../types';
+import { DraggableResizableModal } from '../common/DraggableResizableModal';
 
 interface PreviewConfirmationModalProps {
   dept: Department;
@@ -73,25 +74,31 @@ export const PreviewConfirmationModal: React.FC<PreviewConfirmationModalProps> =
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-950/35 flex items-center justify-center p-4 z-50">
-      <div className="bg-slate-100 dark:bg-slate-800 rounded-xl shadow-2xl border-2 border-emerald-600/80 w-full max-w-xl overflow-hidden animate-in fade-in zoom-in duration-200">
-        {/* UserForm Header */}
-        <div className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between border-b border-slate-700">
-          <div className="flex items-center space-x-2">
-            <FileText className="w-5 h-5 text-emerald-400" />
-            <span className="font-mono text-xs font-bold tracking-wide text-slate-100">
-              VBA Dialogue Preview Confirmation — Issue Slip Execution
-            </span>
-          </div>
-          {!isProcessing && (
-            <button onClick={onCancel} className="text-slate-400 hover:text-white text-xs font-bold">
-              ✕
-            </button>
-          )}
+    <DraggableResizableModal
+      onClose={onCancel}
+      modalId="preview-confirmation-modal"
+      className="bg-slate-100 dark:bg-slate-800 rounded-xl shadow-2xl border-2 border-emerald-600/80 w-full max-w-xl overflow-hidden my-auto"
+    >
+      {/* UserForm Header */}
+      <div
+        data-drag-handle="true"
+        className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between border-b border-slate-700 cursor-grab active:cursor-grabbing select-none"
+      >
+        <div className="flex items-center space-x-2">
+          <FileText className="w-5 h-5 text-emerald-400" />
+          <span className="font-mono text-xs font-bold tracking-wide text-slate-100">
+            VBA Dialogue Preview Confirmation — Issue Slip Execution
+          </span>
         </div>
+        {!isProcessing && (
+          <button onClick={onCancel} className="text-slate-400 hover:text-white text-xs font-bold cursor-pointer">
+            ✕
+          </button>
+        )}
+      </div>
 
-        {/* Modal Body */}
-        <div className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
+      {/* Modal Body */}
+      <div className="p-6 space-y-5 flex-1 min-h-0 overflow-y-auto">
           <div className="bg-emerald-500/10 border border-emerald-500/30 p-3.5 rounded-lg flex items-start space-x-3">
             <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
             <div className="text-xs text-slate-700 dark:text-slate-300">
@@ -243,14 +250,13 @@ export const PreviewConfirmationModal: React.FC<PreviewConfirmationModalProps> =
               type="button"
               onClick={handleExecute}
               disabled={isProcessing || activeCart.length === 0}
-              className="flex items-center space-x-2 px-6 py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-500 rounded-lg shadow-lg transition"
+              className="flex items-center space-x-2 px-6 py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-500 rounded-lg shadow-lg transition cursor-pointer"
             >
               <CheckCircle className="w-4 h-4" />
               <span>{isProcessing ? `Executing... (${progressPercent}%)` : 'Confirm & Execute Issue Sequence'}</span>
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </DraggableResizableModal>
   );
 };

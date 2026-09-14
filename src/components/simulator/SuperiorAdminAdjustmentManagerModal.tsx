@@ -29,6 +29,7 @@ import {
   TimedAccessWindow,
   AdjustmentReasonCode,
 } from '../../types';
+import { DraggableResizableModal } from '../common/DraggableResizableModal';
 
 interface SuperiorAdminAdjustmentManagerModalProps {
   isOpen: boolean;
@@ -148,36 +149,42 @@ export const SuperiorAdminAdjustmentManagerModal: React.FC<SuperiorAdminAdjustme
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-950/35 flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border-2 border-purple-600/80 w-full max-w-5xl overflow-hidden my-auto animate-in fade-in zoom-in duration-200">
-        {/* Header */}
-        <div className="bg-slate-950 text-white px-5 py-4 flex items-center justify-between border-b border-slate-800">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center border border-purple-500/30 shrink-0">
-              <ShieldCheck className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <span className="font-bold text-sm text-slate-100">
-                  Stock Adjustment Authorization & Timed Access Manager
-                </span>
-                <span className="bg-purple-950 text-purple-300 px-2 py-0.5 rounded text-[10px] font-mono font-bold border border-purple-800">
-                  Superior Super Admin: Rachel Pickard (ADM001)
-                </span>
-              </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Review staff stock adjustment request batches, directly authorize 1-click execution, or grant custom-timed access windows.
-              </p>
-            </div>
+    <DraggableResizableModal
+      onClose={onClose}
+      modalId="superior-admin-adjustment-manager-modal"
+      className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border-2 border-purple-600/80 w-full max-w-5xl overflow-hidden my-auto"
+    >
+      {/* Header */}
+      <div
+        data-drag-handle="true"
+        className="bg-slate-950 text-white px-5 py-4 flex items-center justify-between border-b border-slate-800 cursor-grab active:cursor-grabbing select-none"
+      >
+        <div className="flex items-center space-x-3">
+          <div className="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center border border-purple-500/30 shrink-0">
+            <ShieldCheck className="w-5 h-5" />
           </div>
-
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-slate-800 transition"
-          >
-            ✕ Close
-          </button>
+          <div>
+            <div className="flex items-center space-x-2">
+              <span className="font-bold text-sm text-slate-100">
+                Stock Adjustment Authorization & Timed Access Manager
+              </span>
+              <span className="bg-purple-950 text-purple-300 px-2 py-0.5 rounded text-[10px] font-mono font-bold border border-purple-800">
+                Superior Super Admin: Rachel Pickard (ADM001)
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Review staff stock adjustment request batches, directly authorize 1-click execution, or grant custom-timed access windows.
+            </p>
+          </div>
         </div>
+
+        <button
+          onClick={onClose}
+          className="text-slate-400 hover:text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-slate-800 transition cursor-pointer"
+        >
+          ✕ Close
+        </button>
+      </div>
 
         {/* Metric Summary Ribbon */}
         <div className="bg-slate-100 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 px-5 py-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
@@ -211,7 +218,7 @@ export const SuperiorAdminAdjustmentManagerModal: React.FC<SuperiorAdminAdjustme
         )}
 
         {/* Main Body */}
-        <div className="p-5 sm:p-6 max-h-[70vh] overflow-y-auto space-y-5">
+        <div className="p-5 sm:p-6 flex-1 min-h-0 overflow-y-auto space-y-5">
           {/* Search & Filter Bar */}
           <div className="bg-slate-50 dark:bg-slate-800/40 p-3 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div className="relative flex-1">
@@ -624,7 +631,6 @@ export const SuperiorAdminAdjustmentManagerModal: React.FC<SuperiorAdminAdjustme
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </DraggableResizableModal>
   );
 };

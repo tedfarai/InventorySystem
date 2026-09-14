@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { PackagePlus, ArrowLeft, CheckCircle, Truck } from 'lucide-react';
 import { StockItem } from '../../types';
 import { StockItemDropUpSelect } from '../common/StockItemDropUpSelect';
+import { DraggableResizableModal } from '../common/DraggableResizableModal';
 
 interface StockDeliveryDialogProps {
   stockItems: StockItem[];
@@ -45,26 +46,32 @@ export const StockDeliveryDialog: React.FC<StockDeliveryDialogProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-950/35 flex items-center justify-center p-4 z-50">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border-2 border-emerald-600/60 w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200">
-        {/* UserForm Header */}
-        <div className="bg-slate-900 text-white px-4 py-2.5 flex items-center justify-between border-b border-slate-700">
-          <div className="flex items-center space-x-2">
-            <PackagePlus className="w-4 h-4 text-emerald-400" />
-            <span className="font-mono text-xs font-semibold tracking-wide text-slate-200">
-              frmStockDelivery — Enter New Delivery / Update Stocks
-            </span>
-          </div>
-          <button
-            onClick={onBack}
-            className="text-slate-400 hover:text-white text-xs font-bold px-1.5 py-0.5 rounded hover:bg-slate-800 cursor-pointer"
-          >
-            ✕
-          </button>
+    <DraggableResizableModal
+      onClose={onBack}
+      modalId="stock-delivery-dialog-modal"
+      className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border-2 border-emerald-600/60 w-full max-w-lg overflow-hidden my-auto"
+    >
+      {/* UserForm Header */}
+      <div
+        data-drag-handle="true"
+        className="bg-slate-900 text-white px-4 py-2.5 flex items-center justify-between border-b border-slate-700 cursor-grab active:cursor-grabbing select-none"
+      >
+        <div className="flex items-center space-x-2">
+          <PackagePlus className="w-4 h-4 text-emerald-400" />
+          <span className="font-mono text-xs font-semibold tracking-wide text-slate-200">
+            frmStockDelivery — Enter New Delivery / Update Stocks
+          </span>
         </div>
+        <button
+          onClick={onBack}
+          className="text-slate-400 hover:text-white text-xs font-bold px-1.5 py-0.5 rounded hover:bg-slate-800 cursor-pointer"
+        >
+          ✕
+        </button>
+      </div>
 
-        {/* UserForm Body */}
-        <div className="p-6 space-y-4">
+      {/* UserForm Body */}
+      <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
           <div className="text-xs text-slate-600 dark:text-slate-300">
             Select an existing stock item to record incoming delivery inventory. This will increment <code className="font-mono bg-slate-200 dark:bg-slate-700 px-1 rounded">Master_Stock</code>, record supplier tracking, and add an entry to <code className="font-mono bg-slate-200 dark:bg-slate-700 px-1 rounded">Movement_Log</code>.
           </div>
@@ -177,7 +184,6 @@ export const StockDeliveryDialog: React.FC<StockDeliveryDialogProps> = ({
             </div>
           </form>
         </div>
-      </div>
-    </div>
+    </DraggableResizableModal>
   );
 };

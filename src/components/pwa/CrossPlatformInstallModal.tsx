@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { detectPlatform, PlatformDetails } from '../../utils/platformDetector';
 import { PlatformType } from '../../types';
+import { DraggableResizableModal } from '../common/DraggableResizableModal';
 
 interface CrossPlatformInstallModalProps {
   isOpen: boolean;
@@ -159,36 +160,42 @@ export const CrossPlatformInstallModal: React.FC<CrossPlatformInstallModalProps>
   const currentPlatformInfo = platforms.find((p) => p.id === activeTab) || platforms[0];
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-3xl shadow-2xl flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-gradient-to-r from-teal-950 via-slate-900 to-slate-950 text-white flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-teal-500/20 border border-teal-400/40 flex items-center justify-center text-teal-300">
-              <Download className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-white">
-                  Cross-Platform PWA Installation
-                </h2>
-                <span className="bg-teal-500/20 text-teal-200 text-[10px] px-2 py-0.5 rounded font-mono font-bold">
-                  Windows • Mac • Linux
-                </span>
-              </div>
-              <p className="text-xs text-slate-300">
-                Install as a standalone native desktop app with 100% offline capability and instant multi-user cloud sync.
-              </p>
-            </div>
+    <DraggableResizableModal
+      onClose={onClose}
+      modalId="cross-platform-install-modal"
+      className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-3xl shadow-2xl flex flex-col overflow-hidden my-auto"
+    >
+      {/* Header */}
+      <div
+        data-drag-handle="true"
+        className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-gradient-to-r from-teal-950 via-slate-900 to-slate-950 text-white flex items-center justify-between cursor-grab active:cursor-grabbing select-none shrink-0"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-teal-500/20 border border-teal-400/40 flex items-center justify-center text-teal-300">
+            <Download className="w-5 h-5" />
           </div>
-
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-bold text-white">
+                Cross-Platform PWA Installation
+              </h2>
+              <span className="bg-teal-500/20 text-teal-200 text-[10px] px-2 py-0.5 rounded font-mono font-bold">
+                Windows • Mac • Linux
+              </span>
+            </div>
+            <p className="text-xs text-slate-300">
+              Install as a standalone native desktop app with 100% offline capability and instant multi-user cloud sync.
+            </p>
+          </div>
         </div>
+
+        <button
+          onClick={onClose}
+          className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>
 
         {/* 1-Click Fast Install Bar (if available in this browser) */}
         {isInstallable && (
@@ -321,7 +328,6 @@ export const CrossPlatformInstallModal: React.FC<CrossPlatformInstallModalProps>
             Close Guide
           </button>
         </div>
-      </div>
-    </div>
+    </DraggableResizableModal>
   );
 };

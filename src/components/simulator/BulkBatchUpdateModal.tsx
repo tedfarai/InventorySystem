@@ -10,6 +10,7 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import { StockItem } from '../../types';
+import { DraggableResizableModal } from '../common/DraggableResizableModal';
 
 interface BulkBatchUpdateModalProps {
   isOpen: boolean;
@@ -78,36 +79,36 @@ export const BulkBatchUpdateModal: React.FC<BulkBatchUpdateModalProps> = ({
   };
 
   return (
-    <div
-      id="bulk-batch-update-modal-backdrop"
-      className="fixed inset-0 bg-slate-950/35 flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto"
+    <DraggableResizableModal
+      onClose={onClose}
+      modalId="bulk-batch-update-modal"
+      className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-lg overflow-hidden my-auto"
     >
+      {/* Header */}
       <div
-        id="bulk-batch-update-modal-content"
-        className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-lg overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200"
+        data-drag-handle="true"
+        className="bg-slate-900 text-white px-5 py-4 flex items-center justify-between border-b border-slate-800 cursor-grab active:cursor-grabbing select-none"
       >
-        {/* Header */}
-        <div className="bg-slate-900 text-white px-5 py-4 flex items-center justify-between border-b border-slate-800">
-          <div className="flex items-center space-x-2.5">
-            <div className="p-2 bg-teal-500/20 text-teal-400 rounded-lg">
-              <SlidersHorizontal className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="font-bold text-sm text-slate-100">Batch Update Selected Stock Items</h3>
-              <p className="text-[11px] text-slate-400 font-mono">
-                Modifying {selectedItems.length} inventory item{selectedItems.length > 1 ? 's' : ''} simultaneously
-              </p>
-            </div>
+        <div className="flex items-center space-x-2.5">
+          <div className="p-2 bg-teal-500/20 text-teal-400 rounded-lg">
+            <SlidersHorizontal className="w-4 h-4" />
           </div>
-          <button
-            id="close-batch-update-modal-btn"
-            onClick={onClose}
-            type="button"
-            className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div>
+            <h3 className="font-bold text-sm text-slate-100">Batch Update Selected Stock Items</h3>
+            <p className="text-[11px] text-slate-400 font-mono">
+              Modifying {selectedItems.length} inventory item{selectedItems.length > 1 ? 's' : ''} simultaneously
+            </p>
+          </div>
         </div>
+        <button
+          id="close-batch-update-modal-btn"
+          onClick={onClose}
+          type="button"
+          className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition cursor-pointer"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
 
         {/* Selected Items summary chips */}
         <div className="p-4 bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 max-h-28 overflow-y-auto">
@@ -254,7 +255,7 @@ export const BulkBatchUpdateModal: React.FC<BulkBatchUpdateModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition"
+              className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition cursor-pointer"
             >
               Cancel
             </button>
@@ -262,14 +263,13 @@ export const BulkBatchUpdateModal: React.FC<BulkBatchUpdateModalProps> = ({
               id="confirm-batch-update-btn"
               type="submit"
               disabled={!updateCategory && !updateReorderLevel}
-              className="px-5 py-2 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 disabled:opacity-50 disabled:pointer-events-none rounded-lg shadow-xs transition flex items-center gap-1.5"
+              className="px-5 py-2 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 disabled:opacity-50 disabled:pointer-events-none rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer"
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
               Apply Batch Update
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </DraggableResizableModal>
   );
 };

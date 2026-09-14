@@ -17,6 +17,7 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import { StockItem, Department, IssueCartItem } from '../../types';
+import { DraggableResizableModal } from '../common/DraggableResizableModal';
 
 interface IssueRequestDialogProps {
   stockItems: StockItem[];
@@ -187,26 +188,32 @@ export const IssueRequestDialog: React.FC<IssueRequestDialogProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-950/35 flex items-center justify-center p-3 sm:p-4 z-50">
-      <div className="bg-slate-100 dark:bg-slate-800 rounded-2xl shadow-2xl border-2 border-emerald-600/60 w-full max-w-3xl overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col max-h-[92vh]">
-        {/* UserForm Header */}
-        <div className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between border-b border-slate-700 shrink-0">
-          <div className="flex items-center space-x-2">
-            <Send className="w-4 h-4 text-emerald-400" />
-            <span className="font-mono text-xs font-semibold tracking-wide text-slate-200">
-              frmIssueRequest — Issue Out Stationery & Cleaning Items
-            </span>
-          </div>
-          <button
-            onClick={onBack}
-            className="text-slate-400 hover:text-white text-xs font-bold px-2 py-0.5 rounded hover:bg-slate-800"
-          >
-            ✕
-          </button>
+    <DraggableResizableModal
+      onClose={onBack}
+      modalId="issue-request-dialog-modal"
+      className="bg-slate-100 dark:bg-slate-800 rounded-2xl shadow-2xl border-2 border-emerald-600/60 w-full max-w-3xl overflow-hidden flex flex-col my-auto"
+    >
+      {/* UserForm Header */}
+      <div
+        data-drag-handle="true"
+        className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between border-b border-slate-700 shrink-0 cursor-grab active:cursor-grabbing select-none"
+      >
+        <div className="flex items-center space-x-2">
+          <Send className="w-4 h-4 text-emerald-400" />
+          <span className="font-mono text-xs font-semibold tracking-wide text-slate-200">
+            frmIssueRequest — Issue Out Stationery & Cleaning Items
+          </span>
         </div>
+        <button
+          onClick={onBack}
+          className="text-slate-400 hover:text-white text-xs font-bold px-2 py-0.5 rounded hover:bg-slate-800 cursor-pointer"
+        >
+          ✕
+        </button>
+      </div>
 
-        {/* UserForm Body */}
-        <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
+      {/* UserForm Body */}
+      <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
           {errorMsg && (
             <div className="flex items-center space-x-2 bg-rose-50 dark:bg-rose-950/70 border border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 p-3 rounded-lg text-xs font-medium">
               <ShieldAlert className="w-4 h-4 shrink-0" />
@@ -552,13 +559,12 @@ export const IssueRequestDialog: React.FC<IssueRequestDialogProps> = ({
             type="button"
             onClick={handleProceedToPreview}
             disabled={!selectedDept || cart.length === 0}
-            className="flex items-center space-x-1.5 px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-400 rounded-lg shadow transition"
+            className="flex items-center space-x-1.5 px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-400 rounded-lg shadow transition cursor-pointer"
           >
             <Send className="w-4 h-4" />
             <span>Preview & Confirm Issue Request ({cart.length} items)</span>
           </button>
         </div>
-      </div>
-    </div>
+    </DraggableResizableModal>
   );
 };

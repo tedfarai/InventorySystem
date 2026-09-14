@@ -27,6 +27,7 @@ import {
   ReorderReportSummary,
   ReorderItemAnalysis,
 } from '../../utils/reorderReportPdfGenerator';
+import { DraggableResizableModal } from '../common/DraggableResizableModal';
 
 interface ReorderReportModalProps {
   stockItems: StockItem[];
@@ -113,44 +114,47 @@ export const ReorderReportModal: React.FC<ReorderReportModalProps> = ({
   };
 
   return (
-    <div
-      id="reorder-report-modal"
-      className="fixed inset-0 bg-slate-950/35 flex items-center justify-center p-3 sm:p-5 z-50 overflow-y-auto animate-in fade-in duration-200"
+    <DraggableResizableModal
+      onClose={onClose}
+      modalId="reorder-report-modal"
+      className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-5xl overflow-hidden flex flex-col my-auto"
     >
-      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-5xl overflow-hidden flex flex-col max-h-[92vh]">
-        {/* MODAL HEADER */}
-        <div className="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between border-b border-slate-800 shrink-0">
-          <div className="flex items-center space-x-3">
-            <div className="w-9 h-9 rounded-xl bg-teal-500/20 text-teal-400 border border-teal-500/40 flex items-center justify-center font-bold">
-              <FileText className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <h3 className="text-sm sm:text-base font-bold text-white tracking-tight">
-                  Stock Reorder & Safety Threshold Report
-                </h3>
-                <span className="bg-rose-500/20 text-rose-300 border border-rose-500/40 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full">
-                  {summary.belowThresholdCount} Needs Reorder
-                </span>
-              </div>
-              <p className="text-xs text-slate-400 font-mono">
-                Ref: {summary.reportRef} | Target: Rachel Pickard (Procurement Manager - ADM001)
-              </p>
-            </div>
+      {/* MODAL HEADER */}
+      <div
+        data-drag-handle="true"
+        className="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between border-b border-slate-800 shrink-0 cursor-grab active:cursor-grabbing select-none"
+      >
+        <div className="flex items-center space-x-3">
+          <div className="w-9 h-9 rounded-xl bg-teal-500/20 text-teal-400 border border-teal-500/40 flex items-center justify-center font-bold">
+            <FileText className="w-5 h-5" />
           </div>
-
-          <div className="flex items-center space-x-2">
-            <button
-              id="close-reorder-report-btn"
-              type="button"
-              onClick={onClose}
-              className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition cursor-pointer"
-              title="Close Report"
-            >
-              <X className="w-5 h-5" />
-            </button>
+          <div>
+            <div className="flex items-center space-x-2">
+              <h3 className="text-sm sm:text-base font-bold text-white tracking-tight">
+                Stock Reorder & Safety Threshold Report
+              </h3>
+              <span className="bg-rose-500/20 text-rose-300 border border-rose-500/40 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full">
+                {summary.belowThresholdCount} Needs Reorder
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 font-mono">
+              Ref: {summary.reportRef} | Target: Rachel Pickard (Procurement Manager - ADM001)
+            </p>
           </div>
         </div>
+
+        <div className="flex items-center space-x-2">
+          <button
+            id="close-reorder-report-btn"
+            type="button"
+            onClick={onClose}
+            className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition cursor-pointer"
+            title="Close Report"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
 
         {/* MODAL BODY */}
         <div className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1">
@@ -491,7 +495,6 @@ export const ReorderReportModal: React.FC<ReorderReportModalProps> = ({
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </DraggableResizableModal>
   );
 };

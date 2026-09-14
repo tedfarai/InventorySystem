@@ -13,6 +13,7 @@ import {
   Command,
   CornerDownLeft,
 } from 'lucide-react';
+import { DraggableResizableModal } from './DraggableResizableModal';
 
 interface KeyboardShortcutsModalProps {
   isOpen: boolean;
@@ -58,33 +59,39 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
   ];
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/35 animate-in fade-in">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden text-slate-900 dark:text-slate-100 flex flex-col max-h-[85vh]">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/80 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-9 h-9 rounded-xl bg-teal-500/20 text-teal-600 dark:text-teal-400 flex items-center justify-center border border-teal-500/30">
-              <Keyboard className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-base font-bold tracking-tight text-slate-900 dark:text-white">
-                Global Keyboard Shortcuts
-              </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Speed up workflows and inventory navigation with power user hotkeys
-              </p>
-            </div>
+    <DraggableResizableModal
+      onClose={onClose}
+      modalId="keyboard-shortcuts-modal"
+      className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden text-slate-900 dark:text-slate-100 flex flex-col my-auto"
+    >
+      {/* Header */}
+      <div
+        data-drag-handle="true"
+        className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/80 flex items-center justify-between cursor-grab active:cursor-grabbing select-none shrink-0"
+      >
+        <div className="flex items-center space-x-3">
+          <div className="w-9 h-9 rounded-xl bg-teal-500/20 text-teal-600 dark:text-teal-400 flex items-center justify-center border border-teal-500/30">
+            <Keyboard className="w-5 h-5" />
           </div>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-700 dark:hover:text-white p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div>
+            <h2 className="text-base font-bold tracking-tight text-slate-900 dark:text-white">
+              Global Keyboard Shortcuts
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Speed up workflows and inventory navigation with power user hotkeys
+            </p>
+          </div>
         </div>
+        <button
+          onClick={onClose}
+          className="text-slate-400 hover:text-slate-700 dark:hover:text-white p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>
 
-        {/* Shortcuts Body */}
-        <div className="p-6 overflow-y-auto space-y-6">
+      {/* Shortcuts Body */}
+      <div className="p-6 overflow-y-auto space-y-6 flex-1 min-h-0">
           {shortcutGroups.map((group, gIdx) => (
             <div key={gIdx} className="space-y-3">
               <h3 className="text-xs font-bold uppercase tracking-wider text-teal-600 dark:text-teal-400 font-mono">
@@ -138,7 +145,6 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
             Got It
           </button>
         </div>
-      </div>
-    </div>
+    </DraggableResizableModal>
   );
 };

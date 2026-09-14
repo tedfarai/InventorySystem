@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { FolderOpen, HardDrive, CheckCircle2, ShieldCheck, FolderPlus, Sparkles, Folder } from 'lucide-react';
+import { DraggableResizableModal } from '../common/DraggableResizableModal';
 
 interface MasterFolderConfigModalProps {
   currentPath: string;
@@ -42,23 +43,29 @@ export const MasterFolderConfigModal: React.FC<MasterFolderConfigModalProps> = (
   const formattedPath = customPathInput.endsWith('\\') ? customPathInput : `${customPathInput}\\`;
 
   return (
-    <div className="fixed inset-0 bg-slate-950/35 flex items-center justify-center p-4 z-50">
-      <div className="bg-slate-100 dark:bg-slate-800 rounded-2xl shadow-2xl border-2 border-amber-500/80 w-full max-w-xl overflow-hidden animate-in fade-in zoom-in duration-200">
-        {/* Header */}
-        <div className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between border-b border-slate-700">
-          <div className="flex items-center space-x-2">
-            <FolderOpen className="w-5 h-5 text-amber-400" />
-            <span className="font-mono text-xs font-bold text-slate-100">
-              Master Folder Location Configuration — Stationery & Cleaning
-            </span>
-          </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-white text-xs font-bold">
-            ✕
-          </button>
+    <DraggableResizableModal
+      onClose={onClose}
+      modalId="master-folder-config-modal"
+      className="bg-slate-100 dark:bg-slate-800 rounded-2xl shadow-2xl border-2 border-amber-500/80 w-full max-w-xl overflow-hidden my-auto"
+    >
+      {/* Header */}
+      <div
+        data-drag-handle="true"
+        className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between border-b border-slate-700 cursor-grab active:cursor-grabbing select-none"
+      >
+        <div className="flex items-center space-x-2">
+          <FolderOpen className="w-5 h-5 text-amber-400" />
+          <span className="font-mono text-xs font-bold text-slate-100">
+            Master Folder Location Configuration — Stationery & Cleaning
+          </span>
         </div>
+        <button onClick={onClose} className="text-slate-400 hover:text-white text-xs font-bold cursor-pointer">
+          ✕
+        </button>
+      </div>
 
-        {/* Content */}
-        <form onSubmit={handleSave} className="p-6 space-y-5">
+      {/* Content */}
+      <form onSubmit={handleSave} className="p-6 space-y-5 flex-1 min-h-0 overflow-y-auto">
           <div className="bg-amber-500/10 border border-amber-500/30 p-3.5 rounded-xl flex items-start space-x-3 text-xs text-slate-700 dark:text-slate-300">
             <ShieldCheck className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
             <div>
@@ -171,14 +178,13 @@ export const MasterFolderConfigModal: React.FC<MasterFolderConfigModalProps> = (
 
             <button
               type="submit"
-              className="flex items-center space-x-2 px-6 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-xl shadow transition"
+              className="flex items-center space-x-2 px-6 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-xl shadow transition cursor-pointer"
             >
               <CheckCircle2 className="w-4 h-4" />
               <span>Save Chosen Master Folder Location</span>
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </DraggableResizableModal>
   );
 };

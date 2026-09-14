@@ -15,6 +15,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { ProcurementTabType } from './ProcurementOperationsDialog';
+import { DraggableResizableModal } from '../common/DraggableResizableModal';
 
 interface NavigationDialogProps {
   issuerName: string;
@@ -38,27 +39,33 @@ export const NavigationDialog: React.FC<NavigationDialogProps> = ({
   onLogout,
 }) => {
   return (
-    <div className="fixed inset-0 bg-slate-950/35 flex items-center justify-center p-4 z-50">
-      <div className="bg-slate-100 dark:bg-slate-800 rounded-2xl shadow-2xl border-2 border-emerald-600/60 w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-        {/* UserForm Header */}
-        <div className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between border-b border-slate-700">
-          <div className="flex items-center space-x-2">
-            <Layers className="w-4 h-4 text-emerald-400" />
-            <span className="font-mono text-xs font-bold tracking-wide text-slate-200">
-              frmNavigation — Main Procurement Switchboard
-            </span>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-white text-xs font-bold px-2 py-0.5 rounded hover:bg-slate-800"
-            title="Close Switchboard & Return to Master_Stock Sheet"
-          >
-            ✕
-          </button>
+    <DraggableResizableModal
+      onClose={onClose}
+      modalId="navigation-dialog"
+      className="bg-slate-100 dark:bg-slate-800 rounded-2xl shadow-2xl border-2 border-emerald-600/60 w-full max-w-2xl overflow-hidden my-auto"
+    >
+      {/* UserForm Header */}
+      <div
+        data-drag-handle="true"
+        className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between border-b border-slate-700 cursor-grab active:cursor-grabbing select-none"
+      >
+        <div className="flex items-center space-x-2">
+          <Layers className="w-4 h-4 text-emerald-400" />
+          <span className="font-mono text-xs font-bold tracking-wide text-slate-200">
+            frmNavigation — Main Procurement Switchboard
+          </span>
         </div>
+        <button
+          onClick={onClose}
+          className="text-slate-400 hover:text-white text-xs font-bold px-2 py-0.5 rounded hover:bg-slate-800 cursor-pointer"
+          title="Close Switchboard & Return to Master_Stock Sheet"
+        >
+          ✕
+        </button>
+      </div>
 
-        {/* UserForm Body */}
-        <div className="p-6 space-y-5">
+      {/* UserForm Body */}
+      <div className="p-6 space-y-5 flex-1 min-h-0 overflow-y-auto">
           <div className="flex items-center justify-between bg-slate-200 dark:bg-slate-900/80 p-3.5 rounded-xl border border-slate-300 dark:border-slate-700">
             <div className="flex items-center space-x-3">
               <div className="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-sm">
@@ -284,7 +291,7 @@ export const NavigationDialog: React.FC<NavigationDialogProps> = ({
           <div className="pt-2 flex items-center justify-between border-t border-slate-200 dark:border-slate-700">
             <button
               onClick={onClose}
-              className="flex items-center space-x-1.5 px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow transition"
+              className="flex items-center space-x-1.5 px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow transition cursor-pointer"
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
               <span>Go to Master_Stock Sheet</span>
@@ -292,14 +299,13 @@ export const NavigationDialog: React.FC<NavigationDialogProps> = ({
 
             <button
               onClick={onLogout}
-              className="flex items-center space-x-1.5 px-3.5 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition"
+              className="flex items-center space-x-1.5 px-3.5 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition cursor-pointer"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span>Log Out</span>
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </DraggableResizableModal>
   );
 };

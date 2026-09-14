@@ -7,6 +7,7 @@ import { EditStockItemTab } from './tabs/EditStockItemTab';
 import { StockDeliveryTab } from './tabs/StockDeliveryTab';
 import { IssueRequestTab } from './tabs/IssueRequestTab';
 import { StockAdjustmentTab } from './tabs/StockAdjustmentTab';
+import { DraggableResizableModal } from '../common/DraggableResizableModal';
 
 export type ProcurementTabType = 'departments' | 'createStock' | 'editStockItem' | 'delivery' | 'issue' | 'adjustment';
 
@@ -88,28 +89,34 @@ export const ProcurementOperationsDialog: React.FC<ProcurementOperationsDialogPr
   const [activeTab, setActiveTab] = useState<ProcurementTabType>(initialTab);
 
   return (
-    <div className="fixed inset-0 bg-slate-950/35 flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto">
-      <div className="bg-slate-100 dark:bg-slate-800 rounded-2xl shadow-2xl border-2 border-emerald-600/70 w-full max-w-4xl overflow-hidden my-auto animate-in fade-in zoom-in duration-200">
-        {/* UserForm Header */}
-        <div className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between border-b border-slate-700">
-          <div className="flex items-center space-x-2">
-            <Layers className="w-4 h-4 text-emerald-400" />
-            <span className="font-mono text-xs font-bold tracking-wide text-slate-200">
-              frmProcurementOperations — Stock & Inventory Management Dialogue
-            </span>
-          </div>
-          <div className="flex items-center space-x-3">
-            <span className="hidden sm:inline-flex items-center gap-1 bg-slate-800 text-emerald-400 px-2 py-0.5 rounded text-[10px] font-mono border border-slate-700">
-              <ShieldCheck className="w-3 h-3" /> Issuer: {issuerId}
-            </span>
-            <button
-              onClick={onClose}
-              className="text-slate-400 hover:text-white text-xs font-bold px-2 py-1 rounded hover:bg-slate-800 transition"
-            >
-              ✕ Close
-            </button>
-          </div>
+    <DraggableResizableModal
+      onClose={onClose}
+      modalId="procurement-operations-dialog"
+      className="bg-slate-100 dark:bg-slate-800 rounded-2xl shadow-2xl border-2 border-emerald-600/70 w-full max-w-4xl overflow-hidden my-auto"
+    >
+      {/* UserForm Header */}
+      <div
+        data-drag-handle="true"
+        className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between border-b border-slate-700 cursor-grab active:cursor-grabbing select-none"
+      >
+        <div className="flex items-center space-x-2">
+          <Layers className="w-4 h-4 text-emerald-400" />
+          <span className="font-mono text-xs font-bold tracking-wide text-slate-200">
+            frmProcurementOperations — Stock & Inventory Management Dialogue
+          </span>
         </div>
+        <div className="flex items-center space-x-3">
+          <span className="hidden sm:inline-flex items-center gap-1 bg-slate-800 text-emerald-400 px-2 py-0.5 rounded text-[10px] font-mono border border-slate-700">
+            <ShieldCheck className="w-3 h-3" /> Issuer: {issuerId}
+          </span>
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-white text-xs font-bold px-2 py-1 rounded hover:bg-slate-800 transition cursor-pointer"
+          >
+            ✕ Close
+          </button>
+        </div>
+      </div>
 
         {/* 6 OPERATIONAL DIALOGUE TABS */}
         <div className="bg-slate-200 dark:bg-slate-900 border-b border-slate-300 dark:border-slate-700 px-2 pt-2 flex flex-wrap gap-1 select-none">
@@ -193,7 +200,7 @@ export const ProcurementOperationsDialog: React.FC<ProcurementOperationsDialogPr
         </div>
 
         {/* Tab Body Content */}
-        <div className="p-4 sm:p-6 max-h-[75vh] overflow-y-auto">
+        <div className="p-4 sm:p-6 flex-1 min-h-0 overflow-y-auto">
           {activeTab === 'departments' && (
             <EditDepartmentsTab
               departments={departments}
@@ -269,7 +276,6 @@ export const ProcurementOperationsDialog: React.FC<ProcurementOperationsDialogPr
             />
           )}
         </div>
-      </div>
-    </div>
+      </DraggableResizableModal>
   );
 };

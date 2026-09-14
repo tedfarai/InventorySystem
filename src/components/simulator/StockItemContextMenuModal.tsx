@@ -20,6 +20,7 @@ import {
   Plus,
 } from 'lucide-react';
 import { StockItem, StockAdjustmentRequest, AdminUser } from '../../types';
+import { DraggableResizableModal } from '../common/DraggableResizableModal';
 
 interface StockItemContextMenuModalProps {
   isOpen: boolean;
@@ -91,62 +92,50 @@ export const StockItemContextMenuModal: React.FC<StockItemContextMenuModalProps>
   const isAdjustmentDisabled = Boolean(pendingAdjustmentInState || pendingAdjustmentForItem || userHasPendingAdjustment);
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.12 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/35"
-      onClick={onClose}
-      onContextMenu={(e) => {
-        e.preventDefault();
-        onClose();
-      }}
+    <DraggableResizableModal
+      onClose={onClose}
+      modalId={`stock-item-context-menu-${item.ItemID}`}
+      className="w-full max-w-[380px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden m-auto"
     >
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 10 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 10 }}
-        transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
-        className="w-full max-w-[380px] max-h-[90vh] overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden m-auto"
-        onClick={(e) => e.stopPropagation()}
+      {/* Header with Item Context */}
+      <div
+        data-drag-handle="true"
+        className="p-3.5 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700/80 flex items-center justify-between cursor-grab active:cursor-grabbing select-none"
       >
-        {/* Header with Item Context */}
-        <div className="p-3.5 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700/80 flex items-center justify-between">
-          <div className="flex items-center space-x-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
-              <Package className="w-4 h-4" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="font-mono text-[11px] font-bold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-950/80 px-1.5 py-0.2 rounded">
-                  {item.ItemID}
-                </span>
-                <span className="text-[10px] font-bold uppercase font-mono px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
-                  {item.Category}
-                </span>
-                {isMultipleSelected && (
-                  <span className="text-[9px] font-bold px-1.5 py-0.2 bg-teal-100 dark:bg-teal-900/60 text-teal-700 dark:text-teal-300 rounded font-mono">
-                    {selectedItems.length} Selected
-                  </span>
-                )}
-              </div>
-              <h3 className="text-xs font-bold text-slate-900 dark:text-white truncate mt-0.5">
-                {item.ItemName}
-              </h3>
-            </div>
+        <div className="flex items-center space-x-2.5 min-w-0">
+          <div className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
+            <Package className="w-4 h-4" />
           </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer transition"
-            aria-label="Close"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="font-mono text-[11px] font-bold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-950/80 px-1.5 py-0.2 rounded">
+                {item.ItemID}
+              </span>
+              <span className="text-[10px] font-bold uppercase font-mono px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                {item.Category}
+              </span>
+              {isMultipleSelected && (
+                <span className="text-[9px] font-bold px-1.5 py-0.2 bg-teal-100 dark:bg-teal-900/60 text-teal-700 dark:text-teal-300 rounded font-mono">
+                  {selectedItems.length} Selected
+                </span>
+              )}
+            </div>
+            <h3 className="text-xs font-bold text-slate-900 dark:text-white truncate mt-0.5">
+              {item.ItemName}
+            </h3>
+          </div>
         </div>
+        <button
+          onClick={onClose}
+          className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer transition"
+          aria-label="Close"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
 
-        {/* Current Balances */}
-        <div className="p-3 bg-white dark:bg-slate-900 space-y-2.5">
+      {/* Current Balances */}
+      <div className="p-3 bg-white dark:bg-slate-900 space-y-2.5 flex-1 min-h-0 overflow-y-auto">
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div className="p-2 bg-slate-50 dark:bg-slate-800/70 rounded-xl border border-slate-200 dark:border-slate-700">
               <span className="text-[9px] uppercase font-bold text-slate-400">Available Qty</span>
@@ -472,8 +461,7 @@ export const StockItemContextMenuModal: React.FC<StockItemContextMenuModalProps>
             Dismiss
           </button>
         </div>
-      </motion.div>
-    </motion.div>
+    </DraggableResizableModal>
   );
 };
 

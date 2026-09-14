@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { FileText, Printer, Download, Search, Filter, FolderCheck, Calendar, Building, User, Eye, Sparkles } from 'lucide-react';
 import { IssuedDocument } from '../../types';
+import { DraggableResizableModal } from '../common/DraggableResizableModal';
 
 interface IssuedDocumentsArchiveModalProps {
   issuedDocs: IssuedDocument[];
@@ -39,34 +40,40 @@ export const IssuedDocumentsArchiveModal: React.FC<IssuedDocumentsArchiveModalPr
   });
 
   return (
-    <div className="fixed inset-0 bg-slate-950/35 flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-5xl overflow-hidden flex flex-col max-h-[88vh]">
-        {/* Modal Header */}
-        <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between border-b border-slate-800 shrink-0">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-lg border border-emerald-500/30">
-              <FileText className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-sm font-bold tracking-tight text-white flex items-center gap-2">
-                Issued Documents & Stationery Requisitions Archive
-                <span className="bg-emerald-500/20 text-emerald-300 text-[10px] font-mono px-2 py-0.5 rounded-full border border-emerald-500/30">
-                  {safeIssuedDocs.length} Total Issued
-                </span>
-              </h2>
-              <p className="text-xs text-slate-400">
-                Browse, preview, and print official stationery & cleaning issue vouchers with company branding
-              </p>
-            </div>
+    <DraggableResizableModal
+      onClose={onClose}
+      modalId="issued-documents-archive-modal"
+      className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-5xl overflow-hidden flex flex-col my-auto"
+    >
+      {/* Modal Header */}
+      <div
+        data-drag-handle="true"
+        className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between border-b border-slate-800 shrink-0 cursor-grab active:cursor-grabbing select-none"
+      >
+        <div className="flex items-center space-x-3">
+          <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-lg border border-emerald-500/30">
+            <FileText className="w-5 h-5" />
           </div>
-
-          <button
-            onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
-          >
-            ✕
-          </button>
+          <div>
+            <h2 className="text-sm font-bold tracking-tight text-white flex items-center gap-2">
+              Issued Documents & Stationery Requisitions Archive
+              <span className="bg-emerald-500/20 text-emerald-300 text-[10px] font-mono px-2 py-0.5 rounded-full border border-emerald-500/30">
+                {safeIssuedDocs.length} Total Issued
+              </span>
+            </h2>
+            <p className="text-xs text-slate-400">
+              Browse, preview, and print official stationery & cleaning issue vouchers with company branding
+            </p>
+          </div>
         </div>
+
+        <button
+          onClick={onClose}
+          className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition cursor-pointer"
+        >
+          ✕
+        </button>
+      </div>
 
         {/* Search & Filter Bar */}
         <div className="p-4 bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 shrink-0">
@@ -192,12 +199,11 @@ export const IssuedDocumentsArchiveModal: React.FC<IssuedDocumentsArchiveModalPr
           </div>
           <button
             onClick={onClose}
-            className="px-4 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 rounded-lg transition"
+            className="px-4 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 rounded-lg transition cursor-pointer"
           >
             Close Archive
           </button>
         </div>
-      </div>
-    </div>
+    </DraggableResizableModal>
   );
 };
