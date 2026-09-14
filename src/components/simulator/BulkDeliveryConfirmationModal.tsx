@@ -54,7 +54,7 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
   });
   const [deliveryNoteRef, setDeliveryNoteRef] = useState(`GRN-${Math.floor(100000 + Math.random() * 900000)}`);
   const [vendorSupplier, setVendorSupplier] = useState(
-    defaultSupplier || deliveries?.[0]?.supplier || items?.[0]?.supplier || 'Paramount Wholesale Supplies'
+    defaultSupplier || deliveries?.[0]?.supplier || items?.[0]?.supplier || ''
   );
   const [confirmedCheck, setConfirmedCheck] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -114,7 +114,7 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
 
     const finalBatch = safeItemsList.map((item) => ({
       ...item,
-      supplier: item.supplier || vendorSupplier || 'Paramount Wholesale Supplies',
+      supplier: item.supplier || vendorSupplier || '',
     }));
 
     try {

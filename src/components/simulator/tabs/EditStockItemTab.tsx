@@ -10,7 +10,6 @@ interface EditStockItemTabProps {
   onUpdateStockItemName: (itemId: string, newName: string) => void;
   onUpdateStockItem?: (updatedItem: StockItem) => void;
   onDeleteStockItem?: (itemId: string) => void;
-  onSwitchToBulkEditMode?: () => void;
 }
 
 export const EditStockItemTab: React.FC<EditStockItemTabProps> = ({
@@ -19,7 +18,6 @@ export const EditStockItemTab: React.FC<EditStockItemTabProps> = ({
   onUpdateStockItemName,
   onUpdateStockItem,
   onDeleteStockItem,
-  onSwitchToBulkEditMode,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<'All' | 'Stationery' | 'Cleaning' | 'General'>('All');
@@ -132,17 +130,6 @@ export const EditStockItemTab: React.FC<EditStockItemTabProps> = ({
             </p>
           </div>
         </div>
-        {onSwitchToBulkEditMode && (
-          <button
-            type="button"
-            onClick={onSwitchToBulkEditMode}
-            className="flex items-center justify-center space-x-1.5 px-3.5 py-2 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/60 dark:hover:bg-purple-900/60 border border-purple-300 dark:border-purple-800 text-purple-700 dark:text-purple-300 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer shrink-0"
-            title="Open Master Stock Sheet with Bulk Edit Mode active to update multiple records at once"
-          >
-            <Edit3 className="w-4 h-4" />
-            <span>Launch Bulk Edit Mode</span>
-          </button>
-        )}
       </div>
 
       {feedback && (

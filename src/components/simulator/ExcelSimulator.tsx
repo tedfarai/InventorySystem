@@ -263,11 +263,6 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
   const [activeReceivingList, setActiveReceivingList] = useState<{ ItemID: string; ItemName: string }[]>([]);
   const [activeAdjustmentList, setActiveAdjustmentList] = useState<{ ItemID: string; ItemName: string }[]>([]);
 
-  // Bulk Edit Mode (Update Multiple Stock Quantities at once)
-  const [isBulkEditMode, setIsBulkEditMode] = useState(false);
-  const [bulkEditQuantities, setBulkEditQuantities] = useState<Record<string, number>>({});
-  const [isSavingBulkEdit, setIsSavingBulkEdit] = useState(false);
-
   // Expandable Master Stock Rows State
   const [expandedRowIds, setExpandedRowIds] = useState<Set<string>>(new Set());
 
@@ -467,69 +462,6 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
     setActiveModal('procurement');
     setSelectedStockItemIds([item.ItemID]);
   };
-
-  // Bulk Edit Mode Handlers
-  const handleToggleBulkEditMode = () => {
-    if (!isBulkEditMode) {
-      const initialMap: Record<string, number> = {};
-      filteredStock.forEach((item) => {
-        initialMap[item.ItemID] = item.Qty;
-      });
-      setBulkEditQuantities(initialMap);
-      setIsBulkEditMode(true);
-    } else {
-      setIsBulkEditMode(false);
-      setBulkEditQuantities({});
-    }
-  };
-
-  const handleBulkQtyFieldChange = (itemId: string, val: string) => {
-    const num = parseInt(val, 10);
-    const parsed = isNaN(num) || num < 0 ? 0 : num;
-    setBulkEditQuantities((prev) => ({
-      ...prev,
-      [itemId]: parsed,
-    }));
-  };
-
-  const handleSaveAllBulkEdit = async () => {
-    setIsSavingBulkEdit(true);
-    const changedItems: { item: StockItem; newQty: number }[] = [];
-    for (const item of filteredStock) {
-      const modifiedQty = bulkEditQuantities[item.ItemID];
-      if (modifiedQty !== undefined && modifiedQty !== item.Qty) {
-        changedItems.push({ item, newQty: modifiedQty });
-      }
-    }
-
-    if (changedItems.length === 0) {
-      setIsBulkEditMode(false);
-      setIsSavingBulkEdit(false);
-      showToast('Bulk Edit', 'info', 'No quantity modifications were detected.');
-      return;
-    }
-
-    try {
-      for (const { item, newQty } of changedItems) {
-        if (onUpdateStockItem) {
-          await onUpdateStockItem({ ...item, Qty: newQty });
-        }
-      }
-      showToast('Bulk Edit Saved', 'success', `Successfully updated stock quantities for ${changedItems.length} record(s).`);
-      setIsBulkEditMode(false);
-      setBulkEditQuantities({});
-    } catch (err) {
-      console.error('Error saving bulk stock edits:', err);
-      showToast('Save Failed', 'error', 'Failed to save one or more stock updates.');
-    } finally {
-      setIsSavingBulkEdit(false);
-    }
-  };
-
-  const bulkEditChangedCount = Object.entries(bulkEditQuantities).filter(([id, qty]) => {
-    const original = safeStockItems.find((i) => i.ItemID === id);
-    return original && original.Qty !== qty;
-  }).length;
 
   // Superior Admin check
   const isSuperiorAdmin = currentUser?.IssuerID === 'ADM001';
@@ -1278,70 +1210,6 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
             />
           )}
 
-          {/* Bulk Edit Mode Control Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-2.5 p-2.5 bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-700 rounded-xl shadow-2xs">
-            <div className="flex items-center space-x-2 text-xs">
-              <button
-                type="button"
-                onClick={handleToggleBulkEditMode}
-                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                  isBulkEditMode
-                    ? 'bg-purple-600 text-white shadow-xs'
-                    : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600'
-                }`}
-              >
-                <Edit3 className="w-3.5 h-3.5" />
-                <span>{isBulkEditMode ? 'Exit Bulk Edit Mode' : 'Bulk Edit Mode'}</span>
-              </button>
-              {isBulkEditMode ? (
-                <span className="text-purple-600 dark:text-purple-400 font-semibold">
-                  Bulk Edit Active — All visible quantity cells below are editable. Make updates and click Save All.
-                </span>
-              ) : (
-                <span className="text-slate-500 dark:text-slate-400 hidden sm:inline">
-                  Toggle to convert all visible stock quantities into editable text fields.
-                </span>
-              )}
-            </div>
-
-            {isBulkEditMode && (
-              <div className="flex items-center space-x-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsBulkEditMode(false);
-                    setBulkEditQuantities({});
-                  }}
-                  disabled={isSavingBulkEdit}
-                  className="px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveAllBulkEdit}
-                  disabled={isSavingBulkEdit}
-                  className="flex items-center space-x-1.5 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold rounded-lg shadow transition cursor-pointer"
-                >
-                  {isSavingBulkEdit ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>Saving Changes...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Save className="w-3.5 h-3.5" />
-                      <span>
-                        Save All Changes
-                        {bulkEditChangedCount > 0 ? ` (${bulkEditChangedCount} changed)` : ''}
-                      </span>
-                    </>
-                  )}
-                </button>
-              </div>
-            )}
-          </div>
-
           {/* Stock Management Inventory Table with Fixed Table Header and Visible High-Contrast Borders */}
           <div className="border-2 border-slate-300 dark:border-slate-700 rounded-2xl overflow-x-auto overflow-y-auto max-h-[calc(100vh-270px)] min-h-[460px] bg-white dark:bg-slate-900 shadow-sm transition-colors relative">
             <table id="stock-management-table" className="w-full text-xs text-left border-collapse font-sans">
@@ -1364,8 +1232,8 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                   <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-3 border-r border-slate-300 dark:border-slate-700 font-bold shadow-xs">ItemID (Col A)</th>
                   <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-3 border-r border-slate-300 dark:border-slate-700 font-bold shadow-xs">ItemName (Col B)</th>
                   <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-3 border-r border-slate-300 dark:border-slate-700 font-bold shadow-xs">Category (Col C)</th>
-                  <th className={`sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-3 border-r border-slate-300 dark:border-slate-700 text-right font-bold shadow-xs ${isBulkEditMode ? 'bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300' : ''}`}>
-                    Available Qty (Col D) {isBulkEditMode && '(Editable)'}
+                  <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-3 border-r border-slate-300 dark:border-slate-700 text-right font-bold shadow-xs">
+                    Available Qty (Col D)
                   </th>
                   <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-3 border-r border-slate-300 dark:border-slate-700 text-right font-bold shadow-xs">Reorder Level (Col E)</th>
                   <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-3 text-center font-bold shadow-xs">Stock Status</th>
@@ -1481,49 +1349,28 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                               </span>
                             </td>
                             <td className="py-2.5 px-3.5 text-right font-mono border-r border-slate-300 dark:border-slate-700 whitespace-nowrap">
-                              {isBulkEditMode ? (
-                                <div
-                                  className="flex items-center justify-end space-x-1.5"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    value={bulkEditQuantities[item.ItemID] ?? item.Qty}
-                                    onChange={(e) => handleBulkQtyFieldChange(item.ItemID, e.target.value)}
-                                    className="w-20 px-2 py-1 text-right font-mono font-bold text-xs bg-white dark:bg-slate-800 border-2 border-purple-500 dark:border-purple-400 rounded-md text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-purple-400 shadow-inner"
-                                    aria-label={`Bulk edit quantity for ${item.ItemID}`}
-                                  />
-                                  <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500">
-                                    <SearchHighlightText text={item.Unit} query={searchQuery} />
-                                  </span>
-                                </div>
-                              ) : (
-                                <>
-                                  <span
-                                    className={`font-bold text-xs sm:text-sm ${
-                                      isOutOfStock
-                                        ? 'text-rose-600 dark:text-rose-400 font-extrabold'
-                                        : isCritical || isLow
-                                        ? 'text-amber-600 dark:text-amber-400'
-                                        : 'text-slate-900 dark:text-slate-100'
-                                    }`}
-                                  >
-                                    {item.Qty}
-                                  </span>{' '}
-                                  <span
-                                    className={`text-xs font-medium ml-1 ${
-                                      isOutOfStock
-                                        ? 'text-rose-500 dark:text-rose-400/90'
-                                        : isCritical || isLow
-                                        ? 'text-amber-600/90 dark:text-amber-400/90'
-                                        : 'text-slate-500 dark:text-slate-400'
-                                    }`}
-                                  >
-                                    <SearchHighlightText text={item.Unit} query={searchQuery} />
-                                  </span>
-                                </>
-                              )}
+                              <span
+                                className={`font-bold text-xs sm:text-sm ${
+                                  isOutOfStock
+                                    ? 'text-rose-600 dark:text-rose-400 font-extrabold'
+                                    : isCritical || isLow
+                                    ? 'text-amber-600 dark:text-amber-400'
+                                    : 'text-slate-900 dark:text-slate-100'
+                                }`}
+                              >
+                                {item.Qty}
+                              </span>{' '}
+                              <span
+                                className={`text-xs font-medium ml-1 ${
+                                  isOutOfStock
+                                    ? 'text-rose-500 dark:text-rose-400/90'
+                                    : isCritical || isLow
+                                    ? 'text-amber-600/90 dark:text-amber-400/90'
+                                    : 'text-slate-500 dark:text-slate-400'
+                                }`}
+                              >
+                                <SearchHighlightText text={item.Unit} query={searchQuery} />
+                              </span>
                             </td>
                             <td className="py-3 px-3.5 text-right font-mono text-slate-600 dark:text-slate-400 border-r border-slate-300 dark:border-slate-700 whitespace-nowrap">
                               <span className="text-slate-800 dark:text-slate-200 font-semibold text-xs">{item.ReorderLevel}</span>{' '}
@@ -1940,70 +1787,6 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                 />
               )}
 
-              {/* Bulk Edit Mode Control Bar */}
-              <div className="flex flex-wrap items-center justify-between gap-2.5 p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xs">
-                <div className="flex items-center space-x-2 text-xs">
-                  <button
-                    type="button"
-                    onClick={handleToggleBulkEditMode}
-                    className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                      isBulkEditMode
-                        ? 'bg-purple-600 text-white shadow-xs'
-                        : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700'
-                    }`}
-                  >
-                    <Edit3 className="w-3.5 h-3.5" />
-                    <span>{isBulkEditMode ? 'Exit Bulk Edit Mode' : 'Bulk Edit Mode'}</span>
-                  </button>
-                  {isBulkEditMode ? (
-                    <span className="text-purple-600 dark:text-purple-400 font-semibold">
-                      Bulk Edit Active — All visible quantity cells below are editable. Make updates and click Save All.
-                    </span>
-                  ) : (
-                    <span className="text-slate-500 dark:text-slate-400 hidden sm:inline">
-                      Toggle to convert all visible stock quantities into editable text fields.
-                    </span>
-                  )}
-                </div>
-
-                {isBulkEditMode && (
-                  <div className="flex items-center space-x-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsBulkEditMode(false);
-                        setBulkEditQuantities({});
-                      }}
-                      disabled={isSavingBulkEdit}
-                      className="px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition cursor-pointer"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleSaveAllBulkEdit}
-                      disabled={isSavingBulkEdit}
-                      className="flex items-center space-x-1.5 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold rounded-lg shadow transition cursor-pointer"
-                    >
-                      {isSavingBulkEdit ? (
-                        <>
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          <span>Saving Changes...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Save className="w-3.5 h-3.5" />
-                          <span>
-                            Save All Changes
-                            {bulkEditChangedCount > 0 ? ` (${bulkEditChangedCount} changed)` : ''}
-                          </span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                )}
-              </div>
-
               {/* Stock Management Inventory Table */}
               <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs">
                 <table id="stock-management-table" className="w-full text-xs text-left border-collapse font-sans">
@@ -2026,8 +1809,8 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                       <th className="p-3 border-r border-slate-200 dark:border-slate-700">ItemID (Col A)</th>
                       <th className="p-3 border-r border-slate-200 dark:border-slate-700">ItemName (Col B)</th>
                       <th className="p-3 border-r border-slate-200 dark:border-slate-700">Category (Col C)</th>
-                      <th className={`p-3 border-r border-slate-200 dark:border-slate-700 text-right ${isBulkEditMode ? 'bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300' : ''}`}>
-                        Available Qty (Col D) {isBulkEditMode && '(Editable)'}
+                      <th className="p-3 border-r border-slate-200 dark:border-slate-700 text-right">
+                        Available Qty (Col D)
                       </th>
                       <th className="p-3 border-r border-slate-200 dark:border-slate-700 text-right">Reorder Level (Col E)</th>
                       <th className="p-3 text-center">Stock Status</th>
@@ -2143,49 +1926,28 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                                 </span>
                               </td>
                               <td className="py-2.5 px-3.5 text-right font-mono border-r border-slate-200/60 dark:border-slate-800/60 whitespace-nowrap">
-                                {isBulkEditMode ? (
-                                  <div
-                                    className="flex items-center justify-end space-x-1.5"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      value={bulkEditQuantities[item.ItemID] ?? item.Qty}
-                                      onChange={(e) => handleBulkQtyFieldChange(item.ItemID, e.target.value)}
-                                      className="w-20 px-2 py-1 text-right font-mono font-bold text-xs bg-white dark:bg-slate-800 border-2 border-purple-500 dark:border-purple-400 rounded-md text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-purple-400 shadow-inner"
-                                      aria-label={`Bulk edit quantity for ${item.ItemID}`}
-                                    />
-                                    <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500">
-                                      {item.Unit}
-                                    </span>
-                                  </div>
-                                ) : (
-                                  <>
-                                    <span
-                                      className={`font-bold text-xs sm:text-sm ${
-                                        isOutOfStock
-                                          ? 'text-rose-600 dark:text-rose-400 font-extrabold'
-                                          : isCritical || isLow
-                                          ? 'text-amber-600 dark:text-amber-400'
-                                          : 'text-slate-900 dark:text-slate-100'
-                                      }`}
-                                    >
-                                      {item.Qty}
-                                    </span>{' '}
-                                    <span
-                                      className={`text-xs font-medium ml-1 ${
-                                        isOutOfStock
-                                          ? 'text-rose-500 dark:text-rose-400/90'
-                                          : isCritical || isLow
-                                          ? 'text-amber-600/90 dark:text-amber-400/90'
-                                          : 'text-slate-500 dark:text-slate-400'
-                                      }`}
-                                    >
-                                      {item.Unit}
-                                    </span>
-                                  </>
-                                )}
+                                <span
+                                  className={`font-bold text-xs sm:text-sm ${
+                                    isOutOfStock
+                                      ? 'text-rose-600 dark:text-rose-400 font-extrabold'
+                                      : isCritical || isLow
+                                      ? 'text-amber-600 dark:text-amber-400'
+                                      : 'text-slate-900 dark:text-slate-100'
+                                  }`}
+                                >
+                                  {item.Qty}
+                                </span>{' '}
+                                <span
+                                  className={`text-xs font-medium ml-1 ${
+                                    isOutOfStock
+                                      ? 'text-rose-500 dark:text-rose-400/90'
+                                      : isCritical || isLow
+                                      ? 'text-amber-600/90 dark:text-amber-400/90'
+                                      : 'text-slate-500 dark:text-slate-400'
+                                  }`}
+                                >
+                                  {item.Unit}
+                                </span>
                               </td>
                               <td className="py-3 px-3.5 text-right font-mono text-slate-600 dark:text-slate-400 border-r border-slate-200/60 dark:border-slate-800/60 whitespace-nowrap">
                                 <span className="text-slate-800 dark:text-slate-200 font-semibold text-xs">{item.ReorderLevel}</span>{' '}
@@ -2770,17 +2532,6 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
           onUpdateManager={onUpdateManager}
           onDeleteManager={onDeleteManager}
           onTriggerIssuePreview={handleTriggerIssuePreview}
-          onSwitchToBulkEdit={() => {
-            setActiveModal('none');
-            setActiveSheet('Master_Stock');
-            const initialMap: Record<string, number> = {};
-            stockItems.forEach((item) => {
-              initialMap[item.ItemID] = item.Qty;
-            });
-            setBulkEditQuantities(initialMap);
-            setIsBulkEditMode(true);
-            showToast('Bulk Edit Mode', 'info', 'Bulk Edit Mode is active. Update stock quantities and hit Save All.');
-          }}
           onClose={() => {
             setActiveModal('none');
             setProcurementInitialItemId(undefined);

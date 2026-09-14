@@ -54,10 +54,7 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
   // Single Delivery State
   const [singleItemId, setSingleItemId] = useState(initialItemId || stockItems[0]?.ItemID || '');
   const [singleAddQty, setSingleAddQty] = useState<number | ''>(10);
-  const [singleSupplier, setSingleSupplier] = useState(() => {
-    const item = stockItems.find((i) => i.ItemID === (initialItemId || stockItems[0]?.ItemID));
-    return item?.LastSupplier || '';
-  });
+  const [singleSupplier, setSingleSupplier] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<'All' | 'Stationery' | 'Cleaning' | 'General'>('All');
   const [searchFilter, setSearchFilter] = useState('');
 
@@ -68,7 +65,7 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
   const [queueSupplier, setQueueSupplier] = useState('');
 
   // Bulk Grid Delivery State (Dictionary mapping ItemID -> addQty and ItemID -> supplier override)
-  const [gridSupplier, setGridSupplier] = useState('Paramount Wholesale Supplies');
+  const [gridSupplier, setGridSupplier] = useState('');
   const [gridItemSuppliers, setGridItemSuppliers] = useState<Record<string, string>>({});
   const [gridQuantities, setGridQuantities] = useState<Record<string, number>>(() => {
     if (initialSelectedIds && initialSelectedIds.length > 0) {
@@ -176,6 +173,7 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
     }
 
     setQueueAddQty(20);
+    setQueueSupplier('');
   };
 
   const handleRemoveFromQueue = (itemId: string) => {
@@ -261,13 +259,12 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
     const itemsWithoutSupplier = activeEntries.filter(([itemId]) => {
       const rowSupplier = gridItemSuppliers[itemId]?.trim();
       const defaultSupplier = gridSupplier.trim();
-      const stock = stockItems.find((s) => s.ItemID === itemId);
-      return !rowSupplier && !defaultSupplier && !stock?.LastSupplier;
+      return !rowSupplier && !defaultSupplier;
     });
 
     if (itemsWithoutSupplier.length > 0) {
       setErrorMsg(
-        'Supplier / Vendor Name is required for all incoming stock additions to ensure proper provenance tracking. Please enter a Batch Supplier or specify suppliers for each modified row.'
+        'Supplier is mandatory for all incoming stock additions to ensure proper provenance tracking. Please enter a Supplier name in the batch field or for each modified row.'
       );
       return;
     }
@@ -282,7 +279,7 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
         currentQty: stock ? stock.Qty : 0,
         addQty: Number(addQty),
         unit: stock ? stock.Unit : 'Units',
-        supplier: rowSupplier || gridSupplier.trim() || stock?.LastSupplier || 'Paramount Wholesale Supplies',
+        supplier: rowSupplier || gridSupplier.trim(),
       };
     });
 
@@ -332,12 +329,14 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
       const timestampFile = new Date().toISOString().replace(/[-:]/g, '').replace(/T/, '_').substring(0, 15);
       const voucherNumber = deliveryNoteRef || `GRN-${Math.floor(100000 + Math.random() * 900000)}`;
       const pdfFileName = `GRN_Voucher_${voucherNumber}_${timestampFile}.pdf`;
+      const finalSupplierName = batchSupplier || finalItems[0]?.supplier || '';
       generatedDoc = {
         docType: 'DELIVERY',
         voucherNumber,
         timestamp: nowStr,
         deliveryRef: voucherNumber,
-        supplier: batchSupplier || finalItems[0]?.supplier,
+        SupplierName: finalSupplierName,
+        supplier: finalSupplierName,
         issuerID: 'ADM001',
         issuerName: 'Rachel Pickard',
         issuerRole: 'Procurement Manager',
@@ -347,6 +346,8 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
           Category: item.category,
           Qty: item.addQty,
           Unit: item.unit,
+          SupplierName: item.supplier || finalSupplierName,
+          Supplier: item.supplier || finalSupplierName,
         })),
         pdfFileName,
         folderPath: `C:\\Stationery & Cleaning\\Received_Items\\`,
@@ -363,8 +364,14 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
 
     if (deliveryMode === 'bulkQueue') {
       setQueue([]);
+      setQueueSupplier('');
     } else if (deliveryMode === 'bulkGrid') {
       setGridQuantities({});
+      setGridSupplier('');
+      setGridItemSuppliers({});
+    } else if (deliveryMode === 'single') {
+      setSingleSupplier('');
+      setSingleAddQty(10);
     }
 
     setShowConfirmationModal(false);
@@ -492,7 +499,6 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
                   selectedItemId={queueItemId}
                   onSelectItem={(item) => {
                     setQueueItemId(item.ItemID);
-                    if (item.LastSupplier) setQueueSupplier(item.LastSupplier);
                   }}
                   placeholder="-- Select delivered stock item --"
                   direction="up"
@@ -501,34 +507,16 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
 
               <div className="sm:col-span-1">
                 <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Supplier / Vendor <span className="text-rose-500 font-bold">*</span>
+                  Supplier <span className="text-rose-500 font-bold">*</span>
                 </label>
                 <input
                   type="text"
                   required
                   value={queueSupplier}
                   onChange={(e) => setQueueSupplier(e.target.value)}
-                  placeholder="e.g. Kimberly-Clark, 3M"
-                  list="delivery-queue-suppliers-list"
+                  placeholder="Enter supplier name"
                   className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-slate-100"
                 />
-                <datalist id="delivery-queue-suppliers-list">
-                  {COMMON_SUPPLIERS.map((s) => (
-                    <option key={s} value={s} />
-                  ))}
-                </datalist>
-                <div className="flex flex-wrap items-center gap-1 mt-1">
-                  {COMMON_SUPPLIERS.slice(0, 3).map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => setQueueSupplier(s)}
-                      className="text-[9px] px-1 py-0.5 rounded bg-slate-200/70 dark:bg-slate-800 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-slate-600 dark:text-slate-300 cursor-pointer"
-                    >
-                      {s.split(' ')[0]}
-                    </button>
-                  ))}
-                </div>
               </div>
 
               <div>
@@ -610,8 +598,7 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
                             required
                             value={item.supplier || ''}
                             onChange={(e) => handleQueueSupplierChange(item.itemId, e.target.value)}
-                            placeholder="Supplier / Vendor (Required)"
-                            list="delivery-queue-suppliers-list"
+                            placeholder="Enter supplier name"
                             className={`w-full px-2 py-1 text-xs rounded border bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium ${
                               !item.supplier?.trim()
                                 ? 'border-rose-500 focus:ring-rose-500'
@@ -680,40 +667,16 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
           <div className="p-3 bg-slate-100 dark:bg-slate-900 rounded-xl border border-slate-300 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
             <div className="flex-1 min-w-[240px]">
               <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Batch Supplier / Vendor Source <span className="text-rose-500 font-bold">*</span>
-                <span className="text-[10px] text-rose-500 font-normal ml-1">(Required for provenance tracking)</span>
+                Supplier <span className="text-rose-500 font-bold">*</span>
               </label>
               <input
                 type="text"
                 required
                 value={gridSupplier}
                 onChange={(e) => setGridSupplier(e.target.value)}
-                placeholder="e.g. Paramount Wholesale Supplies, Kimberly-Clark"
-                list="bulk-grid-suppliers-list"
+                placeholder="Enter supplier name"
                 className="w-full px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-900 dark:text-slate-100"
               />
-              <datalist id="bulk-grid-suppliers-list">
-                {COMMON_SUPPLIERS.map((s) => (
-                  <option key={s} value={s} />
-                ))}
-              </datalist>
-              <div className="flex flex-wrap items-center gap-1 mt-1.5">
-                <span className="text-[10px] text-slate-500">Preset Vendors:</span>
-                {COMMON_SUPPLIERS.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setGridSupplier(s)}
-                    className={`text-[10px] px-2 py-0.5 rounded transition cursor-pointer ${
-                      gridSupplier === s
-                        ? 'bg-blue-600 text-white font-bold shadow-xs'
-                        : 'bg-white dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700'
-                    }`}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
             </div>
             <div className="text-xs text-slate-500 dark:text-slate-400 max-w-sm">
               This vendor will be recorded as the delivery supplier for modified items, unless overridden in a specific row below.
@@ -786,15 +749,14 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
                         <input
                           type="text"
                           required={isModified}
-                          placeholder={gridSupplier || item.LastSupplier || 'Supplier name (Required)'}
-                          value={itemSpecificSupplier !== undefined ? itemSpecificSupplier : (item.LastSupplier || gridSupplier || '')}
+                          placeholder="Enter supplier name"
+                          value={itemSpecificSupplier !== undefined ? itemSpecificSupplier : ''}
                           onChange={(e) => {
                             const val = e.target.value;
                             setGridItemSuppliers((prev) => ({ ...prev, [item.ItemID]: val }));
                           }}
-                          list="bulk-grid-suppliers-list"
                           className={`w-full px-2 py-1 text-xs rounded border bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 font-medium ${
-                            isModified && !(itemSpecificSupplier?.trim() || gridSupplier?.trim() || item.LastSupplier?.trim())
+                            isModified && !(itemSpecificSupplier?.trim() || gridSupplier?.trim())
                               ? 'border-rose-500 focus:ring-rose-500'
                               : 'border-slate-300 dark:border-slate-700'
                           }`}
@@ -867,7 +829,6 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
               selectedItemId={singleItemId}
               onSelectItem={(item) => {
                 setSingleItemId(item.ItemID);
-                if (item.LastSupplier) setSingleSupplier(item.LastSupplier);
               }}
               placeholder="-- Select item from Master_Stock drop-up list --"
               direction="up"
@@ -902,36 +863,16 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Supplier / Vendor Name <span className="text-rose-500 font-bold">*</span>
-                <span className="text-[10px] text-rose-500 font-normal ml-1">(Required for provenance tracking)</span>
+                Supplier <span className="text-rose-500 font-bold">*</span>
               </label>
               <input
                 type="text"
                 required
                 value={singleSupplier}
                 onChange={(e) => setSingleSupplier(e.target.value)}
-                placeholder="e.g. Paramount Wholesale Supplies"
-                list="single-suppliers-list"
+                placeholder="Enter supplier name"
                 className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-900 dark:text-slate-100"
               />
-              <datalist id="single-suppliers-list">
-                {COMMON_SUPPLIERS.map((s) => (
-                  <option key={s} value={s} />
-                ))}
-              </datalist>
-              <div className="flex flex-wrap items-center gap-1 mt-1.5">
-                <span className="text-[10px] text-slate-500">Quick Vendor:</span>
-                {COMMON_SUPPLIERS.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setSingleSupplier(s)}
-                    className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200/80 dark:bg-slate-800 hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900/40 text-slate-700 dark:text-slate-300 transition cursor-pointer"
-                  >
-                    {s.split(' ')[0]}
-                  </button>
-                ))}
-              </div>
             </div>
 
             <div>

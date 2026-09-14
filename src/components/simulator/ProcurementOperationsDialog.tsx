@@ -49,7 +49,6 @@ interface ProcurementOperationsDialogProps {
   onUpdateManager?: (mgr: Manager) => void;
   onDeleteManager?: (mgrId: string) => void;
   onTriggerIssuePreview: (dept: Department, cart: IssueCartItem[]) => void;
-  onSwitchToBulkEdit?: () => void;
   onClose: () => void;
 }
 
@@ -84,7 +83,6 @@ export const ProcurementOperationsDialog: React.FC<ProcurementOperationsDialogPr
   onUpdateManager,
   onDeleteManager,
   onTriggerIssuePreview,
-  onSwitchToBulkEdit,
   onClose,
 }) => {
   const [activeTab, setActiveTab] = useState<ProcurementTabType>(initialTab);
@@ -223,7 +221,6 @@ export const ProcurementOperationsDialog: React.FC<ProcurementOperationsDialogPr
               onUpdateStockItemName={onUpdateStockItemName}
               onUpdateStockItem={onUpdateStockItem}
               onDeleteStockItem={onDeleteStockItem}
-              onSwitchToBulkEditMode={onSwitchToBulkEdit}
             />
           )}
 
