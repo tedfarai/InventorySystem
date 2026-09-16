@@ -1007,23 +1007,29 @@ export const BackupRecoveryModal: React.FC<BackupRecoveryModalProps> = ({
                   </button>
                 </div>
               </div>
-            </div>
-          </div>
+            </DraggableResizableModal>
         )}
 
         {/* 1-Click Restore Point-in-Time Confirmation Modal */}
         {confirmRestoreSnapshot && (
-          <div className="fixed inset-0 bg-slate-950/35 flex items-center justify-center p-4 z-60">
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border-2 border-amber-500 shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-150">
-              <div className="bg-amber-600 text-white p-4 flex items-center space-x-2.5">
-                <AlertTriangle className="w-5 h-5 shrink-0" />
-                <div>
-                  <span className="font-bold text-sm block">1-Click Point-in-Time Restore Confirmation</span>
-                  <span className="text-[11px] text-amber-100">Disaster Recovery Rollback Protocol</span>
-                </div>
+          <DraggableResizableModal
+            onClose={() => setConfirmRestoreSnapshot(null)}
+            modalId="confirm-restore-snapshot-modal"
+            zIndex="z-70"
+            className="bg-white dark:bg-slate-900 rounded-2xl border-2 border-amber-500 shadow-2xl w-full max-w-lg overflow-hidden my-auto flex flex-col"
+          >
+            <div
+              data-drag-handle="true"
+              className="bg-amber-600 text-white p-4 flex items-center space-x-2.5 cursor-grab active:cursor-grabbing select-none shrink-0"
+            >
+              <AlertTriangle className="w-5 h-5 shrink-0" />
+              <div>
+                <span className="font-bold text-sm block">1-Click Point-in-Time Restore Confirmation</span>
+                <span className="text-[11px] text-amber-100">Disaster Recovery Rollback Protocol</span>
               </div>
+            </div>
 
-              <div className="p-5 space-y-4 text-xs text-slate-700 dark:text-slate-300">
+            <div className="p-5 space-y-4 text-xs text-slate-700 dark:text-slate-300 flex-1 min-h-0 overflow-y-auto">
                 {/* Target Timestamp Box */}
                 <div className="bg-amber-50 dark:bg-amber-950/40 p-4 rounded-xl border border-amber-300 dark:border-amber-700/60 space-y-2">
                   <div className="flex items-center space-x-2 text-amber-900 dark:text-amber-200 font-bold">
@@ -1109,8 +1115,7 @@ export const BackupRecoveryModal: React.FC<BackupRecoveryModalProps> = ({
                   )}
                 </button>
               </div>
-            </div>
-          </div>
+            </DraggableResizableModal>
         )}
     </DraggableResizableModal>
   );

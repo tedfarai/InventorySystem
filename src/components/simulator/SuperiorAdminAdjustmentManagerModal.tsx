@@ -82,21 +82,27 @@ export const SuperiorAdminAdjustmentManagerModal: React.FC<SuperiorAdminAdjustme
   // Non-Superior Admin Guard
   if (!isSuperiorAdmin) {
     return (
-      <div className="fixed inset-0 bg-slate-950/35 flex items-center justify-center p-4 z-50 animate-in fade-in">
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 max-w-md border-2 border-rose-600 text-center space-y-4 shadow-2xl">
+      <DraggableResizableModal
+        onClose={onClose}
+        modalId="adjustment-manager-access-restricted"
+        className="bg-white dark:bg-slate-900 rounded-2xl p-6 max-w-md border-2 border-rose-600 text-center space-y-4 shadow-2xl my-auto flex flex-col"
+      >
+        <div data-drag-handle="true" className="cursor-grab active:cursor-grabbing select-none shrink-0">
           <XCircle className="w-12 h-12 text-rose-600 mx-auto" />
-          <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Access Restricted</h3>
-          <p className="text-xs text-slate-600 dark:text-slate-400">
-            Only Rachel Pickard (Superior Super Admin - ADM001) has clearance to manage stock adjustment requests and grant timed access windows.
-          </p>
+          <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 mt-2">Access Restricted</h3>
+        </div>
+        <p className="text-xs text-slate-600 dark:text-slate-400 flex-1">
+          Only Rachel Pickard (Superior Super Admin - ADM001) has clearance to manage stock adjustment requests and grant timed access windows.
+        </p>
+        <div className="shrink-0">
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold"
+            className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold cursor-pointer hover:bg-slate-800 transition"
           >
             Close
           </button>
         </div>
-      </div>
+      </DraggableResizableModal>
     );
   }
 
@@ -420,216 +426,234 @@ export const SuperiorAdminAdjustmentManagerModal: React.FC<SuperiorAdminAdjustme
 
         {/* SUB-MODAL: GRANT CUSTOM TIMED ACCESS PASS */}
         {timedModalRequest && (
-          <div className="fixed inset-0 bg-slate-950/35 flex items-center justify-center p-4 z-60 animate-in fade-in">
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border-2 border-purple-500 shadow-2xl w-full max-w-lg overflow-hidden">
-              <div className="bg-purple-600 text-white p-4 flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Clock className="w-5 h-5" />
-                  <span className="font-bold text-sm">Grant Custom-Timed Stock Adjustment Access</span>
-                </div>
-                <button
-                  onClick={() => setTimedModalRequest(null)}
-                  className="text-white/80 hover:text-white font-bold"
-                >
-                  ✕
-                </button>
+          <DraggableResizableModal
+            onClose={() => setTimedModalRequest(null)}
+            modalId="grant-timed-access-modal"
+            zIndex="z-60"
+            className="bg-white dark:bg-slate-900 rounded-2xl border-2 border-purple-500 shadow-2xl w-full max-w-lg overflow-hidden my-auto flex flex-col"
+          >
+            <div
+              data-drag-handle="true"
+              className="bg-purple-600 text-white p-4 flex items-center justify-between cursor-grab active:cursor-grabbing select-none shrink-0"
+            >
+              <div className="flex items-center space-x-2">
+                <Clock className="w-5 h-5" />
+                <span className="font-bold text-sm">Grant Custom-Timed Stock Adjustment Access</span>
+              </div>
+              <button
+                onClick={() => setTimedModalRequest(null)}
+                className="text-white/80 hover:text-white font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs flex-1 min-h-0 overflow-y-auto">
+              <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1 font-mono text-[11px]">
+                <div><strong>Requester:</strong> {timedModalRequest.requesterName} ({timedModalRequest.requesterId})</div>
+                <div><strong>Batch Title:</strong> {timedModalRequest.requestTitle}</div>
+                <div><strong>Permitted Items ({timedModalRequest.items.length}):</strong> {timedModalRequest.items.map((i) => i.ItemID).join(', ')}</div>
               </div>
 
-              <div className="p-5 space-y-4 text-xs">
-                <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1 font-mono text-[11px]">
-                  <div><strong>Requester:</strong> {timedModalRequest.requesterName} ({timedModalRequest.requesterId})</div>
-                  <div><strong>Batch Title:</strong> {timedModalRequest.requestTitle}</div>
-                  <div><strong>Permitted Items ({timedModalRequest.items.length}):</strong> {timedModalRequest.items.map((i) => i.ItemID).join(', ')}</div>
+              <div className="space-y-2">
+                <label className="font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider block">
+                  Select Access Window Duration:
+                </label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[15, 30, 45, 60].map((mins) => (
+                    <button
+                      key={mins}
+                      type="button"
+                      onClick={() => setCustomDurationMinutes(mins)}
+                      className={`py-2 rounded-lg font-mono font-bold text-xs transition ${
+                        customDurationMinutes === mins
+                          ? 'bg-purple-600 text-white shadow-xs'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                      }`}
+                    >
+                      {mins} Mins
+                    </button>
+                  ))}
                 </div>
 
-                <div className="space-y-2">
-                  <label className="font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider block">
-                    Select Access Window Duration:
-                  </label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {[15, 30, 45, 60].map((mins) => (
-                      <button
-                        key={mins}
-                        type="button"
-                        onClick={() => setCustomDurationMinutes(mins)}
-                        className={`py-2 rounded-lg font-mono font-bold text-xs transition ${
-                          customDurationMinutes === mins
-                            ? 'bg-purple-600 text-white shadow-xs'
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
-                        }`}
-                      >
-                        {mins} Mins
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="flex items-center space-x-2 pt-1">
-                    <span className="text-slate-500 font-mono text-[11px]">Or Custom Minutes:</span>
-                    <input
-                      type="number"
-                      min="5"
-                      max="480"
-                      value={customDurationMinutes}
-                      onChange={(e) => setCustomDurationMinutes(Math.max(5, parseInt(e.target.value, 10) || 5))}
-                      className="w-24 px-2 py-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono font-bold"
-                    />
-                    <span className="text-slate-500 text-[11px]">Minutes</span>
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="font-bold text-slate-800 dark:text-slate-200">
-                    Authorization Memo / Notes:
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={timedNotes}
-                    onChange={(e) => setTimedNotes(e.target.value)}
-                    className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs"
+                <div className="flex items-center space-x-2 pt-1">
+                  <span className="text-slate-500 font-mono text-[11px]">Or Custom Minutes:</span>
+                  <input
+                    type="number"
+                    min="5"
+                    max="480"
+                    value={customDurationMinutes}
+                    onChange={(e) => setCustomDurationMinutes(Math.max(5, parseInt(e.target.value, 10) || 5))}
+                    className="w-24 px-2 py-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono font-bold"
                   />
-                </div>
-
-                <div className="bg-purple-50 dark:bg-purple-950/40 p-3 rounded-xl border border-purple-200 dark:border-purple-800 text-[11px] text-purple-900 dark:text-purple-200 flex items-start space-x-2">
-                  <Sparkles className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
-                  <span>
-                    <strong>Strict Access Scope:</strong> {timedModalRequest.requesterName} will be granted access to the Stock Adjustment dialogue for <strong>{customDurationMinutes} minutes</strong>, strictly restricted to adjust the <strong>{timedModalRequest.items.length} items</strong> on this approved list.
-                  </span>
+                  <span className="text-slate-500 text-[11px]">Minutes</span>
                 </div>
               </div>
 
-              <div className="p-4 bg-slate-100 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex justify-end space-x-2">
-                <button
-                  type="button"
-                  onClick={() => setTimedModalRequest(null)}
-                  className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 text-xs font-semibold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConfirmGrantTimedAccess}
-                  className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5"
-                >
-                  <Zap className="w-4 h-4" />
-                  <span>Activate {customDurationMinutes}-Min Timed Pass</span>
-                </button>
+              <div className="space-y-1">
+                <label className="font-bold text-slate-800 dark:text-slate-200">
+                  Authorization Memo / Notes:
+                </label>
+                <textarea
+                  rows={2}
+                  value={timedNotes}
+                  onChange={(e) => setTimedNotes(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs"
+                />
+              </div>
+
+              <div className="bg-purple-50 dark:bg-purple-950/40 p-3 rounded-xl border border-purple-200 dark:border-purple-800 text-[11px] text-purple-900 dark:text-purple-200 flex items-start space-x-2">
+                <Sparkles className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
+                <span>
+                  <strong>Strict Access Scope:</strong> {timedModalRequest.requesterName} will be granted access to the Stock Adjustment dialogue for <strong>{customDurationMinutes} minutes</strong>, strictly restricted to adjust the <strong>{timedModalRequest.items.length} items</strong> on this approved list.
+                </span>
               </div>
             </div>
-          </div>
+
+            <div className="p-4 bg-slate-100 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex justify-end space-x-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setTimedModalRequest(null)}
+                className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 text-xs font-semibold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmGrantTimedAccess}
+                className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5 cursor-pointer"
+              >
+                <Zap className="w-4 h-4" />
+                <span>Activate {customDurationMinutes}-Min Timed Pass</span>
+              </button>
+            </div>
+          </DraggableResizableModal>
         )}
 
         {/* SUB-MODAL: DIRECT EXECUTION CONFIRMATION */}
         {executeModalRequest && (
-          <div className="fixed inset-0 bg-slate-950/35 flex items-center justify-center p-4 z-60 animate-in fade-in">
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border-2 border-emerald-500 shadow-2xl w-full max-w-lg overflow-hidden">
-              <div className="bg-emerald-600 text-white p-4 flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <CheckCircle2 className="w-5 h-5" />
-                  <span className="font-bold text-sm">Direct Stock Adjustment Authorization</span>
-                </div>
-                <button
-                  onClick={() => setExecuteModalRequest(null)}
-                  className="text-white/80 hover:text-white font-bold"
-                >
-                  ✕
-                </button>
+          <DraggableResizableModal
+            onClose={() => setExecuteModalRequest(null)}
+            modalId="direct-execution-confirmation-modal"
+            zIndex="z-60"
+            className="bg-white dark:bg-slate-900 rounded-2xl border-2 border-emerald-500 shadow-2xl w-full max-w-lg overflow-hidden my-auto flex flex-col"
+          >
+            <div
+              data-drag-handle="true"
+              className="bg-emerald-600 text-white p-4 flex items-center justify-between cursor-grab active:cursor-grabbing select-none shrink-0"
+            >
+              <div className="flex items-center space-x-2">
+                <CheckCircle2 className="w-5 h-5" />
+                <span className="font-bold text-sm">Direct Stock Adjustment Authorization</span>
+              </div>
+              <button
+                onClick={() => setExecuteModalRequest(null)}
+                className="text-white/80 hover:text-white font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 space-y-3 text-xs flex-1 min-h-0 overflow-y-auto">
+              <p className="leading-relaxed text-slate-700 dark:text-slate-300">
+                You are about to directly execute and apply the following stock discrepancy reconciliation batch into <strong>Master_Stock</strong>:
+              </p>
+
+              <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 font-mono text-[11px] space-y-1">
+                <div><strong>Batch Ref:</strong> {executeModalRequest.id} — {executeModalRequest.requestTitle}</div>
+                <div><strong>Requester:</strong> {executeModalRequest.requesterName} ({executeModalRequest.requesterId})</div>
+                <div><strong>Total Stock Items to Adjust:</strong> {executeModalRequest.items.length} items</div>
               </div>
 
-              <div className="p-5 space-y-3 text-xs">
-                <p className="leading-relaxed text-slate-700 dark:text-slate-300">
-                  You are about to directly execute and apply the following stock discrepancy reconciliation batch into <strong>Master_Stock</strong>:
-                </p>
-
-                <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 font-mono text-[11px] space-y-1">
-                  <div><strong>Batch Ref:</strong> {executeModalRequest.id} — {executeModalRequest.requestTitle}</div>
-                  <div><strong>Requester:</strong> {executeModalRequest.requesterName} ({executeModalRequest.requesterId})</div>
-                  <div><strong>Total Stock Items to Adjust:</strong> {executeModalRequest.items.length} items</div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="font-bold text-slate-800 dark:text-slate-200">
-                    Superior Admin Execution Memo:
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={executionNotes}
-                    onChange={(e) => setExecutionNotes(e.target.value)}
-                    className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs"
-                  />
-                </div>
-              </div>
-
-              <div className="p-4 bg-slate-100 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex justify-end space-x-2">
-                <button
-                  type="button"
-                  onClick={() => setExecuteModalRequest(null)}
-                  className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 text-xs font-semibold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConfirmDirectExecution}
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Authorize & Execute into Master_Stock</span>
-                </button>
+              <div className="space-y-1">
+                <label className="font-bold text-slate-800 dark:text-slate-200">
+                  Superior Admin Execution Memo:
+                </label>
+                <textarea
+                  rows={2}
+                  value={executionNotes}
+                  onChange={(e) => setExecutionNotes(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs"
+                />
               </div>
             </div>
-          </div>
+
+            <div className="p-4 bg-slate-100 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex justify-end space-x-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setExecuteModalRequest(null)}
+                className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 text-xs font-semibold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDirectExecution}
+                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5 cursor-pointer"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Authorize & Execute into Master_Stock</span>
+              </button>
+            </div>
+          </DraggableResizableModal>
         )}
 
         {/* SUB-MODAL: REJECTION NOTES */}
         {rejectModalRequest && (
-          <div className="fixed inset-0 bg-slate-950/35 flex items-center justify-center p-4 z-60 animate-in fade-in">
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border-2 border-rose-500 shadow-2xl w-full max-w-md overflow-hidden">
-              <div className="bg-rose-600 text-white p-4 flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <AlertTriangle className="w-5 h-5" />
-                  <span className="font-bold text-sm">Reject Stock Adjustment Request</span>
-                </div>
-                <button
-                  onClick={() => setRejectModalRequest(null)}
-                  className="text-white/80 hover:text-white font-bold"
-                >
-                  ✕
-                </button>
+          <DraggableResizableModal
+            onClose={() => setRejectModalRequest(null)}
+            modalId="reject-stock-adjustment-modal"
+            zIndex="z-60"
+            className="bg-white dark:bg-slate-900 rounded-2xl border-2 border-rose-500 shadow-2xl w-full max-w-md overflow-hidden my-auto flex flex-col"
+          >
+            <div
+              data-drag-handle="true"
+              className="bg-rose-600 text-white p-4 flex items-center justify-between cursor-grab active:cursor-grabbing select-none shrink-0"
+            >
+              <div className="flex items-center space-x-2">
+                <AlertTriangle className="w-5 h-5" />
+                <span className="font-bold text-sm">Reject Stock Adjustment Request</span>
               </div>
+              <button
+                onClick={() => setRejectModalRequest(null)}
+                className="text-white/80 hover:text-white font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
 
-              <div className="p-5 space-y-3 text-xs">
-                <div className="space-y-1">
-                  <label className="font-bold text-slate-800 dark:text-slate-200">
-                    Reason for Rejection / Recount Instructions:
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={rejectNotes}
-                    onChange={(e) => setRejectNotes(e.target.value)}
-                    className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="p-4 bg-slate-100 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex justify-end space-x-2">
-                <button
-                  type="button"
-                  onClick={() => setRejectModalRequest(null)}
-                  className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 text-xs font-semibold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConfirmReject}
-                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-md transition"
-                >
-                  Confirm Rejection
-                </button>
+            <div className="p-5 space-y-3 text-xs flex-1 min-h-0 overflow-y-auto">
+              <div className="space-y-1">
+                <label className="font-bold text-slate-800 dark:text-slate-200">
+                  Reason for Rejection / Recount Instructions:
+                </label>
+                <textarea
+                  rows={3}
+                  value={rejectNotes}
+                  onChange={(e) => setRejectNotes(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs"
+                  required
+                />
               </div>
             </div>
-          </div>
+
+            <div className="p-4 bg-slate-100 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex justify-end space-x-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setRejectModalRequest(null)}
+                className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 text-xs font-semibold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmReject}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-md transition cursor-pointer"
+              >
+                Confirm Rejection
+              </button>
+            </div>
+          </DraggableResizableModal>
         )}
     </DraggableResizableModal>
   );
