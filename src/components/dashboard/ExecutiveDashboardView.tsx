@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   SlidersHorizontal,
   Package,
   TrendingDown,
+  TrendingUp,
   Activity,
   ShieldAlert,
   Layers,
@@ -24,6 +25,8 @@ import {
   Filter,
   Check,
   FolderOpen,
+  BarChart3,
+  Brain,
 } from 'lucide-react';
 import {
   StockItem,
@@ -33,20 +36,28 @@ import {
   AdminUser,
   BackupSnapshot,
 } from '../../types';
+import { DraggableResizableModal } from '../common/DraggableResizableModal';
+import { getExecutiveAnalytics } from '../../utils/predictiveAnalytics';
+import { ExecutiveChartsView } from './ExecutiveChartsView';
+import { ExecutiveAiInsightsPanel } from './ExecutiveAiInsightsPanel';
 
 interface ExecutiveDashboardViewProps {
   stockItems: StockItem[];
   movementLogs: MovementLogEntry[];
-  departments: Department[];
-  adjustmentRequests: StockAdjustmentRequest[];
+  departments?: Department[];
+  adjustmentRequests?: StockAdjustmentRequest[];
   currentUser: AdminUser | null;
   backups?: BackupSnapshot[];
-  onNavigateTab: (tab: 'simulator' | 'audit' | 'export') => void;
-  onOpenQuickAction: (actionType: 'delivery' | 'issue' | 'adjustment' | 'reorderReport') => void;
+  onNavigateTab?: (tab: 'simulator' | 'audit' | 'export') => void;
+  onNavigateSheet?: (sheet: string) => void;
+  onOpenQuickAction?: (actionType: 'delivery' | 'issue' | 'adjustment' | 'reorderReport') => void;
   onOpenMovementDoc?: (log: MovementLogEntry) => void;
+  onSelectItemForReorder?: (item: StockItem) => void;
 }
 
 export interface DashboardWidgetConfig {
+  consumptionCharts: boolean;
+  aiInsights: boolean;
   lowStock: boolean;
   recentActivity: boolean;
   pendingAdjustments: boolean;
@@ -57,6 +68,8 @@ export interface DashboardWidgetConfig {
 }
 
 const DEFAULT_WIDGETS: DashboardWidgetConfig = {
+  consumptionCharts: true,
+  aiInsights: true,
   lowStock: true,
   recentActivity: true,
   pendingAdjustments: true,
@@ -74,8 +87,10 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
   currentUser,
   backups = [],
   onNavigateTab,
+  onNavigateSheet,
   onOpenQuickAction,
   onOpenMovementDoc,
+  onSelectItemForReorder,
 }) => {
   const [widgets, setWidgets] = useState<DashboardWidgetConfig>(() => {
     try {
@@ -90,6 +105,24 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
   });
 
   const [isCustomizeOpen, setIsCustomizeOpen] = useState(false);
+
+  // Safe action dispatcher
+  const handleQuickAction = (actionType: 'delivery' | 'issue' | 'adjustment' | 'reorderReport') => {
+    if (onOpenQuickAction) {
+      onOpenQuickAction(actionType);
+      return;
+    }
+    if (onNavigateSheet) {
+      if (actionType === 'delivery') onNavigateSheet('Receive +');
+      else if (actionType === 'issue') onNavigateSheet('Issue Out Requests');
+      else if (actionType === 'adjustment') onNavigateSheet('Stock Adjustment +/−');
+      else if (actionType === 'reorderReport') onNavigateSheet('Stock Re-Order & Safety Threshold Report');
+      return;
+    }
+    if (onNavigateTab) {
+      onNavigateTab('simulator');
+    }
+  };
 
   useEffect(() => {
     try {
@@ -112,6 +145,11 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
   const safeLogs = Array.isArray(movementLogs) ? movementLogs : [];
   const safeDepts = Array.isArray(departments) ? departments : [];
   const safeRequests = Array.isArray(adjustmentRequests) ? adjustmentRequests : [];
+
+  // Calculate predictive analytics summary
+  const analyticsSummary = useMemo(() => {
+    return getExecutiveAnalytics(safeStock, safeLogs);
+  }, [safeStock, safeLogs]);
 
   // Summary Metrics
   const totalSkus = safeStock.length;
@@ -137,7 +175,9 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
     });
   const topDepts = Object.entries(deptIssueCounts)
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 5);
+    .slice(0, 6);
+
+  const deptConsumptionList = topDepts.map(([name, qty]) => ({ name, qty }));
 
   return (
     <div className="w-full space-y-5 pb-8 animate-in fade-in duration-150">
@@ -237,14 +277,17 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
               </span>
             )}
           </div>
-          <div className="text-[11px] text-rose-600 dark:text-rose-400 mt-1 flex items-center gap-1 font-semibold">
+          <div
+            onClick={() => handleQuickAction('reorderReport')}
+            className="text-[11px] text-rose-600 dark:text-rose-400 mt-1 flex items-center gap-1 font-semibold cursor-pointer"
+          >
             <span>Click to view re-order report &rarr;</span>
           </div>
         </div>
 
         {/* Metric 4: Pending Adjustments */}
         <div
-          onClick={() => onOpenQuickAction('adjustment')}
+          onClick={() => handleQuickAction('adjustment')}
           className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-400 dark:hover:border-amber-600 rounded-2xl shadow-2xs cursor-pointer transition"
         >
           <div className="flex items-center justify-between">
@@ -279,7 +322,7 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
             <button
               type="button"
-              onClick={() => onOpenQuickAction('delivery')}
+              onClick={() => handleQuickAction('delivery')}
               className="p-3 bg-white dark:bg-slate-900 hover:bg-sky-50 dark:hover:bg-sky-950/50 border border-slate-200 dark:border-slate-800 rounded-xl text-left cursor-pointer transition shadow-2xs group"
             >
               <ArrowDownToLine className="w-4 h-4 text-sky-600 mb-1.5 group-hover:scale-110 transition-transform" />
@@ -289,7 +332,7 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
 
             <button
               type="button"
-              onClick={() => onOpenQuickAction('issue')}
+              onClick={() => handleQuickAction('issue')}
               className="p-3 bg-white dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 border border-slate-200 dark:border-slate-800 rounded-xl text-left cursor-pointer transition shadow-2xs group"
             >
               <Send className="w-4 h-4 text-emerald-600 mb-1.5 group-hover:scale-110 transition-transform" />
@@ -299,7 +342,7 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
 
             <button
               type="button"
-              onClick={() => onOpenQuickAction('adjustment')}
+              onClick={() => handleQuickAction('adjustment')}
               className="p-3 bg-white dark:bg-slate-900 hover:bg-amber-50 dark:hover:bg-amber-950/50 border border-slate-200 dark:border-slate-800 rounded-xl text-left cursor-pointer transition shadow-2xs group"
             >
               <SlidersHorizontal className="w-4 h-4 text-amber-600 mb-1.5 group-hover:scale-110 transition-transform" />
@@ -309,7 +352,7 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
 
             <button
               type="button"
-              onClick={() => onNavigateTab('audit')}
+              onClick={() => onNavigateTab && onNavigateTab('audit')}
               className="p-3 bg-white dark:bg-slate-900 hover:bg-teal-50 dark:hover:bg-teal-950/50 border border-slate-200 dark:border-slate-800 rounded-xl text-left cursor-pointer transition shadow-2xs group"
             >
               <Activity className="w-4 h-4 text-teal-600 mb-1.5 group-hover:scale-110 transition-transform" />
@@ -318,6 +361,28 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
             </button>
           </div>
         </div>
+      )}
+
+      {/* Widget: Consumption Trend & Visualizations (Recharts) */}
+      {widgets.consumptionCharts && (
+        <ExecutiveChartsView
+          stockItems={safeStock}
+          movementLogs={safeLogs}
+          monthlyTrend={analyticsSummary.monthlyTrend}
+          categoryDistribution={analyticsSummary.categoryDistribution}
+          deptConsumption={deptConsumptionList}
+        />
+      )}
+
+      {/* Widget: AI Insights & Predictive Demand Engine */}
+      {widgets.aiInsights && (
+        <ExecutiveAiInsightsPanel
+          stockItems={safeStock}
+          movementLogs={safeLogs}
+          analyticsSummary={analyticsSummary}
+          onOpenQuickAction={handleQuickAction}
+          onSelectItemForReorder={onSelectItemForReorder}
+        />
       )}
 
       {/* Main Grid: Configurable Widgets */}
@@ -344,14 +409,14 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
                   All stock items are currently above safety reorder levels!
                 </div>
               ) : (
-                lowStockItems.slice(0, 8).map((item) => {
+                lowStockItems.slice(0, 8).map((item, idx) => {
                   const qty = Number(item.Qty) || 0;
                   const reorder = Number(item.ReorderLevel) || 10;
                   const percent = Math.min(Math.round((qty / reorder) * 100), 100);
                   const isZero = qty <= 0;
 
                   return (
-                    <div key={item.ItemID} className="py-2.5 flex items-center justify-between gap-3">
+                    <div key={item.ItemID || `low-stock-${idx}`} className="py-2.5 flex items-center justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5">
                           <span className="font-mono text-[10px] font-bold text-teal-700 dark:text-teal-400 bg-slate-100 dark:bg-slate-800 px-1 rounded">
@@ -384,7 +449,7 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
                         </div>
                         <button
                           type="button"
-                          onClick={() => onOpenQuickAction('delivery')}
+                          onClick={() => handleQuickAction('delivery')}
                           className="text-[10px] font-bold text-sky-600 dark:text-sky-400 hover:underline cursor-pointer"
                         >
                           Replenish &rarr;
@@ -399,7 +464,7 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
             <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex justify-end">
               <button
                 type="button"
-                onClick={() => onOpenQuickAction('reorderReport')}
+                onClick={() => handleQuickAction('reorderReport')}
                 className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
               >
                 <span>View Full Reorder Safety Report</span>
@@ -434,13 +499,14 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
                   No transaction activity logged yet.
                 </div>
               ) : (
-                safeLogs.slice(0, 8).map((log) => {
+                safeLogs.slice(0, 8).map((log, idx) => {
                   const isDelivery = log.Type === 'DELIVERY';
                   const isIssue = log.Type === 'ISSUE';
+                  const logKey = log.id || `log-${log.Timestamp || ''}-${idx}`;
 
                   return (
                     <div
-                      key={log.id}
+                      key={logKey}
                       onClick={() => onOpenMovementDoc && onOpenMovementDoc(log)}
                       className="py-2.5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/50 px-1.5 rounded-lg cursor-pointer transition"
                     >
@@ -511,31 +577,41 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
                   No pending adjustment requests. Stock counts are fully verified!
                 </div>
               ) : (
-                pendingRequests.map((req) => (
-                  <div key={req.requestId} className="py-2.5 flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-mono text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/80 px-1 rounded">
-                          {req.requestId}
-                        </span>
-                        <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                          {req.items && req.items[0] ? req.items[0].ItemName : 'Stock Item'}
-                        </span>
-                      </div>
-                      <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                        By {req.requesterName} ({req.requesterId}) • {req.reasonCode}
-                      </div>
-                    </div>
+                pendingRequests.map((req, idx) => {
+                  const reqKey = req.id || (req as any).requestId || `pending-req-${idx}`;
+                  const reasonDisplay =
+                    req.items && req.items[0]?.ReasonLabel
+                      ? req.items[0].ReasonLabel
+                      : req.items && req.items[0]?.ReasonCode
+                      ? req.items[0].ReasonCode
+                      : req.requestTitle || 'Stock Discrepancy';
 
-                    <button
-                      type="button"
-                      onClick={() => onOpenQuickAction('adjustment')}
-                      className="px-2.5 py-1 text-xs font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-800 rounded-lg hover:bg-amber-100 cursor-pointer transition shrink-0"
-                    >
-                      Authorize
-                    </button>
-                  </div>
-                ))
+                  return (
+                    <div key={reqKey} className="py-2.5 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/80 px-1 rounded">
+                            {req.id || (req as any).requestId || `SAR-${idx + 1}`}
+                          </span>
+                          <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                            {req.items && req.items[0] ? req.items[0].ItemName : req.requestTitle || 'Stock Item'}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          By {req.requesterName} ({req.requesterId}) • {reasonDisplay}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleQuickAction('adjustment')}
+                        className="px-2.5 py-1 text-xs font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-800 rounded-lg hover:bg-amber-100 cursor-pointer transition shrink-0"
+                      >
+                        Authorize
+                      </button>
+                    </div>
+                  );
+                })
               )}
             </div>
           </div>
@@ -633,7 +709,7 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
                 </div>
               ) : (
                 topDepts.map(([dept, qty], index) => (
-                  <div key={dept} className="py-2.5 flex items-center justify-between gap-3">
+                  <div key={dept || `dept-${index}`} className="py-2.5 flex items-center justify-between gap-3">
                     <div className="flex items-center space-x-2.5 min-w-0">
                       <span className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center text-[10px] font-bold">
                         {index + 1}
@@ -688,76 +764,84 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
 
       {/* Customize Widgets Modal */}
       {isCustomizeOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/35 animate-in fade-in duration-100">
-          <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden">
-            <div className="p-4 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <SlidersHorizontal className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                  Customize Dashboard Widgets
-                </h3>
-              </div>
+        <DraggableResizableModal
+          onClose={() => setIsCustomizeOpen(false)}
+          modalId="customize-widgets-modal"
+          zIndex="z-50"
+          className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-auto flex flex-col"
+        >
+          <div
+            data-drag-handle="true"
+            className="p-4 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between cursor-grab active:cursor-grabbing select-none shrink-0"
+          >
+            <div className="flex items-center space-x-2">
+              <SlidersHorizontal className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                Customize Dashboard Widgets
+              </h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsCustomizeOpen(false)}
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs px-2 py-1 rounded cursor-pointer"
+            >
+              Done
+            </button>
+          </div>
+
+          <div className="p-5 space-y-3 flex-1 min-h-0 overflow-y-auto">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Select which executive widgets to display on your landing dashboard:
+            </p>
+
+            <div className="space-y-2">
+              {[
+                { key: 'consumptionCharts', label: '6-Month Consumption Trends & Charts', desc: 'Recharts trends: Stationery vs Cleaning, Category Pie & Dept Bar' },
+                { key: 'aiInsights', label: 'AI Demand Forecast & Reorder Engine', desc: 'Predictive Monthly/Quarterly/6M consumption and reorder advice' },
+                { key: 'quickLaunchpad', label: 'Fast Procurement Launchpad', desc: 'One-click shortcuts to key actions' },
+                { key: 'lowStock', label: 'Low Stock & Threshold Alerts', desc: 'Monitor items nearing zero' },
+                { key: 'recentActivity', label: 'Recent Inventory Movements', desc: 'Live feed of deliveries & issues' },
+                { key: 'pendingAdjustments', label: 'Pending Stock Adjustments', desc: 'Authorizations awaiting review' },
+                { key: 'categoryDistribution', label: 'Category Stock Distribution', desc: 'Stationery vs Cleaning vs General' },
+                { key: 'departmentConsumption', label: 'Top Department Consumption', desc: 'Departments requisitioning the most items' },
+                { key: 'systemStorageStatus', label: 'Offline Database & Vault Health', desc: 'SQLite storage and snapshot stats' },
+              ].map((w) => (
+                <label
+                  key={w.key}
+                  className="flex items-start space-x-3 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition"
+                >
+                  <input
+                    type="checkbox"
+                    checked={Boolean(widgets[w.key as keyof DashboardWidgetConfig])}
+                    onChange={() => toggleWidget(w.key as keyof DashboardWidgetConfig)}
+                    className="w-4 h-4 mt-0.5 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-bold text-slate-900 dark:text-white">{w.label}</div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">{w.desc}</div>
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            <div className="pt-3 flex justify-between items-center border-t border-slate-200 dark:border-slate-800 shrink-0">
+              <button
+                type="button"
+                onClick={resetWidgets}
+                className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer"
+              >
+                Reset Defaults
+              </button>
               <button
                 type="button"
                 onClick={() => setIsCustomizeOpen(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs px-2 py-1 rounded"
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-md cursor-pointer transition"
               >
-                Done
+                Save &amp; Close
               </button>
             </div>
-
-            <div className="p-5 space-y-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Select which executive widgets to display on your landing dashboard:
-              </p>
-
-              <div className="space-y-2">
-                {[
-                  { key: 'quickLaunchpad', label: 'Fast Procurement Launchpad', desc: 'One-click shortcuts to key actions' },
-                  { key: 'lowStock', label: 'Low Stock & Threshold Alerts', desc: 'Monitor items nearing zero' },
-                  { key: 'recentActivity', label: 'Recent Inventory Movements', desc: 'Live feed of deliveries & issues' },
-                  { key: 'pendingAdjustments', label: 'Pending Stock Adjustments', desc: 'Authorizations awaiting review' },
-                  { key: 'categoryDistribution', label: 'Category Stock Distribution', desc: 'Stationery vs Cleaning vs General' },
-                  { key: 'departmentConsumption', label: 'Top Department Consumption', desc: 'Departments requisitioning the most items' },
-                  { key: 'systemStorageStatus', label: 'Offline Database & Vault Health', desc: 'SQLite storage and snapshot stats' },
-                ].map((w) => (
-                  <label
-                    key={w.key}
-                    className="flex items-start space-x-3 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={Boolean(widgets[w.key as keyof DashboardWidgetConfig])}
-                      onChange={() => toggleWidget(w.key as keyof DashboardWidgetConfig)}
-                      className="w-4 h-4 mt-0.5 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-xs font-bold text-slate-900 dark:text-white">{w.label}</div>
-                      <div className="text-[11px] text-slate-500 dark:text-slate-400">{w.desc}</div>
-                    </div>
-                  </label>
-                ))}
-              </div>
-
-              <div className="pt-3 flex justify-between items-center border-t border-slate-200 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={resetWidgets}
-                  className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer"
-                >
-                  Reset Defaults
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsCustomizeOpen(false)}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-md cursor-pointer transition"
-                >
-                  Save &amp; Close
-                </button>
-              </div>
-            </div>
           </div>
-        </div>
+        </DraggableResizableModal>
       )}
     </div>
   );

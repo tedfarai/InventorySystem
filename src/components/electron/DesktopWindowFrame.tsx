@@ -48,6 +48,7 @@ interface DesktopWindowFrameProps {
   onOpenAdjustmentModal?: () => void;
   onOpenMasterFolderModal?: () => void;
   onOpenBackupModal?: () => void;
+  hideStatusBar?: boolean;
 }
 
 interface IpcLogEvent {
@@ -77,6 +78,7 @@ export const DesktopWindowFrame: React.FC<DesktopWindowFrameProps> = ({
   onOpenAdjustmentModal,
   onOpenMasterFolderModal,
   onOpenBackupModal,
+  hideStatusBar = false,
 }) => {
   const [osTheme, setOSTheme] = useState<OSTheme>('windows');
   const [isMaximized, setIsMaximized] = useState(false);
@@ -672,45 +674,47 @@ export const DesktopWindowFrame: React.FC<DesktopWindowFrameProps> = ({
       {/* ========================================================================= */}
       {/* 4. NATIVE DESKTOP STATUS BAR (OS FOOTER) */}
       {/* ========================================================================= */}
-      <div className="bg-slate-950 border-t border-slate-800 text-[11px] text-slate-400 px-4 py-1.5 flex flex-col sm:flex-row items-center justify-between gap-2 z-40 select-none">
-        <div className="flex items-center space-x-3">
-          <div className="flex items-center space-x-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span className="font-mono text-slate-200 font-semibold">SQLite WAL Active</span>
-          </div>
-          <span className="text-slate-700 hidden md:inline">|</span>
-          <div className="hidden md:flex items-center space-x-1 font-mono text-slate-400">
-            <HardDrive className="w-3 h-3 text-teal-400" />
-            <span className="truncate max-w-[280px]" title={masterFolderPath}>
-              {masterFolderPath}
-            </span>
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-4 font-mono text-[10px]">
-          <div className="flex items-center space-x-1 text-slate-300">
-            <Cpu className="w-3 h-3 text-cyan-400" />
-            <span>CPU: {simulatedCpu}</span>
-          </div>
-
-          <div className="flex items-center space-x-1 text-slate-300">
-            <Activity className="w-3 h-3 text-teal-400" />
-            <span>Memory: {simulatedMemory}</span>
-          </div>
-
-          <div className="hidden lg:flex items-center space-x-1 text-emerald-400">
-            <Zap className="w-3 h-3" />
-            <span>IPC Latency: 0.1ms</span>
-          </div>
-
-          {currentUser && (
-            <div className="bg-emerald-950 text-emerald-300 px-2 py-0.5 rounded border border-emerald-800 flex items-center gap-1">
-              <ShieldCheck className="w-3 h-3" />
-              <span>{currentUser.name} ({currentUser.id})</span>
+      {!hideStatusBar && (
+        <div className="bg-slate-950 border-t border-slate-800 text-[11px] text-slate-400 px-4 py-1.5 flex flex-col sm:flex-row items-center justify-between gap-2 z-40 select-none">
+          <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span className="font-mono text-slate-200 font-semibold">SQLite WAL Active</span>
             </div>
-          )}
+            <span className="text-slate-700 hidden md:inline">|</span>
+            <div className="hidden md:flex items-center space-x-1 font-mono text-slate-400">
+              <HardDrive className="w-3 h-3 text-teal-400" />
+              <span className="truncate max-w-[280px]" title={masterFolderPath}>
+                {masterFolderPath}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-4 font-mono text-[10px]">
+            <div className="flex items-center space-x-1 text-slate-300">
+              <Cpu className="w-3 h-3 text-cyan-400" />
+              <span>CPU: {simulatedCpu}</span>
+            </div>
+
+            <div className="flex items-center space-x-1 text-slate-300">
+              <Activity className="w-3 h-3 text-teal-400" />
+              <span>Memory: {simulatedMemory}</span>
+            </div>
+
+            <div className="hidden lg:flex items-center space-x-1 text-emerald-400">
+              <Zap className="w-3 h-3" />
+              <span>IPC Latency: 0.1ms</span>
+            </div>
+
+            {currentUser && (
+              <div className="bg-emerald-950 text-emerald-300 px-2 py-0.5 rounded border border-emerald-800 flex items-center gap-1">
+                <ShieldCheck className="w-3 h-3" />
+                <span>{currentUser.name} ({currentUser.id})</span>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

@@ -1007,8 +1007,7 @@ export const BackupRecoveryModal: React.FC<BackupRecoveryModalProps> = ({
                   </button>
                 </div>
               </div>
-            </div>
-          </div>
+          </DraggableResizableModal>
         )}
 
         {/* 1-Click Restore Point-in-Time Confirmation Modal */}
