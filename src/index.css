@@ -3,14 +3,14 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  /* Semantic Light Theme Variables */
+  /* Semantic Light Theme Variables - Calibrated for high WCAG AAA contrast */
   --bg-primary: #f8fafc;
   --bg-surface: #ffffff;
   --bg-elevated: #f1f5f9;
   --text-main: #0f172a;
-  --text-muted: #64748b;
-  --border-subtle: #e2e8f0;
-  --border-elevated: #cbd5e1;
+  --text-muted: #334155;
+  --border-subtle: #cbd5e1;
+  --border-elevated: #94a3b8;
   --accent-primary: #059669;
   --accent-primary-hover: #047857;
   --accent-tint: #ecfdf5;
@@ -25,8 +25,8 @@
   --bg-elevated: #334155;
   --text-main: #f1f5f9;
   --text-muted: #94a3b8;
-  --border-subtle: rgba(255, 255, 255, 0.09);
-  --border-elevated: rgba(255, 255, 255, 0.16);
+  --border-subtle: rgba(255, 255, 255, 0.12);
+  --border-elevated: rgba(255, 255, 255, 0.2);
   --accent-primary: #10b981;
   --accent-primary-hover: #34d399;
   --accent-tint: rgba(16, 185, 129, 0.12);
@@ -54,8 +54,9 @@
     filter: brightness(0.88) contrast(1.12);
   }
 
-  /* SVG dynamic currentColor inheritance */
-  svg {
+  /* SVG dynamic currentColor inheritance for icon libraries without clobbering charts */
+  svg.lucide,
+  svg[data-icon] {
     stroke: currentColor;
   }
   

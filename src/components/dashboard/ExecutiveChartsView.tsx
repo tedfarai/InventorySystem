@@ -44,6 +44,7 @@ import {
   DateRangeFilterConfig,
   calculateFlexibleConsumptionTrend,
 } from '../../utils/predictiveAnalytics';
+import { useTheme } from '../../hooks/useTheme';
 
 interface ExecutiveChartsViewProps {
   stockItems?: StockItem[];
@@ -64,6 +65,7 @@ const PIE_COLORS = ['#0d9488', '#0284c7', '#10b981', '#f59e0b', '#8b5cf6'];
 /**
  * Custom Recharts Tooltip showing precise numerical breakdown,
  * category shares, and period-over-period percentage variance.
+ * Dynamically adjusts contrast for Light and Dark modes.
  */
 interface CustomConsumptionTooltipProps {
   active?: boolean;
@@ -77,6 +79,8 @@ const CustomConsumptionTooltip: React.FC<CustomConsumptionTooltipProps> = ({
   payload,
   showPredictionOverlay = false,
 }) => {
+  const { isDark } = useTheme();
+
   if (!active || !payload || !payload.length) return null;
   const point: ConsumptionTrendPoint = payload[0]?.payload;
   if (!point) return null;
@@ -84,68 +88,150 @@ const CustomConsumptionTooltip: React.FC<CustomConsumptionTooltipProps> = ({
   // If this point is a future forecast period, show the predictive horizon card
   if (point.isForecast) {
     return (
-      <div className="bg-slate-950/95 text-white border border-violet-500/80 rounded-2xl shadow-2xl p-3.5 backdrop-blur-md min-w-[280px] max-w-[340px] pointer-events-none z-50">
-        <div className="flex items-center justify-between gap-2 pb-2 border-b border-violet-800/60">
+      <div
+        className={`rounded-2xl shadow-2xl p-3.5 backdrop-blur-md min-w-[280px] max-w-[340px] pointer-events-none z-50 ${
+          isDark
+            ? 'bg-slate-950/95 text-white border border-violet-500/80'
+            : 'bg-white/98 text-slate-900 border border-violet-300 ring-1 ring-violet-500/10'
+        }`}
+      >
+        <div
+          className={`flex items-center justify-between gap-2 pb-2 border-b ${
+            isDark ? 'border-violet-800/60' : 'border-violet-200'
+          }`}
+        >
           <div>
-            <div className="text-xs font-black text-violet-200 tracking-wide flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+            <div
+              className={`text-xs font-black tracking-wide flex items-center gap-1.5 ${
+                isDark ? 'text-violet-200' : 'text-violet-900'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
               <span>{point.label}</span>
             </div>
-            <div className="text-[10px] text-violet-300/80 mt-0.5">{point.subLabel || 'Projected Requirement Horizon'}</div>
+            <div
+              className={`text-[10px] mt-0.5 font-medium ${
+                isDark ? 'text-violet-300/80' : 'text-violet-700'
+              }`}
+            >
+              {point.subLabel || 'Projected Requirement Horizon'}
+            </div>
           </div>
-          <span className="text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-violet-900/80 text-violet-200 border border-violet-700">
+          <span
+            className={`text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+              isDark
+                ? 'bg-violet-900/80 text-violet-200 border-violet-700'
+                : 'bg-violet-100 text-violet-800 border-violet-300 font-bold'
+            }`}
+          >
             Forecast
           </span>
         </div>
 
-        <div className="py-2.5 my-2.5 px-3 rounded-xl bg-violet-950/80 border border-violet-800/60">
-          <div className="text-[10px] font-semibold text-violet-300 uppercase tracking-wider">
+        <div
+          className={`py-2.5 my-2.5 px-3 rounded-xl border ${
+            isDark
+              ? 'bg-violet-950/80 border-violet-800/60'
+              : 'bg-violet-50 border-violet-200'
+          }`}
+        >
+          <div
+            className={`text-[10px] font-bold uppercase tracking-wider ${
+              isDark ? 'text-violet-300' : 'text-violet-700'
+            }`}
+          >
             Total Projected Requirement
           </div>
-          <div className="text-xl font-extrabold text-white mt-0.5">
+          <div
+            className={`text-xl font-extrabold mt-0.5 ${
+              isDark ? 'text-white' : 'text-slate-950'
+            }`}
+          >
             {(point.predictedTotal || 0).toLocaleString()}{' '}
-            <span className="text-xs font-normal text-violet-300">units</span>
+            <span
+              className={`text-xs font-medium ${
+                isDark ? 'text-violet-300' : 'text-violet-600'
+              }`}
+            >
+              units
+            </span>
           </div>
         </div>
 
         <div className="space-y-1.5 text-xs">
           <div className="flex items-center justify-between">
-            <span className="flex items-center gap-1.5 text-slate-300">
-              <span className="w-2 h-2 rounded-full bg-teal-400"></span>
+            <span
+              className={`flex items-center gap-1.5 font-medium ${
+                isDark ? 'text-slate-300' : 'text-slate-700'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-teal-500"></span>
               Stationery Projected:
             </span>
-            <span className="font-bold text-white">
+            <span
+              className={`font-bold ${
+                isDark ? 'text-white' : 'text-slate-950'
+              }`}
+            >
               {(point.predictedStationery || 0).toLocaleString()} units
             </span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="flex items-center gap-1.5 text-slate-300">
-              <span className="w-2 h-2 rounded-full bg-sky-400"></span>
+            <span
+              className={`flex items-center gap-1.5 font-medium ${
+                isDark ? 'text-slate-300' : 'text-slate-700'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-sky-500"></span>
               Cleaning Projected:
             </span>
-            <span className="font-bold text-white">
+            <span
+              className={`font-bold ${
+                isDark ? 'text-white' : 'text-slate-950'
+              }`}
+            >
               {(point.predictedCleaning || 0).toLocaleString()} units
             </span>
           </div>
           {(point.predictedGeneral || 0) > 0 && (
             <div className="flex items-center justify-between">
-              <span className="flex items-center gap-1.5 text-slate-300">
-                <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+              <span
+                className={`flex items-center gap-1.5 font-medium ${
+                  isDark ? 'text-slate-300' : 'text-slate-700'
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
                 General Projected:
               </span>
-              <span className="font-bold text-white">
+              <span
+                className={`font-bold ${
+                  isDark ? 'text-white' : 'text-slate-950'
+                }`}
+              >
                 {(point.predictedGeneral || 0).toLocaleString()} units
               </span>
             </div>
           )}
         </div>
 
-        <div className="mt-3 pt-2 border-t border-violet-900/80 flex items-center justify-between text-[10px] text-slate-400">
-          <span className="flex items-center gap-1">
-            <Brain className="w-3 h-3 text-indigo-400" />
+        <div
+          className={`mt-3 pt-2 border-t flex items-center justify-between text-[10px] ${
+            isDark
+              ? 'border-violet-900/80 text-slate-400'
+              : 'border-violet-200 text-slate-600'
+          }`}
+        >
+          <span className="flex items-center gap-1 font-medium">
+            <Brain className="w-3 h-3 text-indigo-500" />
             Predicted burn model
           </span>
-          <span className="text-violet-300 font-semibold">Future Horizon</span>
+          <span
+            className={`font-bold ${
+              isDark ? 'text-violet-300' : 'text-violet-700'
+            }`}
+          >
+            Future Horizon
+          </span>
         </div>
       </div>
     );
@@ -168,7 +254,13 @@ const CustomConsumptionTooltip: React.FC<CustomConsumptionTooltipProps> = ({
   const formatVarBadge = (v: number | null, prevUnits: number) => {
     if (v === null) {
       return (
-        <span className="text-[10px] font-semibold text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">
+        <span
+          className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+            isDark
+              ? 'text-slate-400 bg-slate-800 border-slate-700'
+              : 'text-slate-700 bg-slate-100 border-slate-300'
+          }`}
+        >
           Baseline
         </span>
       );
@@ -177,12 +269,18 @@ const CustomConsumptionTooltip: React.FC<CustomConsumptionTooltipProps> = ({
     const isPos = v > 0;
     return (
       <span
-        className={`inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded ${
+        className={`inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded border ${
           isZero
-            ? 'text-slate-300 bg-slate-800 border border-slate-700'
+            ? isDark
+              ? 'text-slate-300 bg-slate-800 border-slate-700'
+              : 'text-slate-700 bg-slate-100 border-slate-300'
             : isPos
-            ? 'text-emerald-300 bg-emerald-950/80 border border-emerald-800/70'
-            : 'text-rose-300 bg-rose-950/80 border border-rose-800/70'
+            ? isDark
+              ? 'text-emerald-300 bg-emerald-950/80 border-emerald-800/70'
+              : 'text-emerald-800 bg-emerald-100 border-emerald-300'
+            : isDark
+            ? 'text-rose-300 bg-rose-950/80 border-rose-800/70'
+            : 'text-rose-800 bg-rose-100 border-rose-300'
         }`}
         title={`Previous period: ${prevUnits.toLocaleString()} units`}
       >
@@ -204,19 +302,45 @@ const CustomConsumptionTooltip: React.FC<CustomConsumptionTooltipProps> = ({
   };
 
   return (
-    <div className="bg-slate-950/95 text-white border border-slate-700/80 rounded-2xl shadow-2xl p-3.5 backdrop-blur-md min-w-[280px] max-w-[340px] pointer-events-none z-50">
+    <div
+      className={`rounded-2xl shadow-2xl p-3.5 backdrop-blur-md min-w-[280px] max-w-[340px] pointer-events-none z-50 ${
+        isDark
+          ? 'bg-slate-950/95 text-white border border-slate-700/80'
+          : 'bg-white/98 text-slate-900 border border-slate-300 ring-1 ring-slate-900/5'
+      }`}
+    >
       {/* Tooltip Header */}
-      <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-800">
+      <div
+        className={`flex items-center justify-between gap-2 pb-2.5 border-b ${
+          isDark ? 'border-slate-800' : 'border-slate-200'
+        }`}
+      >
         <div>
-          <div className="text-xs font-black text-white tracking-wide flex items-center gap-1.5">
-            <Calendar className="w-3.5 h-3.5 text-teal-400" />
+          <div
+            className={`text-xs font-black tracking-wide flex items-center gap-1.5 ${
+              isDark ? 'text-white' : 'text-slate-950'
+            }`}
+          >
+            <Calendar className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
             <span>{point.label}</span>
           </div>
           {point.subLabel && (
-            <div className="text-[10px] text-slate-400 mt-0.5">{point.subLabel}</div>
+            <div
+              className={`text-[10px] mt-0.5 font-medium ${
+                isDark ? 'text-slate-400' : 'text-slate-600'
+              }`}
+            >
+              {point.subLabel}
+            </div>
           )}
         </div>
-        <span className="text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+        <span
+          className={`text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+            isDark
+              ? 'bg-slate-800 text-slate-300 border-slate-700'
+              : 'bg-slate-100 text-slate-800 border-slate-300 font-bold'
+          }`}
+        >
           {point.periodType === 'monthly'
             ? 'Monthly'
             : point.periodType === 'quarterly'
@@ -226,40 +350,64 @@ const CustomConsumptionTooltip: React.FC<CustomConsumptionTooltipProps> = ({
       </div>
 
       {/* Aggregate Headline */}
-      <div className="py-2.5 border-b border-slate-800">
+      <div
+        className={`py-2.5 border-b ${
+          isDark ? 'border-slate-800' : 'border-slate-200'
+        }`}
+      >
         <div className="flex items-center justify-between">
-          <span className="text-xs text-slate-400 font-medium">Total Consumed</span>
+          <span
+            className={`text-xs font-semibold ${
+              isDark ? 'text-slate-400' : 'text-slate-600'
+            }`}
+          >
+            Total Consumed
+          </span>
           <div className="flex items-center gap-1.5">
-            <span className="text-sm font-black text-white">{total.toLocaleString()} units</span>
+            <span
+              className={`text-sm font-black ${
+                isDark ? 'text-white' : 'text-slate-950'
+              }`}
+            >
+              {total.toLocaleString()} units
+            </span>
             {formatVarBadge(totVar, point.prevTotal)}
           </div>
         </div>
 
         {/* Proportional visual bar */}
-        <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden flex mt-2">
+        <div
+          className={`w-full h-1.5 rounded-full overflow-hidden flex mt-2 ${
+            isDark ? 'bg-slate-800' : 'bg-slate-200'
+          }`}
+        >
           {stat > 0 && (
             <div
               style={{ width: `${statPct}%` }}
-              className="bg-teal-500 h-full"
+              className="bg-teal-600 dark:bg-teal-500 h-full"
               title={`Stationery: ${statPct}%`}
             />
           )}
           {clean > 0 && (
             <div
               style={{ width: `${cleanPct}%` }}
-              className="bg-sky-500 h-full"
+              className="bg-sky-600 dark:bg-sky-500 h-full"
               title={`Cleaning: ${cleanPct}%`}
             />
           )}
           {gen > 0 && (
             <div
               style={{ width: `${genPct}%` }}
-              className="bg-emerald-500 h-full"
+              className="bg-emerald-600 dark:bg-emerald-500 h-full"
               title={`General: ${genPct}%`}
             />
           )}
         </div>
-        <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1">
+        <div
+          className={`flex items-center justify-between text-[10px] mt-1 font-medium ${
+            isDark ? 'text-slate-400' : 'text-slate-600'
+          }`}
+        >
           <span>Stationery {statPct}%</span>
           <span>Cleaning {cleanPct}%</span>
           {gen > 0 && <span>General {genPct}%</span>}
@@ -271,13 +419,31 @@ const CustomConsumptionTooltip: React.FC<CustomConsumptionTooltipProps> = ({
         {/* Stationery Row */}
         <div className="flex items-center justify-between text-xs">
           <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-teal-500 shrink-0" />
-            <span className="font-semibold text-slate-200">Stationery</span>
+            <span className="w-2.5 h-2.5 rounded-full bg-teal-600 dark:bg-teal-500 shrink-0" />
+            <span
+              className={`font-semibold ${
+                isDark ? 'text-slate-200' : 'text-slate-800'
+              }`}
+            >
+              Stationery
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <div className="text-right">
-              <span className="font-bold text-white">{stat.toLocaleString()}</span>
-              <span className="text-[10px] text-slate-400 ml-1">u</span>
+              <span
+                className={`font-bold ${
+                  isDark ? 'text-white' : 'text-slate-950'
+                }`}
+              >
+                {stat.toLocaleString()}
+              </span>
+              <span
+                className={`text-[10px] ml-1 font-medium ${
+                  isDark ? 'text-slate-400' : 'text-slate-500'
+                }`}
+              >
+                u
+              </span>
             </div>
             <div className="min-w-16 flex justify-end">
               {formatVarBadge(statVar, point.prevStationery)}
@@ -288,13 +454,31 @@ const CustomConsumptionTooltip: React.FC<CustomConsumptionTooltipProps> = ({
         {/* Cleaning Row */}
         <div className="flex items-center justify-between text-xs">
           <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-sky-500 shrink-0" />
-            <span className="font-semibold text-slate-200">Cleaning</span>
+            <span className="w-2.5 h-2.5 rounded-full bg-sky-600 dark:bg-sky-500 shrink-0" />
+            <span
+              className={`font-semibold ${
+                isDark ? 'text-slate-200' : 'text-slate-800'
+              }`}
+            >
+              Cleaning
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <div className="text-right">
-              <span className="font-bold text-white">{clean.toLocaleString()}</span>
-              <span className="text-[10px] text-slate-400 ml-1">u</span>
+              <span
+                className={`font-bold ${
+                  isDark ? 'text-white' : 'text-slate-950'
+                }`}
+              >
+                {clean.toLocaleString()}
+              </span>
+              <span
+                className={`text-[10px] ml-1 font-medium ${
+                  isDark ? 'text-slate-400' : 'text-slate-500'
+                }`}
+              >
+                u
+              </span>
             </div>
             <div className="min-w-16 flex justify-end">
               {formatVarBadge(cleanVar, point.prevCleaning)}
@@ -306,13 +490,31 @@ const CustomConsumptionTooltip: React.FC<CustomConsumptionTooltipProps> = ({
         {(gen > 0 || point.prevGeneral > 0) && (
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
-              <span className="font-semibold text-slate-200">General</span>
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 dark:bg-emerald-500 shrink-0" />
+              <span
+                className={`font-semibold ${
+                  isDark ? 'text-slate-200' : 'text-slate-800'
+                }`}
+              >
+                General
+              </span>
             </div>
             <div className="flex items-center gap-2">
               <div className="text-right">
-                <span className="font-bold text-white">{gen.toLocaleString()}</span>
-                <span className="text-[10px] text-slate-400 ml-1">u</span>
+                <span
+                  className={`font-bold ${
+                    isDark ? 'text-white' : 'text-slate-950'
+                  }`}
+                >
+                  {gen.toLocaleString()}
+                </span>
+                <span
+                  className={`text-[10px] ml-1 font-medium ${
+                    isDark ? 'text-slate-400' : 'text-slate-500'
+                  }`}
+                >
+                  u
+                </span>
               </div>
               <div className="min-w-16 flex justify-end">
                 {formatVarBadge(genVar, point.prevGeneral)}
@@ -324,27 +526,61 @@ const CustomConsumptionTooltip: React.FC<CustomConsumptionTooltipProps> = ({
 
       {/* Predictive Demand Overlay & Requirement Gap Section */}
       {showPredictionOverlay && point.predictedTotal !== undefined && (
-        <div className="mt-2.5 pt-2 border-t border-slate-800">
-          <div className="p-2 rounded-xl bg-violet-950/60 border border-violet-800/60 space-y-1.5">
+        <div
+          className={`mt-2.5 pt-2 border-t ${
+            isDark ? 'border-slate-800' : 'border-slate-200'
+          }`}
+        >
+          <div
+            className={`p-2 rounded-xl border space-y-1.5 ${
+              isDark
+                ? 'bg-violet-950/60 border-violet-800/60'
+                : 'bg-violet-50/90 border-violet-200'
+            }`}
+          >
             <div className="flex items-center justify-between text-xs">
-              <span className="text-violet-300 font-semibold flex items-center gap-1 text-[11px]">
-                <Sparkles className="w-3 h-3 text-amber-300" />
+              <span
+                className={`font-bold flex items-center gap-1 text-[11px] ${
+                  isDark ? 'text-violet-300' : 'text-violet-900'
+                }`}
+              >
+                <Sparkles className="w-3 h-3 text-amber-500 dark:text-amber-300" />
                 Predicted Model Demand:
               </span>
-              <span className="font-bold text-white">
+              <span
+                className={`font-extrabold ${
+                  isDark ? 'text-white' : 'text-slate-950'
+                }`}
+              >
                 {point.predictedTotal.toLocaleString()} units
               </span>
             </div>
 
-            <div className="flex items-center justify-between text-xs pt-1 border-t border-violet-800/40">
-              <span className="text-slate-400 text-[10px] font-medium">Requirement Gap:</span>
+            <div
+              className={`flex items-center justify-between text-xs pt-1 border-t ${
+                isDark ? 'border-violet-800/40' : 'border-violet-200'
+              }`}
+            >
               <span
-                className={`font-bold px-1.5 py-0.5 rounded text-[10px] ${
+                className={`text-[10px] font-semibold ${
+                  isDark ? 'text-slate-400' : 'text-slate-600'
+                }`}
+              >
+                Requirement Gap:
+              </span>
+              <span
+                className={`font-bold px-1.5 py-0.5 rounded text-[10px] border ${
                   (point.demandGapTotal ?? 0) > 0
-                    ? 'text-amber-300 bg-amber-950/80 border border-amber-800/70'
+                    ? isDark
+                      ? 'text-amber-300 bg-amber-950/80 border-amber-800/70'
+                      : 'text-amber-800 bg-amber-100 border-amber-300'
                     : (point.demandGapTotal ?? 0) < 0
-                    ? 'text-emerald-300 bg-emerald-950/80 border border-emerald-800/70'
-                    : 'text-slate-300 bg-slate-800'
+                    ? isDark
+                      ? 'text-emerald-300 bg-emerald-950/80 border-emerald-800/70'
+                      : 'text-emerald-800 bg-emerald-100 border-emerald-300'
+                    : isDark
+                    ? 'text-slate-300 bg-slate-800 border-slate-700'
+                    : 'text-slate-700 bg-slate-100 border-slate-300'
                 }`}
               >
                 {(point.demandGapTotal ?? 0) > 0 ? (
@@ -363,12 +599,16 @@ const CustomConsumptionTooltip: React.FC<CustomConsumptionTooltipProps> = ({
               </span>
             </div>
 
-            <div className="grid grid-cols-2 gap-1 pt-1 text-[9px] text-slate-400">
+            <div
+              className={`grid grid-cols-2 gap-1 pt-1 text-[9px] font-medium ${
+                isDark ? 'text-slate-400' : 'text-slate-600'
+              }`}
+            >
               <div>
-                Stat: <span className="text-white font-semibold">{stat}</span> vs <span className="text-violet-300">{point.predictedStationery}</span>
+                Stat: <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{stat}</span> vs <span className={`font-semibold ${isDark ? 'text-violet-300' : 'text-violet-700'}`}>{point.predictedStationery}</span>
               </div>
               <div>
-                Clean: <span className="text-white font-semibold">{clean}</span> vs <span className="text-violet-300">{point.predictedCleaning}</span>
+                Clean: <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{clean}</span> vs <span className={`font-semibold ${isDark ? 'text-violet-300' : 'text-violet-700'}`}>{point.predictedCleaning}</span>
               </div>
             </div>
           </div>
@@ -376,7 +616,13 @@ const CustomConsumptionTooltip: React.FC<CustomConsumptionTooltipProps> = ({
       )}
 
       {/* Tooltip Footer Info */}
-      <div className="mt-3 pt-2 border-t border-slate-800 flex items-center justify-between text-[10px] text-slate-400">
+      <div
+        className={`mt-3 pt-2 border-t flex items-center justify-between text-[10px] font-medium ${
+          isDark
+            ? 'border-slate-800 text-slate-400'
+            : 'border-slate-200 text-slate-600'
+        }`}
+      >
         <span>{point.issueCount} issue events</span>
         {point.prevTotal > 0 && (
           <span>Prev Total: {point.prevTotal.toLocaleString()} units</span>
@@ -393,6 +639,7 @@ export const ExecutiveChartsView: React.FC<ExecutiveChartsViewProps> = ({
   categoryDistribution = [],
   deptConsumption = [],
 }) => {
+  const { isDark, palette } = useTheme();
   const [chartMode, setChartMode] = useState<'grouped' | 'stacked' | 'trend'>('grouped');
   const [activePieIndex, setActivePieIndex] = useState<number | null>(null);
 
@@ -1108,18 +1355,18 @@ export const ExecutiveChartsView: React.FC<ExecutiveChartsViewProps> = ({
             /* Composed Chart with Predictive Demand Overlay */
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={trendData} margin={{ top: 12, right: 15, left: -15, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#94a3b8" strokeOpacity={0.2} />
-                <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={palette.grid} strokeOpacity={palette.gridOpacity} />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: palette.axisText, fontWeight: 500 }} axisLine={{ stroke: palette.axisLine }} tickLine={{ stroke: palette.axisLine }} />
+                <YAxis tick={{ fontSize: 11, fill: palette.axisText, fontWeight: 500 }} axisLine={{ stroke: palette.axisLine }} tickLine={{ stroke: palette.axisLine }} />
                 <Tooltip content={<CustomConsumptionTooltip showPredictionOverlay={true} />} />
-                <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '8px' }} />
+                <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '8px', color: palette.text }} />
 
                 {/* Background area envelope highlighting predicted demand */}
                 <Area
                   dataKey="predictedTotal"
                   name="Predicted Demand Envelope"
                   fill="#6366f1"
-                  fillOpacity={0.06}
+                  fillOpacity={isDark ? 0.08 : 0.12}
                   stroke="none"
                   isAnimationActive={false}
                   legendType="none"
@@ -1129,13 +1376,13 @@ export const ExecutiveChartsView: React.FC<ExecutiveChartsViewProps> = ({
                 {lastHistoricalLabel && trendData.some((d) => d.isForecast) && (
                   <ReferenceLine
                     x={lastHistoricalLabel}
-                    stroke="#818cf8"
+                    stroke={isDark ? '#818cf8' : '#6366f1'}
                     strokeDasharray="4 4"
                     strokeWidth={1.5}
                     label={{
                       value: 'Forecast Horizon ➔',
                       position: 'insideTopRight',
-                      fill: '#6366f1',
+                      fill: isDark ? '#a5b4fc' : '#4f46e5',
                       fontSize: 10,
                       fontWeight: 700,
                     }}
@@ -1191,7 +1438,7 @@ export const ExecutiveChartsView: React.FC<ExecutiveChartsViewProps> = ({
                   stroke="#6366f1"
                   strokeWidth={3}
                   strokeDasharray="5 5"
-                  dot={{ r: 4, fill: '#6366f1', stroke: '#ffffff', strokeWidth: 2 }}
+                  dot={{ r: 4, fill: '#6366f1', stroke: palette.cardBg, strokeWidth: 2 }}
                   activeDot={{ r: 6, fill: '#4f46e5' }}
                 />
 
@@ -1223,11 +1470,11 @@ export const ExecutiveChartsView: React.FC<ExecutiveChartsViewProps> = ({
           ) : chartMode === 'trend' ? (
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={trendData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#94a3b8" strokeOpacity={0.2} />
-                <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={palette.grid} strokeOpacity={palette.gridOpacity} />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: palette.axisText, fontWeight: 500 }} axisLine={{ stroke: palette.axisLine }} tickLine={{ stroke: palette.axisLine }} />
+                <YAxis tick={{ fontSize: 11, fill: palette.axisText, fontWeight: 500 }} axisLine={{ stroke: palette.axisLine }} tickLine={{ stroke: palette.axisLine }} />
                 <Tooltip content={<CustomConsumptionTooltip showPredictionOverlay={false} />} />
-                <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '8px' }} />
+                <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '8px', color: palette.text }} />
                 <Bar
                   name="Stationery"
                   dataKey="Stationery"
@@ -1256,11 +1503,11 @@ export const ExecutiveChartsView: React.FC<ExecutiveChartsViewProps> = ({
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={trendData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#94a3b8" strokeOpacity={0.2} />
-                <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={palette.grid} strokeOpacity={palette.gridOpacity} />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: palette.axisText, fontWeight: 500 }} axisLine={{ stroke: palette.axisLine }} tickLine={{ stroke: palette.axisLine }} />
+                <YAxis tick={{ fontSize: 11, fill: palette.axisText, fontWeight: 500 }} axisLine={{ stroke: palette.axisLine }} tickLine={{ stroke: palette.axisLine }} />
                 <Tooltip content={<CustomConsumptionTooltip showPredictionOverlay={false} />} />
-                <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '8px' }} />
+                <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '8px', color: palette.text }} />
                 <Bar
                   name="Stationery"
                   dataKey="Stationery"
@@ -1306,7 +1553,7 @@ export const ExecutiveChartsView: React.FC<ExecutiveChartsViewProps> = ({
                 Stock Distribution by Category (Pie Chart)
               </h3>
             </div>
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
               {totalStockUnits.toLocaleString()} units total
             </span>
           </div>
@@ -1316,12 +1563,17 @@ export const ExecutiveChartsView: React.FC<ExecutiveChartsViewProps> = ({
               <PieChart>
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: '#020617',
-                    borderColor: '#334155',
+                    backgroundColor: palette.tooltipBg,
+                    borderColor: palette.tooltipBorder,
                     borderRadius: '0.75rem',
-                    color: '#fff',
+                    color: palette.tooltipText,
                     fontSize: '12px',
-                    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
+                    boxShadow: isDark
+                      ? '0 20px 25px -5px rgba(0, 0, 0, 0.6)'
+                      : '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                  }}
+                  itemStyle={{
+                    color: palette.tooltipText,
                   }}
                   formatter={(value: any, name: any) => {
                     const percent = totalStockUnits > 0 ? Math.round((Number(value) / totalStockUnits) * 100) : 0;
@@ -1343,8 +1595,8 @@ export const ExecutiveChartsView: React.FC<ExecutiveChartsViewProps> = ({
                     <Cell
                       key={`cell-${entry.name}`}
                       fill={CATEGORY_COLORS[entry.name] || PIE_COLORS[index % PIE_COLORS.length]}
-                      stroke="#0f172a"
-                      strokeWidth={activePieIndex === index ? 3 : 1}
+                      stroke={palette.cardBg}
+                      strokeWidth={activePieIndex === index ? 3 : 1.5}
                       className="transition-all duration-150 cursor-pointer"
                     />
                   ))}
@@ -1354,7 +1606,7 @@ export const ExecutiveChartsView: React.FC<ExecutiveChartsViewProps> = ({
 
             {/* Centered Donut Summary */}
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <div className="text-xs font-bold text-slate-400">Catalog Units</div>
+              <div className="text-xs font-bold text-slate-500 dark:text-slate-400">Catalog Units</div>
               <div className="text-lg font-extrabold text-slate-900 dark:text-white">
                 {totalStockUnits.toLocaleString()}
               </div>
@@ -1377,9 +1629,9 @@ export const ExecutiveChartsView: React.FC<ExecutiveChartsViewProps> = ({
                   </div>
                   <div className="text-xs font-bold text-slate-900 dark:text-white mt-1">
                     {cat.value.toLocaleString()}{' '}
-                    <span className="text-[10px] font-normal text-slate-400">({pct}%)</span>
+                    <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">({pct}%)</span>
                   </div>
-                  <div className="text-[10px] text-slate-400">{cat.count} SKUs</div>
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">{cat.count} SKUs</div>
                 </div>
               );
             })}
@@ -1397,7 +1649,7 @@ export const ExecutiveChartsView: React.FC<ExecutiveChartsViewProps> = ({
                 Department Consumption in Selected Range
               </h3>
             </div>
-            <span className="text-xs font-semibold text-slate-400">Issue volume</span>
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Issue volume</span>
           </div>
 
           <div className="w-full h-64 pt-2 flex-1">
@@ -1412,23 +1664,29 @@ export const ExecutiveChartsView: React.FC<ExecutiveChartsViewProps> = ({
                   layout="vertical"
                   margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#94a3b8" strokeOpacity={0.2} />
-                  <XAxis type="number" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={palette.grid} strokeOpacity={palette.gridOpacity} />
+                  <XAxis type="number" tick={{ fontSize: 10, fill: palette.axisText, fontWeight: 500 }} axisLine={{ stroke: palette.axisLine }} tickLine={{ stroke: palette.axisLine }} />
                   <YAxis
                     dataKey="name"
                     type="category"
-                    tick={{ fontSize: 10, fill: '#64748b' }}
-                    axisLine={false}
-                    tickLine={false}
+                    tick={{ fontSize: 10, fill: palette.axisText, fontWeight: 500 }}
+                    axisLine={{ stroke: palette.axisLine }}
+                    tickLine={{ stroke: palette.axisLine }}
                     width={90}
                   />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: '#020617',
-                      borderColor: '#334155',
+                      backgroundColor: palette.tooltipBg,
+                      borderColor: palette.tooltipBorder,
                       borderRadius: '0.75rem',
-                      color: '#fff',
+                      color: palette.tooltipText,
                       fontSize: '12px',
+                      boxShadow: isDark
+                        ? '0 20px 25px -5px rgba(0, 0, 0, 0.6)'
+                        : '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                    }}
+                    itemStyle={{
+                      color: palette.tooltipText,
                     }}
                     formatter={(value: any, _: any, item: any) => [
                       `${value} units issued`,
