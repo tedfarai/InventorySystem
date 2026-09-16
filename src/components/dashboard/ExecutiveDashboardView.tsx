@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { motion } from 'motion/react';
 import {
   SlidersHorizontal,
   Package,
@@ -77,6 +78,25 @@ const DEFAULT_WIDGETS: DashboardWidgetConfig = {
   departmentConsumption: true,
   systemStorageStatus: true,
   quickLaunchpad: true,
+};
+
+const kpiContainerVariants = {
+  hidden: {},
+  visible: {
+    transition: {
+      staggerChildren: 0.08,
+    },
+  },
+};
+
+const kpiCardVariants = {
+  hidden: { opacity: 0, y: 14, scale: 0.98 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: { duration: 0.35, ease: 'easeOut' as const },
+  },
 };
 
 export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
@@ -219,9 +239,14 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
       </div>
 
       {/* KPI Metric Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <motion.div
+        className="grid grid-cols-2 lg:grid-cols-4 gap-3"
+        variants={kpiContainerVariants}
+        initial="hidden"
+        animate="visible"
+      >
         {/* Metric 1: Total SKUs */}
-        <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xs">
+        <motion.div variants={kpiCardVariants} className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               Total Catalog SKUs
@@ -236,10 +261,10 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
           <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1">
             <span>In Stationery, Cleaning &amp; General</span>
           </div>
-        </div>
+        </motion.div>
 
         {/* Metric 2: Total Units */}
-        <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xs">
+        <motion.div variants={kpiCardVariants} className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               Total Units On Hand
@@ -254,10 +279,11 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
           <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1">
             <span>Verified physical quantity</span>
           </div>
-        </div>
+        </motion.div>
 
         {/* Metric 3: Low Stock Alerts */}
-        <div
+        <motion.div
+          variants={kpiCardVariants}
           onClick={() => onOpenQuickAction('reorderReport')}
           className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-rose-400 dark:hover:border-rose-600 rounded-2xl shadow-2xs cursor-pointer transition"
         >
@@ -283,10 +309,11 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
           >
             <span>Click to view re-order report &rarr;</span>
           </div>
-        </div>
+        </motion.div>
 
         {/* Metric 4: Pending Adjustments */}
-        <div
+        <motion.div
+          variants={kpiCardVariants}
           onClick={() => handleQuickAction('adjustment')}
           className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-400 dark:hover:border-amber-600 rounded-2xl shadow-2xs cursor-pointer transition"
         >
@@ -304,8 +331,8 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
           <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1">
             <span>Awaiting supervisor authorization</span>
           </div>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
 
       {/* Widget 7: Quick Procurement Launchpad (if enabled) */}
       {widgets.quickLaunchpad && (

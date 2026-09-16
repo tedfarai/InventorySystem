@@ -10,6 +10,9 @@ export interface ThemeChartPalette {
   axisLine: string;
   tickLine: string;
   gridStroke: string;
+  grid: string;
+  axisText: string;
+  text: string;
   gridOpacity: number;
   // Tooltip colors
   tooltipBg: string;
@@ -34,12 +37,15 @@ export function getThemeChartPalette(isDark: boolean): ThemeChartPalette {
   if (isDark) {
     return {
       isDark: true,
-      textMuted: '#94a3b8',       // slate-400
+      textMuted: '#cbd5e1',       // slate-300
       textLabel: '#cbd5e1',       // slate-300
       textHeading: '#f8fafc',     // slate-50
       axisLine: '#334155',        // slate-700
       tickLine: '#334155',        // slate-700
       gridStroke: '#334155',      // slate-700
+      grid: '#334155',
+      axisText: '#cbd5e1',
+      text: '#f8fafc',
       gridOpacity: 0.35,
       tooltipBg: '#020617',       // slate-950
       tooltipBorder: '#334155',   // slate-700
@@ -61,13 +67,16 @@ export function getThemeChartPalette(isDark: boolean): ThemeChartPalette {
   // Light Mode: Calibrated for WCAG AA/AAA readability with deep, crisp hues
   return {
     isDark: false,
-    textMuted: '#334155',         // slate-700 (high contrast on white, 9.5:1)
+    textMuted: '#475569',         // slate-600 (high contrast on white)
     textLabel: '#1e293b',         // slate-800
     textHeading: '#0f172a',       // slate-900
-    axisLine: '#94a3b8',          // slate-400 (visible anchor line)
-    tickLine: '#cbd5e1',          // slate-300
-    gridStroke: '#e2e8f0',        // slate-200
-    gridOpacity: 0.85,
+    axisLine: '#64748b',          // slate-500 (clear anchor line)
+    tickLine: '#94a3b8',          // slate-400
+    gridStroke: '#cbd5e1',        // slate-300
+    grid: '#cbd5e1',
+    axisText: '#334155',          // slate-700
+    text: '#0f172a',
+    gridOpacity: 0.9,
     tooltipBg: '#ffffff',         // pure crisp white
     tooltipBorder: '#cbd5e1',     // slate-300
     tooltipText: '#0f172a',       // slate-900
