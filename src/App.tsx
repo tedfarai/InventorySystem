@@ -31,6 +31,8 @@ function AppContent() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [externalSimulatorAction, setExternalSimulatorAction] = useState<SidebarAction | null>(null);
   const [activeSheetTitle, setActiveSheetTitle] = useState('Master Stock Sheet');
+  const [activeSimulatorSheet, setActiveSimulatorSheet] = useState<'Master_Stock' | 'Movement_Log' | 'Adjustment_Hub' | 'Admin_Config'>('Master_Stock');
+  const isMasterStockView = activeTab === 'simulator' && activeSimulatorSheet === 'Master_Stock';
   const [selectedAuditMovementDoc, setSelectedAuditMovementDoc] = useState<DisplayableDocument | null>(null);
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
   const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
@@ -169,12 +171,16 @@ function AppContent() {
       setActiveTab('simulator');
       if (action.sheet === 'Master_Stock') {
         setActiveSheetTitle('Master Stock Sheet');
+        setActiveSimulatorSheet('Master_Stock');
       } else if (action.sheet === 'Movement_Log') {
         setActiveSheetTitle('Movement Log & Vouchers');
+        setActiveSimulatorSheet('Movement_Log');
       } else if (action.sheet === 'Adjustment_Hub') {
         setActiveSheetTitle('Stock Adjustment Portal');
+        setActiveSimulatorSheet('Adjustment_Hub');
       } else if (action.sheet === 'Admin_Config') {
         setActiveSheetTitle('Admin Configuration & Diagnostics');
+        setActiveSimulatorSheet('Admin_Config');
       }
       setExternalSimulatorAction(action);
       return;
@@ -480,6 +486,7 @@ function AppContent() {
         setActiveTab('simulator');
         setExternalSimulatorAction({ type: 'OPEN_MODAL', modal: 'backupRecovery' });
       }}
+      hideStatusBar={isMasterStockView}
     >
       <div className="min-h-screen flex flex-col bg-[#f8fafc] dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-200">
         {/* PWA In-App Install Banner */}
@@ -541,13 +548,15 @@ function AppContent() {
         />
 
         {/* Main Application Content Area */}
-        <main className="flex-1 w-full px-2 sm:px-4 lg:px-6 py-2 sm:py-3">
+        <main className={`flex-1 w-full px-2 sm:px-4 lg:px-6 ${isMasterStockView ? 'py-1 pb-0' : 'py-2 sm:py-3'}`}>
           {activeTab === 'dashboard' && (
             <ExecutiveDashboardView
               stockItems={stockItems}
               movementLogs={movementLogs}
+              departments={departments}
               adjustmentRequests={adjustmentRequests}
               currentUser={currentUser}
+              backups={backups}
               onNavigateTab={(tab) => {
                 setActiveTab('simulator');
                 setExternalSimulatorAction({ type: 'OPEN_TAB', tab });
@@ -555,6 +564,14 @@ function AppContent() {
               onNavigateSheet={(sheet) => {
                 setActiveTab('simulator');
                 setExternalSimulatorAction({ type: 'NAVIGATE_SHEET', sheet });
+              }}
+              onOpenMovementDoc={handleOpenAuditMovementDocument}
+              onSelectItemForReorder={(_item) => {
+                setActiveTab('simulator');
+                setExternalSimulatorAction({
+                  type: 'NAVIGATE_SHEET',
+                  sheet: 'Stock Re-Order & Safety Threshold Report',
+                });
               }}
             />
           )}
@@ -606,6 +623,7 @@ function AppContent() {
               onPruneBackups={handlePruneBackups}
               externalAction={externalSimulatorAction}
               onClearExternalAction={() => setExternalSimulatorAction(null)}
+              onActiveSheetChange={setActiveSimulatorSheet}
             />
           )}
 

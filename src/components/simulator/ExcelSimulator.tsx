@@ -145,6 +145,7 @@ interface ExcelSimulatorProps {
     modal?: string;
   } | null;
   onClearExternalAction?: () => void;
+  onActiveSheetChange?: (sheet: 'Master_Stock' | 'Movement_Log' | 'Adjustment_Hub' | 'Admin_Config') => void;
 }
 
 export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
@@ -204,6 +205,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
   onPruneBackups,
   externalAction,
   onClearExternalAction,
+  onActiveSheetChange,
 }) => {
   const safeStockItems = Array.isArray(stockItems) ? stockItems : [];
   const safeMovementLogs = Array.isArray(movementLogs) ? movementLogs : [];
@@ -496,6 +498,11 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
       setActiveSheet('Master_Stock');
     }
   }, [currentUser, isSuperiorAdmin, activeSheet]);
+
+  // Sync active sheet changes with parent application
+  React.useEffect(() => {
+    onActiveSheetChange?.(activeSheet);
+  }, [activeSheet, onActiveSheetChange]);
 
   // On startup: Ensure workbook does not open signed in - welcome user with login screen
   React.useEffect(() => {
@@ -1145,7 +1152,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
   const pendingRequestsCount = safeAdjustmentRequests.filter((r) => r?.status === 'PENDING').length;
 
   return (
-    <div className="space-y-4">
+    <div className={activeSheet === 'Master_Stock' ? 'w-full' : 'space-y-4'}>
       {/* Security Toast / Alert Banner */}
       {securityAlert && (
         <div className="bg-amber-500/10 border-2 border-amber-500/40 text-amber-900 dark:text-amber-200 px-4 py-3 rounded-xl flex items-start space-x-3 text-xs shadow-md animate-in fade-in slide-in-from-top-2 duration-200">
@@ -1157,11 +1164,11 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
         </div>
       )}
 
-      {/* 1. DIRECT MASTER STOCK WORKSPACE VIEW (ALL INTERMEDIATE SECTIONS REMOVED, STICKY SEARCH & FIXED TABLE HEADER) */}
+      {/* 1. DIRECT MASTER STOCK WORKSPACE VIEW (TAKES UP 96% OF HEIGHT FROM TOP TO BOTTOM, NO DEAD BOTTOM BAR) */}
       {activeSheet === 'Master_Stock' ? (
-        <div className="space-y-3 font-sans w-full">
-          {/* Sticky Search & Multi-Facet Filter Container: sticks directly below StickyTopHeader on scroll */}
-          <div className="sticky top-14 sm:top-16 z-20 bg-[#f8fafc] dark:bg-slate-950 pt-1 pb-3 -mx-1 px-1 border-b border-slate-300 dark:border-slate-800 transition-colors shadow-2xs">
+        <div className="h-[96vh] flex flex-col font-sans w-full space-y-2 pb-0">
+          {/* Search & Multi-Facet Filter Container */}
+          <div className="shrink-0 bg-[#f8fafc] dark:bg-slate-950 pt-0.5 pb-2 -mx-1 px-1 border-b border-slate-300 dark:border-slate-800 transition-colors shadow-2xs">
             <StockSearchBar
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
@@ -1189,29 +1196,31 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
 
           {/* Bulk Operations Toolbar & Selection Actions Menu */}
           {selectedStockItemIds.length > 0 && (
-            <BulkStockActionsBar
-              selectedCount={selectedStockItemIds.length}
-              totalFilteredCount={filteredStock.length}
-              totalStockCount={stockItems.length}
-              isAllSelected={isAllVisibleSelected}
-              isPartiallySelected={isPartiallySelected}
-              selectedItems={selectedStockItems}
-              onToggleSelectAll={handleToggleSelectAllVisible}
-              onSelectByStatus={handleSelectByStatus}
-              onClearSelection={handleClearSelection}
-              onBulkRestock={handleTriggerBulkRestock}
-              onBulkIssue={handleTriggerBulkIssue}
-              onBulkAdjustment={handleTriggerBulkAdjustment}
-              onOpenBatchUpdateModal={() => setShowBatchUpdateModal(true)}
-              onExportSelectedCsv={handleExportSelectedCsv}
-              onCopySelectedClipboard={handleCopySelectedClipboard}
-              onBulkDelete={onDeleteStockItem ? handleBulkDelete : undefined}
-              isSuperiorAdmin={isSuperiorAdmin}
-            />
+            <div className="shrink-0">
+              <BulkStockActionsBar
+                selectedCount={selectedStockItemIds.length}
+                totalFilteredCount={filteredStock.length}
+                totalStockCount={stockItems.length}
+                isAllSelected={isAllVisibleSelected}
+                isPartiallySelected={isPartiallySelected}
+                selectedItems={selectedStockItems}
+                onToggleSelectAll={handleToggleSelectAllVisible}
+                onSelectByStatus={handleSelectByStatus}
+                onClearSelection={handleClearSelection}
+                onBulkRestock={handleTriggerBulkRestock}
+                onBulkIssue={handleTriggerBulkIssue}
+                onBulkAdjustment={handleTriggerBulkAdjustment}
+                onOpenBatchUpdateModal={() => setShowBatchUpdateModal(true)}
+                onExportSelectedCsv={handleExportSelectedCsv}
+                onCopySelectedClipboard={handleCopySelectedClipboard}
+                onBulkDelete={onDeleteStockItem ? handleBulkDelete : undefined}
+                isSuperiorAdmin={isSuperiorAdmin}
+              />
+            </div>
           )}
 
-          {/* Stock Management Inventory Table with Fixed Table Header and Visible High-Contrast Borders */}
-          <div className="border-2 border-slate-300 dark:border-slate-700 rounded-2xl overflow-x-auto overflow-y-auto max-h-[calc(100vh-270px)] min-h-[460px] bg-white dark:bg-slate-900 shadow-sm transition-colors relative">
+          {/* Stock Management Inventory Table with Fixed Table Header and Visible High-Contrast Borders (Fills 100% of remaining 96vh space) */}
+          <div className="flex-1 min-h-0 border-2 border-slate-300 dark:border-slate-700 rounded-2xl overflow-x-auto overflow-y-auto bg-white dark:bg-slate-900 shadow-sm transition-colors relative">
             <table id="stock-management-table" className="w-full text-xs text-left border-collapse font-sans">
               <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-mono text-[11px] uppercase border-b-2 border-slate-300 dark:border-slate-700 shadow-xs select-none">
                 <tr>

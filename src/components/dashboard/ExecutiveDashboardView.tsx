@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   SlidersHorizontal,
   Package,
   TrendingDown,
+  TrendingUp,
   Activity,
   ShieldAlert,
   Layers,
@@ -24,6 +25,8 @@ import {
   Filter,
   Check,
   FolderOpen,
+  BarChart3,
+  Brain,
 } from 'lucide-react';
 import {
   StockItem,
@@ -34,20 +37,27 @@ import {
   BackupSnapshot,
 } from '../../types';
 import { DraggableResizableModal } from '../common/DraggableResizableModal';
+import { getExecutiveAnalytics } from '../../utils/predictiveAnalytics';
+import { ExecutiveChartsView } from './ExecutiveChartsView';
+import { ExecutiveAiInsightsPanel } from './ExecutiveAiInsightsPanel';
 
 interface ExecutiveDashboardViewProps {
   stockItems: StockItem[];
   movementLogs: MovementLogEntry[];
-  departments: Department[];
-  adjustmentRequests: StockAdjustmentRequest[];
+  departments?: Department[];
+  adjustmentRequests?: StockAdjustmentRequest[];
   currentUser: AdminUser | null;
   backups?: BackupSnapshot[];
-  onNavigateTab: (tab: 'simulator' | 'audit' | 'export') => void;
-  onOpenQuickAction: (actionType: 'delivery' | 'issue' | 'adjustment' | 'reorderReport') => void;
+  onNavigateTab?: (tab: 'simulator' | 'audit' | 'export') => void;
+  onNavigateSheet?: (sheet: string) => void;
+  onOpenQuickAction?: (actionType: 'delivery' | 'issue' | 'adjustment' | 'reorderReport') => void;
   onOpenMovementDoc?: (log: MovementLogEntry) => void;
+  onSelectItemForReorder?: (item: StockItem) => void;
 }
 
 export interface DashboardWidgetConfig {
+  consumptionCharts: boolean;
+  aiInsights: boolean;
   lowStock: boolean;
   recentActivity: boolean;
   pendingAdjustments: boolean;
@@ -58,6 +68,8 @@ export interface DashboardWidgetConfig {
 }
 
 const DEFAULT_WIDGETS: DashboardWidgetConfig = {
+  consumptionCharts: true,
+  aiInsights: true,
   lowStock: true,
   recentActivity: true,
   pendingAdjustments: true,
@@ -75,8 +87,10 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
   currentUser,
   backups = [],
   onNavigateTab,
+  onNavigateSheet,
   onOpenQuickAction,
   onOpenMovementDoc,
+  onSelectItemForReorder,
 }) => {
   const [widgets, setWidgets] = useState<DashboardWidgetConfig>(() => {
     try {
@@ -91,6 +105,24 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
   });
 
   const [isCustomizeOpen, setIsCustomizeOpen] = useState(false);
+
+  // Safe action dispatcher
+  const handleQuickAction = (actionType: 'delivery' | 'issue' | 'adjustment' | 'reorderReport') => {
+    if (onOpenQuickAction) {
+      onOpenQuickAction(actionType);
+      return;
+    }
+    if (onNavigateSheet) {
+      if (actionType === 'delivery') onNavigateSheet('Receive +');
+      else if (actionType === 'issue') onNavigateSheet('Issue Out Requests');
+      else if (actionType === 'adjustment') onNavigateSheet('Stock Adjustment +/−');
+      else if (actionType === 'reorderReport') onNavigateSheet('Stock Re-Order & Safety Threshold Report');
+      return;
+    }
+    if (onNavigateTab) {
+      onNavigateTab('simulator');
+    }
+  };
 
   useEffect(() => {
     try {
@@ -113,6 +145,11 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
   const safeLogs = Array.isArray(movementLogs) ? movementLogs : [];
   const safeDepts = Array.isArray(departments) ? departments : [];
   const safeRequests = Array.isArray(adjustmentRequests) ? adjustmentRequests : [];
+
+  // Calculate predictive analytics summary
+  const analyticsSummary = useMemo(() => {
+    return getExecutiveAnalytics(safeStock, safeLogs);
+  }, [safeStock, safeLogs]);
 
   // Summary Metrics
   const totalSkus = safeStock.length;
@@ -138,7 +175,9 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
     });
   const topDepts = Object.entries(deptIssueCounts)
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 5);
+    .slice(0, 6);
+
+  const deptConsumptionList = topDepts.map(([name, qty]) => ({ name, qty }));
 
   return (
     <div className="w-full space-y-5 pb-8 animate-in fade-in duration-150">
@@ -238,14 +277,17 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
               </span>
             )}
           </div>
-          <div className="text-[11px] text-rose-600 dark:text-rose-400 mt-1 flex items-center gap-1 font-semibold">
+          <div
+            onClick={() => handleQuickAction('reorderReport')}
+            className="text-[11px] text-rose-600 dark:text-rose-400 mt-1 flex items-center gap-1 font-semibold cursor-pointer"
+          >
             <span>Click to view re-order report &rarr;</span>
           </div>
         </div>
 
         {/* Metric 4: Pending Adjustments */}
         <div
-          onClick={() => onOpenQuickAction('adjustment')}
+          onClick={() => handleQuickAction('adjustment')}
           className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-400 dark:hover:border-amber-600 rounded-2xl shadow-2xs cursor-pointer transition"
         >
           <div className="flex items-center justify-between">
@@ -280,7 +322,7 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
             <button
               type="button"
-              onClick={() => onOpenQuickAction('delivery')}
+              onClick={() => handleQuickAction('delivery')}
               className="p-3 bg-white dark:bg-slate-900 hover:bg-sky-50 dark:hover:bg-sky-950/50 border border-slate-200 dark:border-slate-800 rounded-xl text-left cursor-pointer transition shadow-2xs group"
             >
               <ArrowDownToLine className="w-4 h-4 text-sky-600 mb-1.5 group-hover:scale-110 transition-transform" />
@@ -290,7 +332,7 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
 
             <button
               type="button"
-              onClick={() => onOpenQuickAction('issue')}
+              onClick={() => handleQuickAction('issue')}
               className="p-3 bg-white dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 border border-slate-200 dark:border-slate-800 rounded-xl text-left cursor-pointer transition shadow-2xs group"
             >
               <Send className="w-4 h-4 text-emerald-600 mb-1.5 group-hover:scale-110 transition-transform" />
@@ -300,7 +342,7 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
 
             <button
               type="button"
-              onClick={() => onOpenQuickAction('adjustment')}
+              onClick={() => handleQuickAction('adjustment')}
               className="p-3 bg-white dark:bg-slate-900 hover:bg-amber-50 dark:hover:bg-amber-950/50 border border-slate-200 dark:border-slate-800 rounded-xl text-left cursor-pointer transition shadow-2xs group"
             >
               <SlidersHorizontal className="w-4 h-4 text-amber-600 mb-1.5 group-hover:scale-110 transition-transform" />
@@ -310,7 +352,7 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
 
             <button
               type="button"
-              onClick={() => onNavigateTab('audit')}
+              onClick={() => onNavigateTab && onNavigateTab('audit')}
               className="p-3 bg-white dark:bg-slate-900 hover:bg-teal-50 dark:hover:bg-teal-950/50 border border-slate-200 dark:border-slate-800 rounded-xl text-left cursor-pointer transition shadow-2xs group"
             >
               <Activity className="w-4 h-4 text-teal-600 mb-1.5 group-hover:scale-110 transition-transform" />
@@ -319,6 +361,28 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
             </button>
           </div>
         </div>
+      )}
+
+      {/* Widget: Consumption Trend & Visualizations (Recharts) */}
+      {widgets.consumptionCharts && (
+        <ExecutiveChartsView
+          stockItems={safeStock}
+          movementLogs={safeLogs}
+          monthlyTrend={analyticsSummary.monthlyTrend}
+          categoryDistribution={analyticsSummary.categoryDistribution}
+          deptConsumption={deptConsumptionList}
+        />
+      )}
+
+      {/* Widget: AI Insights & Predictive Demand Engine */}
+      {widgets.aiInsights && (
+        <ExecutiveAiInsightsPanel
+          stockItems={safeStock}
+          movementLogs={safeLogs}
+          analyticsSummary={analyticsSummary}
+          onOpenQuickAction={handleQuickAction}
+          onSelectItemForReorder={onSelectItemForReorder}
+        />
       )}
 
       {/* Main Grid: Configurable Widgets */}
@@ -385,7 +449,7 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
                         </div>
                         <button
                           type="button"
-                          onClick={() => onOpenQuickAction('delivery')}
+                          onClick={() => handleQuickAction('delivery')}
                           className="text-[10px] font-bold text-sky-600 dark:text-sky-400 hover:underline cursor-pointer"
                         >
                           Replenish &rarr;
@@ -400,7 +464,7 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
             <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex justify-end">
               <button
                 type="button"
-                onClick={() => onOpenQuickAction('reorderReport')}
+                onClick={() => handleQuickAction('reorderReport')}
                 className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
               >
                 <span>View Full Reorder Safety Report</span>
@@ -540,7 +604,7 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
 
                       <button
                         type="button"
-                        onClick={() => onOpenQuickAction('adjustment')}
+                        onClick={() => handleQuickAction('adjustment')}
                         className="px-2.5 py-1 text-xs font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-800 rounded-lg hover:bg-amber-100 cursor-pointer transition shrink-0"
                       >
                         Authorize
@@ -732,6 +796,8 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
 
             <div className="space-y-2">
               {[
+                { key: 'consumptionCharts', label: '6-Month Consumption Trends & Charts', desc: 'Recharts trends: Stationery vs Cleaning, Category Pie & Dept Bar' },
+                { key: 'aiInsights', label: 'AI Demand Forecast & Reorder Engine', desc: 'Predictive Monthly/Quarterly/6M consumption and reorder advice' },
                 { key: 'quickLaunchpad', label: 'Fast Procurement Launchpad', desc: 'One-click shortcuts to key actions' },
                 { key: 'lowStock', label: 'Low Stock & Threshold Alerts', desc: 'Monitor items nearing zero' },
                 { key: 'recentActivity', label: 'Recent Inventory Movements', desc: 'Live feed of deliveries & issues' },
