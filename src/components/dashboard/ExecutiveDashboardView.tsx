@@ -41,6 +41,7 @@ import { DraggableResizableModal } from '../common/DraggableResizableModal';
 import { getExecutiveAnalytics } from '../../utils/predictiveAnalytics';
 import { ExecutiveChartsView } from './ExecutiveChartsView';
 import { ExecutiveAiInsightsPanel } from './ExecutiveAiInsightsPanel';
+import { ExecutiveDemandForecastingView } from './ExecutiveDemandForecastingView';
 
 interface ExecutiveDashboardViewProps {
   stockItems: StockItem[];
@@ -49,6 +50,7 @@ interface ExecutiveDashboardViewProps {
   adjustmentRequests?: StockAdjustmentRequest[];
   currentUser: AdminUser | null;
   backups?: BackupSnapshot[];
+  initialViewMode?: 'overview' | 'forecasting';
   onNavigateTab?: (tab: 'simulator' | 'audit' | 'export') => void;
   onNavigateSheet?: (sheet: string) => void;
   onOpenQuickAction?: (actionType: 'delivery' | 'issue' | 'adjustment' | 'reorderReport') => void;
@@ -106,12 +108,16 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
   adjustmentRequests = [],
   currentUser,
   backups = [],
+  initialViewMode = 'overview',
   onNavigateTab,
   onNavigateSheet,
   onOpenQuickAction,
   onOpenMovementDoc,
   onSelectItemForReorder,
 }) => {
+  const [dashboardViewMode, setDashboardViewMode] = useState<'overview' | 'forecasting'>(
+    initialViewMode
+  );
   const [widgets, setWidgets] = useState<DashboardWidgetConfig>(() => {
     try {
       const saved = localStorage.getItem('paramount_dashboard_widgets');
@@ -229,7 +235,7 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
 
           <button
             type="button"
-            onClick={() => onNavigateTab('simulator')}
+            onClick={() => onNavigateTab && onNavigateTab('simulator')}
             className="flex items-center space-x-1.5 px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl transition cursor-pointer shadow-md"
           >
             <FileSpreadsheet className="w-3.5 h-3.5" />
@@ -238,6 +244,67 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
         </div>
       </div>
 
+      {/* Sub-View Navigation Tabs: Overview vs Demand Forecasting */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-1.5 p-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700/80">
+          <button
+            type="button"
+            onClick={() => setDashboardViewMode('overview')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+              dashboardViewMode === 'overview'
+                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs border border-slate-200/80 dark:border-slate-700'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Activity className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <span>Operational Overview</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setDashboardViewMode('forecasting')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+              dashboardViewMode === 'forecasting'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Sparkles className={`w-4 h-4 ${dashboardViewMode === 'forecasting' ? 'text-white' : 'text-indigo-500'}`} />
+            <span>Demand Forecasting</span>
+            <span
+              className={`text-[10px] px-1.5 py-0.5 rounded-md font-mono ${
+                dashboardViewMode === 'forecasting'
+                  ? 'bg-indigo-700 text-indigo-100'
+                  : 'bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300'
+              }`}
+            >
+              Upcoming Month
+            </span>
+          </button>
+        </div>
+
+        {dashboardViewMode === 'forecasting' && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setDashboardViewMode('overview')}
+              className="text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 underline cursor-pointer"
+            >
+              &larr; Back to Operational Overview
+            </button>
+          </div>
+        )}
+      </div>
+
+      {dashboardViewMode === 'forecasting' ? (
+        <ExecutiveDemandForecastingView
+          stockItems={safeStock}
+          movementLogs={safeLogs}
+          onOpenQuickAction={handleQuickAction}
+          onSelectItemForReorder={onSelectItemForReorder}
+        />
+      ) : (
+        <>
       {/* KPI Metric Cards */}
       <motion.div
         className="grid grid-cols-2 lg:grid-cols-4 gap-3"
@@ -346,7 +413,7 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
               One-click access to core inventory workflows
             </span>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
             <button
               type="button"
               onClick={() => handleQuickAction('delivery')}
@@ -375,6 +442,16 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
               <SlidersHorizontal className="w-4 h-4 text-amber-600 mb-1.5 group-hover:scale-110 transition-transform" />
               <div className="text-xs font-bold text-slate-900 dark:text-white">Stock Adjustment</div>
               <div className="text-[10px] text-slate-500">Physical count variance</div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setDashboardViewMode('forecasting')}
+              className="p-3 bg-white dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 border border-slate-200 dark:border-slate-800 rounded-xl text-left cursor-pointer transition shadow-2xs group"
+            >
+              <Sparkles className="w-4 h-4 text-indigo-600 mb-1.5 group-hover:scale-110 transition-transform" />
+              <div className="text-xs font-bold text-slate-900 dark:text-white">Demand Forecast</div>
+              <div className="text-[10px] text-slate-500">Next month stock usage</div>
             </button>
 
             <button
@@ -788,6 +865,8 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
           </div>
         )}
       </div>
+      </>
+      )}
 
       {/* Customize Widgets Modal */}
       {isCustomizeOpen && (
