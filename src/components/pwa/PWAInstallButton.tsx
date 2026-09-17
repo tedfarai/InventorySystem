@@ -62,11 +62,11 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
             </div>
             <div>
               <div className="text-xs font-bold text-white flex items-center gap-2">
-                Install ProcureSim Desktop / Mobile App
-                <span className="bg-teal-500/30 text-teal-200 text-[10px] px-1.5 py-0.2 rounded font-mono">100% Offline</span>
+                Install Paramount for faster access
+                <span className="bg-teal-500/30 text-teal-200 text-[10px] px-1.5 py-0.2 rounded font-mono">Offline-first</span>
               </div>
               <p className="text-[11px] text-slate-300">
-                Launch instantly from your dock or desktop with zero network connectivity and zero latency.
+                Launch instantly from your desktop or home screen and keep working even when connectivity drops.
               </p>
             </div>
           </div>
@@ -78,7 +78,7 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
               className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-500 hover:bg-teal-400 active:bg-teal-600 text-slate-950 font-bold text-xs rounded-lg shadow-sm transition-all cursor-pointer"
             >
               <Download className="w-3.5 h-3.5" />
-              <span>{isInstalling ? 'Installing...' : 'Install App'}</span>
+              <span>{isInstalling ? 'Installing...' : 'Install Now'}</span>
             </button>
           </div>
         </div>
@@ -110,7 +110,7 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
             </div>
 
             <p className="text-xs text-slate-600 dark:text-slate-300 shrink-0">
-              You can install ProcureSim directly through your browser menu to enjoy standalone window mode, dock access, and full offline caching:
+              Install Paramount to open in a dedicated app window, keep your stock workflow available offline, and launch it faster from your home screen or dock:
             </p>
 
             <div className="space-y-2.5 text-xs flex-1 min-h-0 overflow-y-auto">
@@ -129,7 +129,7 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
                 <div>
                   <span className="font-semibold text-slate-900 dark:text-white">Safari (iOS / macOS):</span>
                   <p className="text-slate-500 dark:text-slate-400 mt-0.5">
-                    Tap the <span className="font-semibold">Share button (⎋)</span> &gt; <span className="font-semibold text-teal-600 dark:text-teal-400">Add to Home Screen / Dock</span>.
+                    Tap the <span className="font-semibold">Share button (⎋)</span> &gt; <span className="font-semibold text-teal-600 dark:text-teal-400">Add to Home Screen / Dock</span>. In iOS this opens a full-screen installed app experience with offline access.
                   </p>
                 </div>
               </div>
@@ -188,7 +188,7 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
           </div>
 
           <p className="text-xs text-slate-600 dark:text-slate-300 shrink-0">
-            ProcureSim is configured as a standalone PWA. Follow these quick steps to install:
+            Paramount is configured as a standalone PWA for quicker launches, offline continuity, and a native app-like experience.
           </p>
 
           <div className="space-y-2.5 text-xs flex-1 min-h-0 overflow-y-auto">
@@ -207,7 +207,7 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
               <div>
                 <span className="font-semibold text-slate-900 dark:text-white">Safari (iOS / macOS):</span>
                 <p className="text-slate-500 dark:text-slate-400 mt-0.5">
-                  Tap <span className="font-semibold">Share (⎋)</span> &gt; <span className="font-semibold text-teal-600 dark:text-teal-400">Add to Home Screen / Dock</span>.
+                  Tap <span className="font-semibold">Share (⎋)</span> &gt; <span className="font-semibold text-teal-600 dark:text-teal-400">Add to Home Screen / Dock</span>. This creates a dedicated app icon for full-screen, offline-ready access.
                 </p>
               </div>
             </div>
