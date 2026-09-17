@@ -42,6 +42,7 @@ import {
   mergeAdjustmentRequests,
 } from './crdtLwwEngine';
 import { detectPlatform } from '../utils/platformDetector';
+import { sqliteBridge } from '../utils/sqliteBridge';
 
 export type SyncMessage =
   | { type: 'STOCK_CHANGED'; payload: StockItem[]; issuer?: AdminUser; mutationId?: string }
@@ -1058,7 +1059,10 @@ class RealtimeSyncService {
 
     for (const mut of mutations) {
       try {
-        // Replay mutation across mesh
+        // 1. Replay into SQLite database to ensure physical counts & document tables are guaranteed consistent
+        await sqliteBridge.replayMutation(mut);
+
+        // 2. Replay mutation across mesh to connected peers
         if (mut.type === 'STOCK_UPDATE') {
           this.broadcastMessage({ type: 'STOCK_ITEM_UPDATED', payload: mut.payload });
         } else if (mut.type === 'STOCK_BATCH') {
@@ -1069,8 +1073,17 @@ class RealtimeSyncService {
           this.broadcastMessage({ type: 'DELIVERY_TRANSACTION', payload: mut.payload });
         } else if (mut.type === 'ADJUSTMENT_TRANSACTION') {
           this.broadcastMessage({ type: 'ADJUSTMENT_TRANSACTION', payload: mut.payload });
+        } else if (mut.type === 'ADJUSTMENT_REQUEST') {
+          this.broadcastMessage({ type: 'ADJUSTMENT_REQUEST', payload: mut.payload });
+        } else if (mut.type === 'DEPARTMENT_UPDATE') {
+          this.broadcastMessage({ type: 'DEPARTMENT_CHANGED', payload: mut.payload });
+        } else if (mut.type === 'MANAGER_UPDATE') {
+          this.broadcastMessage({ type: 'MANAGER_CHANGED', payload: mut.payload });
+        } else if (mut.type === 'ADMIN_UPDATE') {
+          this.broadcastMessage({ type: 'ADMIN_CHANGED', payload: mut.payload });
         }
 
+        // 3. Mark processed and remove from persistent sync-queue
         await removeMutationFromQueue(mut.id);
         drainedCount++;
       } catch (e) {

@@ -534,6 +534,9 @@ function AppContent() {
           activeSheetTitle={activeSheetTitle}
           isInstallable={isInstallable}
           onOpenInstallModal={() => setIsInstallModalOpen(true)}
+          pendingMutationsCount={pendingMutationsCount}
+          onDrainQueue={drainPendingMutations}
+          syncStatus={syncStatus}
         />
 
         {/* Sidebar Accordion Navigation (Drawer) */}

@@ -25,6 +25,9 @@ interface StickyTopHeaderProps {
   activeSheetTitle?: string;
   isInstallable?: boolean;
   onOpenInstallModal?: () => void;
+  pendingMutationsCount?: number;
+  onDrainQueue?: () => void;
+  syncStatus?: string;
 }
 
 export const StickyTopHeader: React.FC<StickyTopHeaderProps> = ({
@@ -38,6 +41,9 @@ export const StickyTopHeader: React.FC<StickyTopHeaderProps> = ({
   activeSheetTitle = 'Master Stock Sheet',
   isInstallable = false,
   onOpenInstallModal,
+  pendingMutationsCount = 0,
+  onDrainQueue,
+  syncStatus = 'CONNECTED',
 }) => {
   const isSuperiorAdmin = currentUser?.IssuerID === 'ADM001';
 
@@ -74,8 +80,14 @@ export const StickyTopHeader: React.FC<StickyTopHeaderProps> = ({
 
         {/* Right: Offline Status, Theme Toggle & User Avatar */}
         <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
-          {/* Offline Status Badge */}
-          <OfflineStatusBadge isOffline={isOffline} showStorageIndicator={false} />
+          {/* Offline Status Badge & Sync Queue */}
+          <OfflineStatusBadge
+            isOffline={isOffline}
+            showStorageIndicator={false}
+            pendingMutationsCount={pendingMutationsCount}
+            onDrainQueue={onDrainQueue}
+            syncStatus={syncStatus}
+          />
 
           {/* Theme Toggle */}
           <button

@@ -2071,6 +2071,146 @@ class SqliteBridge {
     this.persistFallback();
   }
 
+  /**
+   * Replays an offline mutation from the persistent sync-queue into the SQLite database
+   * to guarantee zero data loss when the client or background sync reconnects.
+   */
+  public async replayMutation(mutation: {
+    id: string;
+    type: string;
+    payload: any;
+    timestamp?: number;
+    clientId?: string;
+  }): Promise<boolean> {
+    try {
+      const { type, payload } = mutation;
+      if (!payload) return false;
+
+      switch (type) {
+        case 'STOCK_UPDATE': {
+          if (payload.ItemID && typeof payload.Qty === 'number') {
+            await this.updateStockQty(payload.ItemID, payload.Qty);
+          }
+          break;
+        }
+
+        case 'STOCK_BATCH': {
+          if (Array.isArray(payload)) {
+            for (const item of payload) {
+              if (item.ItemID && typeof item.Qty === 'number') {
+                await this.updateStockQty(item.ItemID, item.Qty);
+              }
+            }
+          }
+          break;
+        }
+
+        case 'ISSUE_TRANSACTION': {
+          if (payload.stockUpdates && Array.isArray(payload.stockUpdates)) {
+            for (const s of payload.stockUpdates) {
+              if (s.ItemID && typeof s.Qty === 'number') {
+                await this.updateStockQty(s.ItemID, s.Qty);
+              }
+            }
+          }
+          if (payload.movementLogs && Array.isArray(payload.movementLogs)) {
+            await this.addBulkMovementLogs(payload.movementLogs);
+          }
+          if (payload.issueDoc) {
+            await this.addIssuedDoc(payload.issueDoc);
+          }
+          break;
+        }
+
+        case 'DELIVERY_TRANSACTION': {
+          if (payload.stockUpdates && Array.isArray(payload.stockUpdates)) {
+            for (const s of payload.stockUpdates) {
+              if (s.ItemID && typeof s.Qty === 'number') {
+                await this.updateStockQty(s.ItemID, s.Qty);
+              }
+            }
+          }
+          if (payload.movementLogs && Array.isArray(payload.movementLogs)) {
+            await this.addBulkMovementLogs(payload.movementLogs);
+          }
+          if (payload.recvDoc) {
+            await this.addReceivedDoc(payload.recvDoc);
+          }
+          break;
+        }
+
+        case 'ADJUSTMENT_TRANSACTION': {
+          if (payload.stockUpdates && Array.isArray(payload.stockUpdates)) {
+            for (const s of payload.stockUpdates) {
+              if (s.ItemID && typeof s.Qty === 'number') {
+                await this.updateStockQty(s.ItemID, s.Qty);
+              }
+            }
+          }
+          if (payload.movementLogs && Array.isArray(payload.movementLogs)) {
+            await this.addBulkMovementLogs(payload.movementLogs);
+          }
+          if (payload.adjDoc) {
+            await this.addAdjustmentDoc(payload.adjDoc);
+          }
+          break;
+        }
+
+        case 'ADJUSTMENT_REQUEST': {
+          const existing = await this.getAllAdjustmentRequests();
+          const match = existing.find((r) => r.id === payload.id);
+          if (match) {
+            await this.updateAdjustmentRequest(payload);
+          } else {
+            await this.addAdjustmentRequest(payload);
+          }
+          break;
+        }
+
+        case 'DEPARTMENT_UPDATE': {
+          const existing = await this.getAllDepartments();
+          const match = existing.find((d) => d.DeptID === payload.DeptID);
+          if (match) {
+            await this.updateDepartment(payload);
+          } else {
+            await this.addDepartment(payload);
+          }
+          break;
+        }
+
+        case 'MANAGER_UPDATE': {
+          const existing = await this.getAllManagers();
+          const match = existing.find((m) => m.ManagerID === payload.ManagerID);
+          if (match) {
+            await this.updateManager(payload);
+          } else {
+            await this.addManager(payload);
+          }
+          break;
+        }
+
+        case 'ADMIN_UPDATE': {
+          const existing = await this.getAllAdmins();
+          const match = existing.find((a) => a.IssuerID === payload.IssuerID);
+          if (match) {
+            await this.updateAdmin(payload);
+          } else {
+            await this.addAdmin(payload);
+          }
+          break;
+        }
+
+        default:
+          console.warn('[SQLite Bridge] Unknown mutation type to replay:', type);
+          return false;
+      }
+      return true;
+    } catch (err) {
+      console.error('[SQLite Bridge] Failed to replay mutation into SQLite:', err);
+      return false;
+    }
+  }
+
   public async resetAllData(): Promise<void> {
     localStorage.removeItem(SQLITE_STORAGE_KEY);
     localStorage.removeItem(FALLBACK_STORAGE_KEY);

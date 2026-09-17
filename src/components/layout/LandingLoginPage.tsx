@@ -397,9 +397,6 @@ export const LandingLoginPage: React.FC<LandingLoginPageProps> = ({
                       <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
                         Select Your Username &amp; Enter Your Password
                       </h3>
-                      <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                        Please select your registered username from the left side panel to proceed with authentication and access the inventory system.
-                      </p>
                     </div>
 
                     {/* Quick Guidance Visual Pill */}
@@ -408,39 +405,6 @@ export const LandingLoginPage: React.FC<LandingLoginPageProps> = ({
                       <span>Choose your user card on the left to begin</span>
                     </div>
 
-                    {/* Security Highlights */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-w-md mx-auto pt-4 text-left">
-                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400">
-                        <div className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 mb-0.5">
-                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>Role-Based Access</span>
-                        </div>
-                        Privileges mapped to designated department roles.
-                      </div>
-                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400">
-                        <div className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 mb-0.5">
-                          <KeyRound className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>Encrypted Session</span>
-                        </div>
-                        Client-side SQLite verification with offline recovery.
-                      </div>
-                    </div>
-
-                    {/* General Forgot Password Trigger */}
-                    <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
-                      <button
-                        id="btn-general-forgot-password"
-                        type="button"
-                        onClick={() => {
-                          setRecoveryTargetUser(null);
-                          setIsRecoveryModalOpen(true);
-                        }}
-                        className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 hover:underline cursor-pointer"
-                      >
-                        <KeyRound className="w-3.5 h-3.5" />
-                        <span>Forgot Your Password? Recover credentials here</span>
-                      </button>
-                    </div>
                   </div>
                 ) : (
                   /* Active State: User has clicked a username -> Show Welcome Back & Password Login */

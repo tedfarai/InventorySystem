@@ -19,6 +19,9 @@ interface StickyBottomBarProps {
   lowStockCount?: number;
   onQuickReorderReport?: () => void;
   onOpenShortcuts?: () => void;
+  pendingMutationsCount?: number;
+  onDrainQueue?: () => void;
+  syncStatus?: string;
 }
 
 export const StickyBottomBar: React.FC<StickyBottomBarProps> = ({
@@ -28,6 +31,9 @@ export const StickyBottomBar: React.FC<StickyBottomBarProps> = ({
   lowStockCount = 0,
   onQuickReorderReport,
   onOpenShortcuts,
+  pendingMutationsCount = 0,
+  onDrainQueue,
+  syncStatus = 'CONNECTED',
 }) => {
   const isSuperiorAdmin = currentUser?.IssuerID === 'ADM001';
 
@@ -66,6 +72,17 @@ export const StickyBottomBar: React.FC<StickyBottomBarProps> = ({
             <Package className="w-3.5 h-3.5 text-emerald-500" />
             <span>Master Catalog: <strong>{totalSkuCount}</strong> items</span>
           </div>
+
+          {pendingMutationsCount > 0 && (
+            <button
+              onClick={onDrainQueue}
+              className="flex items-center space-x-1.5 px-2.5 py-1 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-900 rounded-lg text-amber-800 dark:text-amber-200 text-xs font-bold hover:bg-amber-100 dark:hover:bg-amber-900/60 cursor-pointer transition"
+              title="Transactions stored locally in offline sync queue. Click to trigger background replay."
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-amber-600 dark:text-amber-400 ${syncStatus === 'DRAINING' ? 'animate-spin' : ''}`} />
+              <span>{pendingMutationsCount} Sync Queue</span>
+            </button>
+          )}
 
           {lowStockCount > 0 && onQuickReorderReport && (
             <button

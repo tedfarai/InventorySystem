@@ -222,8 +222,26 @@ export function useSqliteProcurement() {
       }
     })();
 
+    // Listen for Service Worker background sync triggers
+    const handleServiceWorkerMessage = async (event: MessageEvent) => {
+      if (event.data && (event.data.type === 'SW_SYNC_TRIGGER' || event.data.type === 'SW_SYNC_COMPLETE')) {
+        console.log('[useSqliteProcurement] Service Worker sync event received:', event.data.type);
+        if (mounted) {
+          await realtimeSyncService.drainPendingMutations();
+          await refreshAllFromSqlite();
+        }
+      }
+    };
+
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', handleServiceWorkerMessage);
+    }
+
     return () => {
       mounted = false;
+      if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', handleServiceWorkerMessage);
+      }
       realtimeSyncService.cleanup();
     };
   }, [refreshAllFromSqlite]);
