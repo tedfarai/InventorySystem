@@ -3,18 +3,108 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Paramount Exports — Stationery & Cleaning Inventory</title>
     <meta name="description" content="Paramount Exports automated Stationery & Cleaning Stock Inventory Management Progressive Web Application." />
-    <meta name="theme-color" content="#059669" />
+    <meta name="theme-color" content="#C6D92C" />
+    <meta name="background-color" content="#22252A" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Paramount Stock" />
+    <meta name="application-name" content="Paramount Exports" />
+    <meta name="msapplication-TileColor" content="#22252A" />
+    <meta name="msapplication-config" content="/browserconfig.xml" />
+    <title>Paramount Exports — Stationery & Cleaning Inventory</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/pwa-192x192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/pwa-192x192.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/pwa-192x192.png" />
+    <link rel="apple-touch-icon" sizes="167x167" href="/pwa-192x192.png" />
+    <link rel="apple-touch-startup-image" href="/pwa-512x512.png" />
+    <meta name="msapplication-TileImage" content="/pwa-192x192.png" />
   </head>
   <body>
     <div id="root"></div>
+
+    <button
+      id="install-btn"
+      type="button"
+      hidden
+      aria-label="Install app"
+      style="
+        position: fixed;
+        right: 20px;
+        bottom: 20px;
+        z-index: 9999;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 12px 18px;
+        border: none;
+        border-radius: 999px;
+        background: linear-gradient(135deg, #c6d92c 0%, #b8cb1d 100%);
+        color: #1f2328;
+        font-size: 14px;
+        font-weight: 800;
+        letter-spacing: 0.02em;
+        box-shadow: 0 12px 28px rgba(32, 38, 43, 0.28);
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      "
+      onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 16px 32px rgba(32, 38, 43, 0.32)';"
+      onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 12px 28px rgba(32, 38, 43, 0.28)';"
+    >
+      Install App
+    </button>
+
+    <script>
+      (function () {
+        const isSecureContext = window.isSecureContext || location.protocol === 'https:' || location.hostname === 'localhost';
+        if ('serviceWorker' in navigator && isSecureContext) {
+          window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch((error) => {
+              console.warn('Service worker registration skipped or failed:', error);
+            });
+          });
+        }
+
+        let deferredPrompt = null;
+        const installButton = document.getElementById('install-btn');
+
+        const handleBeforeInstallPrompt = (event) => {
+          event.preventDefault();
+          deferredPrompt = event;
+
+          if (installButton) {
+            installButton.hidden = false;
+            installButton.setAttribute('aria-hidden', 'false');
+          }
+        };
+
+        window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+        if (installButton) {
+          installButton.addEventListener('click', async () => {
+            if (!deferredPrompt) return;
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            if (outcome === 'accepted') {
+              installButton.hidden = true;
+            }
+            deferredPrompt = null;
+          });
+        }
+
+        window.addEventListener('appinstalled', () => {
+          if (installButton) {
+            installButton.hidden = true;
+            installButton.setAttribute('aria-hidden', 'true');
+          }
+        });
+      })();
+    </script>
+
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

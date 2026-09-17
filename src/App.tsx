@@ -494,7 +494,13 @@ function AppContent() {
           <PWAInstallButton
             isInstallable={isInstallable}
             isInstalled={isInstalled}
-            onInstall={() => setIsInstallModalOpen(true)}
+            onInstall={async () => {
+              const installed = await triggerInstall();
+              if (!installed) {
+                setIsInstallModalOpen(true);
+              }
+              return installed;
+            }}
             variant="banner"
           />
         )}

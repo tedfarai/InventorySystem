@@ -38,59 +38,59 @@ export function getThemeChartPalette(isDark: boolean): ThemeChartPalette {
     return {
       isDark: true,
       textMuted: '#cbd5e1',       // slate-300
-      textLabel: '#cbd5e1',       // slate-300
+      textLabel: '#e2e8f0',       // slate-200
       textHeading: '#f8fafc',     // slate-50
-      axisLine: '#334155',        // slate-700
-      tickLine: '#334155',        // slate-700
+      axisLine: '#475569',        // slate-600
+      tickLine: '#475569',        // slate-600
       gridStroke: '#334155',      // slate-700
       grid: '#334155',
-      axisText: '#cbd5e1',
+      axisText: '#e2e8f0',        // slate-200
       text: '#f8fafc',
-      gridOpacity: 0.35,
+      gridOpacity: 0.42,
       tooltipBg: '#020617',       // slate-950
-      tooltipBorder: '#334155',   // slate-700
+      tooltipBorder: '#475569',   // slate-600
       tooltipText: '#f8fafc',     // slate-50
       pieBorder: '#0f172a',       // slate-900
       stationery: '#14b8a6',      // teal-500
       stationeryStroke: '#0d9488',
       cleaning: '#0284c7',        // sky-600
       cleaningStroke: '#0369a1',
-      general: '#10b981',        // emerald-500
+      general: '#10b981',         // emerald-500
       generalStroke: '#059669',
       predictionLine: '#818cf8',  // indigo-400
       actualTotalLine: '#10b981', // emerald-500
       cardBg: '#0f172a',          // slate-900
-      cardBorder: '#1e293b',      // slate-800
+      cardBorder: '#334155',      // slate-700
     };
   }
 
-  // Light Mode: Calibrated for WCAG AA/AAA readability with deep, crisp hues
+  // Light mode: use darker text/border anchors to keep chart labels and axes readable against white surfaces.
   return {
     isDark: false,
-    textMuted: '#475569',         // slate-600 (high contrast on white)
-    textLabel: '#1e293b',         // slate-800
-    textHeading: '#0f172a',       // slate-900
-    axisLine: '#64748b',          // slate-500 (clear anchor line)
-    tickLine: '#94a3b8',          // slate-400
-    gridStroke: '#cbd5e1',        // slate-300
-    grid: '#cbd5e1',
-    axisText: '#334155',          // slate-700
-    text: '#0f172a',
+    textMuted: '#475569',         // slate-600
+    textLabel: '#0f172a',         // slate-900
+    textHeading: '#020617',       // slate-950
+    axisLine: '#334155',          // slate-700 - strong chart spine
+    tickLine: '#475569',          // slate-600 - clear tick marks
+    gridStroke: '#dfe7f1',        // slate-200 / light gray grid
+    grid: '#dfe7f1',
+    axisText: '#0f172a',          // slate-900 - crisp labels
+    text: '#020617',
     gridOpacity: 0.9,
-    tooltipBg: '#ffffff',         // pure crisp white
-    tooltipBorder: '#cbd5e1',     // slate-300
+    tooltipBg: '#ffffff',         // white card surface
+    tooltipBorder: '#94a3b8',     // slate-400 - visible border
     tooltipText: '#0f172a',       // slate-900
-    pieBorder: '#ffffff',         // clean white separator on light backgrounds
-    stationery: '#0d9488',        // teal-600 (rich, deep teal)
-    stationeryStroke: '#0f766e',  // teal-700
-    cleaning: '#0284c7',          // sky-600 (vivid blue)
-    cleaningStroke: '#0369a1',    // sky-700
-    general: '#059669',          // emerald-600
-    generalStroke: '#047857',    // emerald-700
-    predictionLine: '#4338ca',    // indigo-700 (deep high-contrast indigo)
-    actualTotalLine: '#047857',   // emerald-700 (deep readable green)
+    pieBorder: '#f8fafc',         // soft separator on light surfaces
+    stationery: '#0f766e',        // teal-700
+    stationeryStroke: '#115e59',  // teal-800
+    cleaning: '#0369a1',          // sky-700
+    cleaningStroke: '#075985',    // sky-800
+    general: '#047857',           // emerald-700
+    generalStroke: '#065f46',     // emerald-800
+    predictionLine: '#312e81',    // indigo-800
+    actualTotalLine: '#065f46',   // emerald-800
     cardBg: '#ffffff',            // white
-    cardBorder: '#cbd5e1',        // slate-300
+    cardBorder: '#dfe7f1',        // slate-200
   };
 }
 
