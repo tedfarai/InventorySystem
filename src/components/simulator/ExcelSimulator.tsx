@@ -101,7 +101,7 @@ interface ExcelSimulatorProps {
   setCurrentUser: (user: AdminUser | null) => void;
   adjustmentRequests?: StockAdjustmentRequest[];
   activeTimedWindow?: TimedAccessWindow | null;
-  onCreateAdjustmentRequest?: (request: Omit<StockAdjustmentRequest, 'id' | 'createdAt' | 'status'>) => StockAdjustmentRequest;
+  onCreateAdjustmentRequest?: (request: Omit<StockAdjustmentRequest, 'id' | 'createdAt' | 'status'>) => StockAdjustmentRequest | Promise<StockAdjustmentRequest>;
   onApproveAndExecuteRequest?: (requestId: string, adminNotes: string) => void;
   onGrantTimedAccess?: (requestId: string, durationMinutes: number, adminNotes: string) => void;
   onRevokeTimedAccess?: (requestId: string) => void;
@@ -134,9 +134,9 @@ interface ExcelSimulatorProps {
   onDeleteAdmin?: (issuerId: string) => void;
   backups?: BackupSnapshot[];
   backupPolicy?: BackupProtocolPolicy;
-  onCreateBackup?: (type: BackupType, description: string) => BackupSnapshot;
+  onCreateBackup?: (type: BackupType, description: string) => BackupSnapshot | Promise<BackupSnapshot>;
   onRestoreBackup?: (snapshot: BackupSnapshot) => void;
-  onImportBackup?: (importedData: any) => boolean;
+  onImportBackup?: (importedData: any) => boolean | Promise<boolean>;
   onDeleteBackup?: (snapId: string) => void;
   onPruneBackups?: (retentionDays?: number) => void;
   externalAction?: {
@@ -224,9 +224,13 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
   const addToast = ({ title, message, type }: { title: string; message?: string; type?: 'success' | 'error' | 'warning' | 'info' }) => {
     showToast(title, type, message);
   };
-  const pendingReplenishmentItemIds = safeAdjustmentRequests
-    .filter((r) => r.status === 'PENDING')
-    .map((r) => r.itemId);
+  const pendingReplenishmentItemIds = Array.from(
+    new Set(
+      safeAdjustmentRequests
+        .filter((r) => r.status === 'PENDING')
+        .flatMap((r) => (Array.isArray(r.items) ? r.items.map((item) => item.ItemID) : []))
+    )
+  );
   const [activeSheet, setActiveSheet] = useState<'Master_Stock' | 'Movement_Log' | 'Adjustment_Hub' | 'Admin_Config'>('Master_Stock');
   const [activeModal, setActiveModal] = useState<
     | 'none'
@@ -589,7 +593,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
       if (!currentUser) {
         setActiveModal('login');
       } else {
-        setActiveModal('superiorManager');
+        setActiveModal('superiorAdjustmentManager');
       }
     },
     onEscape: () => {
@@ -843,11 +847,14 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
     let resDoc: ReceivedDocument | undefined = undefined;
     if (onSaveBulkDeliveries) {
       try {
-        resDoc = await onSaveBulkDeliveries(
+        const bulkDoc = await onSaveBulkDeliveries(
           deliveriesToSave.map((d) => ({ itemId: d.itemId, addQty: d.addQty, supplier: d.supplier || batchSupplier })),
           deliveryNoteRef,
           batchSupplier
         );
+        if (bulkDoc) {
+          resDoc = bulkDoc;
+        }
       } catch (err) {
         console.error('Error in bulk delivery save:', err);
       }
@@ -2742,14 +2749,22 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
       {/* Backup & Disaster Recovery Center Modal (Strictly Superior Admin ADM001 Only) */}
       {activeModal === 'backupRecovery' && isSuperiorAdmin && (
         <BackupRecoveryModal
+          isOpen={true}
           backups={backups}
-          policy={backupPolicy}
+          backupPolicy={backupPolicy}
+          currentUser={currentUser}
           masterFolderPath={masterFolderPath}
+          currentStock={stockItems}
+          currentLogs={movementLogs}
+          currentAdmins={admins}
+          currentDepartments={departments}
+          currentManagers={managers}
+          currentIssuedDocs={issuedDocs}
+          currentReceivedDocs={receivedDocs}
+          currentAdjustmentDocs={adjustmentDocs}
           onCreateBackup={onCreateBackup}
           onRestoreBackup={onRestoreBackup}
           onImportBackup={onImportBackup}
-          onDeleteBackup={onDeleteBackup}
-          onPruneBackups={onPruneBackups}
           onClose={() => setActiveModal('none')}
         />
       )}
@@ -2758,7 +2773,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
       {showFolderConfigModal && (
         <MasterFolderConfigModal
           currentPath={masterFolderPath}
-          onSave={onUpdateMasterFolderPath}
+          onSavePath={onUpdateMasterFolderPath}
           onClose={() => setShowFolderConfigModal(false)}
         />
       )}
@@ -2777,9 +2792,11 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
       {/* Bulk Delete Gated Confirmation Modal (Superior Admin Rachel Pickard only) */}
       {showBulkDeleteModal && (
         <BulkDeleteConfirmationModal
+          isOpen={showBulkDeleteModal}
           selectedItems={selectedStockItems}
-          isSuperiorAdmin={isSuperiorAdmin}
-          onConfirmDelete={handleConfirmBulkDelete}
+          issuerName={currentUser?.IssuerName || 'Rachel Pickard'}
+          issuerId={currentUser?.IssuerID || 'ADM001'}
+          onConfirm={handleConfirmBulkDelete}
           onClose={() => setShowBulkDeleteModal(false)}
         />
       )}

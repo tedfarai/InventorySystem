@@ -8,7 +8,8 @@ interface BulkDeleteConfirmationModalProps {
   selectedItems: StockItem[];
   issuerName: string;
   issuerId: string;
-  onConfirm: () => void;
+  onConfirm?: () => void;
+  onConfirmDelete?: () => void;
   onClose: () => void;
 }
 
@@ -18,6 +19,7 @@ export const BulkDeleteConfirmationModal: React.FC<BulkDeleteConfirmationModalPr
   issuerName,
   issuerId,
   onConfirm,
+  onConfirmDelete,
   onClose,
 }) => {
   const [typedConfirmation, setTypedConfirmation] = useState('');
@@ -29,7 +31,8 @@ export const BulkDeleteConfirmationModal: React.FC<BulkDeleteConfirmationModalPr
 
   const handleConfirm = () => {
     if (!isConfirmed) return;
-    onConfirm();
+    const confirmAction = onConfirm ?? onConfirmDelete ?? (() => {});
+    confirmAction();
     onClose();
   };
 

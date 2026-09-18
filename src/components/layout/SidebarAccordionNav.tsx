@@ -93,7 +93,7 @@ export const SidebarAccordionNav: React.FC<SidebarAccordionNavProps> = ({
   const [openAccordion, setOpenAccordion] = useState<string | null>(null);
 
   const isSuperiorAdmin = currentUser?.IssuerID === 'ADM001';
-  const roleLower = (currentUser?.Role || currentUser?.IssuerRole || '').toLowerCase();
+  const roleLower = (currentUser?.Role || '').toLowerCase();
   const isManagerOrSupervisor =
     isSuperiorAdmin ||
     roleLower.includes('manager') ||
@@ -439,7 +439,7 @@ export const SidebarAccordionNav: React.FC<SidebarAccordionNavProps> = ({
                       <span className="font-mono text-[10px] font-semibold bg-emerald-100 dark:bg-emerald-900/60 px-1 py-0.2 rounded text-emerald-800 dark:text-emerald-300">
                         {currentUser.IssuerID || 'ID'}
                       </span>
-                      <span className="truncate">{currentUser.Role || currentUser.IssuerRole || 'Staff'}</span>
+                      <span className="truncate">{currentUser.Role || 'Staff'}</span>
                     </div>
                   </div>
                 </div>

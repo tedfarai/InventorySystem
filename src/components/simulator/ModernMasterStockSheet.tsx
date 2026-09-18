@@ -351,14 +351,23 @@ export const ModernMasterStockSheet: React.FC<ModernMasterStockSheetProps> = ({
       {/* Bulk Stock Selection Bar */}
       {selectedStockItemIds.length > 0 && (
         <BulkStockActionsBar
+          selectedCount={selectedStockItems.length}
+          totalFilteredCount={filteredStock.length}
+          totalStockCount={safeStockItems.length}
+          isAllSelected={isAllVisibleSelected}
+          isPartiallySelected={selectedStockItems.length > 0 && !isAllVisibleSelected}
           selectedItems={selectedStockItems}
+          onToggleSelectAll={handleToggleSelectAllVisible}
+          onSelectByStatus={handleSelectByStatus}
           onClearSelection={handleClearSelection}
-          onTriggerBulkRestock={handleTriggerBulkRestock}
-          onTriggerBulkIssue={handleTriggerBulkIssue}
-          onTriggerBulkAdjustment={(items) => {
+          onBulkRestock={handleTriggerBulkRestock}
+          onBulkIssue={handleTriggerBulkIssue}
+          onBulkAdjustment={(items) => {
             if (onOpenAdjustmentRequests) onOpenAdjustmentRequests();
           }}
-          onOpenBatchUpdate={() => setShowBatchUpdateModal(true)}
+          onOpenBatchUpdateModal={() => setShowBatchUpdateModal(true)}
+          onExportSelectedCsv={handleExportSelectedCsv}
+          onCopySelectedClipboard={handleCopySelectedClipboard}
           onBulkDelete={() => {
             if (!isSuperiorAdmin) {
               alert('Access Denied: Only Superior Admin Rachel Pickard (ADM001) can permanently delete stock items.');
@@ -366,8 +375,7 @@ export const ModernMasterStockSheet: React.FC<ModernMasterStockSheetProps> = ({
             }
             setShowBulkDeleteModal(true);
           }}
-          onExportCsv={handleExportSelectedCsv}
-          onCopyClipboard={handleCopySelectedClipboard}
+          isSuperiorAdmin={isSuperiorAdmin}
         />
       )}
 
@@ -658,16 +666,21 @@ export const ModernMasterStockSheet: React.FC<ModernMasterStockSheetProps> = ({
       <BulkDeleteConfirmationModal
         isOpen={showBulkDeleteModal}
         selectedItems={selectedStockItems}
+        issuerName={currentUser?.IssuerName || 'Rachel Pickard'}
+        issuerId={currentUser?.IssuerID || 'ADM001'}
         onClose={() => setShowBulkDeleteModal(false)}
-        onConfirmDelete={handleConfirmBulkDelete}
+        onConfirm={handleConfirmBulkDelete}
       />
 
       {/* Bulk Delivery Review & Confirmation Modal */}
       <BulkDeliveryConfirmationModal
         isOpen={showBulkDeliveryConfirmModal}
-        deliveryItems={bulkDeliveryReviewItems}
+        deliveries={bulkDeliveryReviewItems}
+        items={bulkDeliveryReviewItems}
+        issuerId={currentUser?.IssuerID || 'ADM001'}
+        issuerName={currentUser?.IssuerName || 'Rachel Pickard'}
         onClose={() => setShowBulkDeliveryConfirmModal(false)}
-        onConfirmDelivery={handleConfirmBulkDeliveryModal}
+        onConfirm={handleConfirmBulkDeliveryModal}
       />
     </div>
   );

@@ -282,7 +282,8 @@ export const StockAdjustmentTab: React.FC<StockAdjustmentTabProps> = ({
 
       const isLastItem = pendingRequestItems.length <= 1;
 
-      if (isEnforcingRequestVariant && (result?.allAdjusted || isLastItem)) {
+      const normalizedResult = result && typeof result === 'object' ? result : null;
+      if (isEnforcingRequestVariant && (normalizedResult?.allAdjusted || isLastItem)) {
         // All adjustments completed -> immediately close session and show completion view
         setSessionCompleted(true);
         setCompletedSummary({

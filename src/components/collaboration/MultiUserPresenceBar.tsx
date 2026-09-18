@@ -59,18 +59,24 @@ export const MultiUserPresenceBar: React.FC<MultiUserPresenceBarProps> = ({
 
   // Platform icon helper
   const renderPlatformIcon = (platform: PlatformType, sizeClass = 'w-3 h-3') => {
+    const iconWithLabel = (node: React.ReactNode, label: string) => (
+      <span title={label} aria-label={label} className="inline-flex items-center justify-center">
+        {node}
+      </span>
+    );
+
     switch (platform) {
       case 'Windows':
-        return <Monitor className={`${sizeClass} text-blue-400`} title="Windows 10/11 Workstation" />;
+        return iconWithLabel(<Monitor className={`${sizeClass} text-blue-400`} />, 'Windows 10/11 Workstation');
       case 'macOS':
-        return <Apple className={`${sizeClass} text-indigo-300`} title="macOS Workstation" />;
+        return iconWithLabel(<Apple className={`${sizeClass} text-indigo-300`} />, 'macOS Workstation');
       case 'Linux':
-        return <Terminal className={`${sizeClass} text-orange-400`} title="Linux Desktop" />;
+        return iconWithLabel(<Terminal className={`${sizeClass} text-orange-400`} />, 'Linux Desktop');
       case 'Android':
       case 'iOS':
-        return <Smartphone className={`${sizeClass} text-emerald-400`} title="Mobile Device" />;
+        return iconWithLabel(<Smartphone className={`${sizeClass} text-emerald-400`} />, 'Mobile Device');
       default:
-        return <Globe className={`${sizeClass} text-slate-400`} title="Web Session" />;
+        return iconWithLabel(<Globe className={`${sizeClass} text-slate-400`} />, 'Web Session');
     }
   };
 

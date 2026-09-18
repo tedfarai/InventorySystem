@@ -66,7 +66,7 @@ export const StickyBottomBar: React.FC<StickyBottomBarProps> = ({
             </div>
             <div className="text-[10px] truncate">
               {currentUser ? (
-                <span className="text-slate-500 dark:text-slate-400 hidden xs:inline">{currentUser.Role || currentUser.IssuerRole || 'Authorized Operator'}</span>
+                <span className="text-slate-500 dark:text-slate-400 hidden xs:inline">{currentUser.Role || 'Authorized Operator'}</span>
               ) : (
                 <span className="text-amber-600 dark:text-amber-400 font-semibold">Read-Only Mode</span>
               )}

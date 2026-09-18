@@ -84,6 +84,7 @@ export interface IssueCartItem {
   Category: ItemCategory;
   AvailableQty: number;
   RequestedQty: number;
+  Qty?: number;
 }
 
 export interface IssuedDocument {

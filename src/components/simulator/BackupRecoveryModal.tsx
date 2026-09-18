@@ -60,9 +60,9 @@ interface BackupRecoveryModalProps {
   currentIssuedDocs?: IssuedDocument[];
   currentReceivedDocs?: ReceivedDocument[];
   currentAdjustmentDocs?: AdjustmentDocument[];
-  onCreateBackup: (type: BackupType, description: string) => BackupSnapshot;
-  onRestoreBackup: (snapshot: BackupSnapshot) => void;
-  onImportBackup: (importedData: any) => boolean;
+  onCreateBackup: (type: BackupType, description: string) => BackupSnapshot | Promise<BackupSnapshot>;
+  onRestoreBackup: (snapshot: BackupSnapshot) => void | Promise<void>;
+  onImportBackup: (importedData: any) => boolean | Promise<boolean>;
 }
 
 export const BackupRecoveryModal: React.FC<BackupRecoveryModalProps> = ({
@@ -167,12 +167,12 @@ export const BackupRecoveryModal: React.FC<BackupRecoveryModalProps> = ({
   }
 
   // Handle Instant Backup Creation
-  const handleCreateInstantBackup = (e: React.FormEvent) => {
+  const handleCreateInstantBackup = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     try {
       const desc = customDescription.trim() || 'Manual On-Demand Point-in-Time Snapshot';
-      const snap = onCreateBackup('MANUAL', desc);
+      const snap = await Promise.resolve(onCreateBackup('MANUAL', desc));
       setSuccessMsg(`Backup snapshot created successfully: ${snap.fileName} [${snap.timestamp}]`);
       setCustomDescription('');
       setTimeout(() => setSuccessMsg(''), 4000);
@@ -182,26 +182,24 @@ export const BackupRecoveryModal: React.FC<BackupRecoveryModalProps> = ({
   };
 
   // Handle 1-Click Restore Execution
-  const handleExecuteRestore = () => {
+  const handleExecuteRestore = async () => {
     if (!confirmRestoreSnapshot) return;
     setIsRestoring(true);
     setErrorMsg('');
 
-    setTimeout(() => {
-      try {
-        onRestoreBackup(confirmRestoreSnapshot);
-        setIsRestoring(false);
-        const restoredName = confirmRestoreSnapshot.fileName;
-        const restoredTime = confirmRestoreSnapshot.timestamp;
-        setConfirmRestoreSnapshot(null);
-        setSelectedSnapshotForInspect(null);
-        setSuccessMsg(`Disaster recovery successful! Restored entire workbook to snapshot: ${restoredName} (${restoredTime})`);
-        setTimeout(() => setSuccessMsg(''), 6000);
-      } catch (err: any) {
-        setIsRestoring(false);
-        setErrorMsg(err.message || 'Failed to restore workbook snapshot.');
-      }
-    }, 600);
+    try {
+      await Promise.resolve(onRestoreBackup(confirmRestoreSnapshot));
+      const restoredName = confirmRestoreSnapshot.fileName;
+      const restoredTime = confirmRestoreSnapshot.timestamp;
+      setConfirmRestoreSnapshot(null);
+      setSelectedSnapshotForInspect(null);
+      setSuccessMsg(`Disaster recovery successful! Restored entire workbook to snapshot: ${restoredName} (${restoredTime})`);
+      setTimeout(() => setSuccessMsg(''), 6000);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to restore workbook snapshot.');
+    } finally {
+      setIsRestoring(false);
+    }
   };
 
   // Copy Checksum Hash
@@ -801,8 +799,8 @@ export const BackupRecoveryModal: React.FC<BackupRecoveryModalProps> = ({
 
                   <button
                     type="button"
-                    onClick={() => {
-                      const snap = onCreateBackup('MANUAL', 'Full System Disaster Recovery Export');
+                    onClick={async () => {
+                      const snap = await Promise.resolve(onCreateBackup('MANUAL', 'Full System Disaster Recovery Export'));
                       handleDownloadSnapshot(snap);
                       setSuccessMsg('Disaster recovery backup file downloaded successfully!');
                     }}

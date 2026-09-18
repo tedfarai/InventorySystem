@@ -25,32 +25,38 @@ export interface BulkDeliveryReviewItem {
 }
 
 interface BulkDeliveryConfirmationModalProps {
+  isOpen?: boolean;
   deliveries?: BulkDeliveryReviewItem[];
   items?: BulkDeliveryReviewItem[];
+  deliveryItems?: BulkDeliveryReviewItem[];
   issuerId?: string;
   issuerName?: string;
   isSuperiorAdmin?: boolean;
   defaultSupplier?: string;
-  onConfirm: (deliveryNoteRef?: string, updatedDeliveries?: BulkDeliveryReviewItem[], supplier?: string) => void | Promise<void>;
+  onConfirm?: (deliveryNoteRef?: string, updatedDeliveries?: BulkDeliveryReviewItem[], supplier?: string) => void | Promise<void>;
+  onConfirmDelivery?: (deliveryNoteRef?: string, updatedDeliveries?: BulkDeliveryReviewItem[], supplier?: string) => void | Promise<void>;
   onCancel?: () => void;
   onClose?: () => void;
 }
 
 export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationModalProps> = ({
+  isOpen = true,
   deliveries,
   items,
+  deliveryItems,
   issuerId = 'ADM001',
   issuerName = 'Rachel Pickard',
   defaultSupplier = '',
   onConfirm,
+  onConfirmDelivery,
   onCancel,
   onClose,
 }) => {
   const handleCloseModal = onCancel || onClose || (() => {});
+  const effectiveDeliveries = deliveries ?? items ?? deliveryItems ?? [];
   const [currentStep, setCurrentStep] = useState<1 | 2>(1);
   const [itemsList, setItemsList] = useState<BulkDeliveryReviewItem[]>(() => {
-    if (Array.isArray(deliveries) && deliveries.length > 0) return deliveries;
-    if (Array.isArray(items) && items.length > 0) return items;
+    if (Array.isArray(effectiveDeliveries) && effectiveDeliveries.length > 0) return effectiveDeliveries;
     return [];
   });
   const [deliveryNoteRef, setDeliveryNoteRef] = useState(`GRN-${Math.floor(100000 + Math.random() * 900000)}`);
@@ -119,11 +125,14 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
     }));
 
     try {
-      await onConfirm(deliveryNoteRef, finalBatch, vendorSupplier);
+      const confirmAction = onConfirm ?? onConfirmDelivery ?? (() => Promise.resolve());
+      await confirmAction(deliveryNoteRef, finalBatch, vendorSupplier);
     } catch (err) {
       console.error('Error during bulk delivery execution:', err);
     }
   };
+
+  if (!isOpen) return null;
 
   return (
     <DraggableResizableModal

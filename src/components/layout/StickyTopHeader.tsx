@@ -113,7 +113,7 @@ export const StickyTopHeader: React.FC<StickyTopHeaderProps> = ({
                   {isSuperiorAdmin && <Crown className="w-3 h-3 text-amber-500" />}
                 </div>
                 <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
-                  {currentUser.Role || currentUser.IssuerRole || 'Staff'}
+                  {currentUser.Role || 'Staff'}
                 </div>
               </div>
             </div>

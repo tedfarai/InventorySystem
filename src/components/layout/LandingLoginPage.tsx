@@ -63,7 +63,7 @@ export const LandingLoginPage: React.FC<LandingLoginPageProps> = ({
     if (!q) return true;
     const name = (admin.IssuerName || '').toLowerCase();
     const id = (admin.IssuerID || '').toLowerCase();
-    const role = (admin.Role || admin.IssuerRole || '').toLowerCase();
+    const role = (admin.Role || '').toLowerCase();
     return name.includes(q) || id.includes(q) || role.includes(q);
   });
 
@@ -136,19 +136,19 @@ export const LandingLoginPage: React.FC<LandingLoginPageProps> = ({
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors">
+    <div className="min-h-screen flex flex-col bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.18),_transparent_25%),radial-gradient(circle_at_bottom_right,_rgba(22,101,52,0.16),_transparent_30%),linear-gradient(180deg,#030d0a_0%,#071a14_22%,#0a1512_100%)] text-slate-100 transition-colors duration-200">
       {/* Top Brand Header */}
-      <header className="sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-xs">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center font-bold text-white shadow-sm shrink-0">
-              <Package className="w-5 h-5" />
+      <header className="sticky top-0 z-30 border-b border-emerald-500/20 bg-[#071b15]/85 backdrop-blur-2xl shadow-[0_10px_40px_-18px_rgba(16,185,129,0.4)]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-18 flex items-center justify-between">
+          <div className="flex items-center space-x-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-400 via-emerald-500 to-green-700 flex items-center justify-center shadow-[0_10px_30px_rgba(16,185,129,0.35)] ring-1 ring-emerald-300/30 shrink-0">
+              <Package className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-base sm:text-lg font-bold tracking-tight text-slate-900 dark:text-white leading-tight">
+              <h1 className="text-lg sm:text-xl font-black tracking-[-0.04em] text-white leading-none">
                 Paramount Exports
               </h1>
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+              <p className="text-[10px] sm:text-[11px] text-emerald-200/80 font-semibold tracking-[0.18em] uppercase">
                 Stationery &amp; Cleaning Inventory
               </p>
             </div>
@@ -161,7 +161,7 @@ export const LandingLoginPage: React.FC<LandingLoginPageProps> = ({
                 id="btn-login-install-pwa"
                 type="button"
                 onClick={onOpenInstallModal}
-                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 rounded-lg hover:bg-emerald-100 dark:hover:bg-emerald-900/60 cursor-pointer transition whitespace-nowrap"
+                className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 text-[11px] font-bold text-emerald-100 bg-emerald-500/12 border border-emerald-400/30 rounded-xl hover:bg-emerald-500/18 cursor-pointer transition whitespace-nowrap shadow-[0_0_0_1px_rgba(16,185,129,0.15)]"
               >
                 <Download className="w-3.5 h-3.5 shrink-0" />
                 <span>Install PWA</span>
@@ -210,69 +210,77 @@ export const LandingLoginPage: React.FC<LandingLoginPageProps> = ({
 
       {/* Main Content Area */}
       <main className="flex-1 w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-10 flex flex-col justify-center">
-        <div className="w-full max-w-6xl mx-auto space-y-6">
+        <div className="w-full max-w-7xl mx-auto space-y-7">
           {/* Welcome Banner / Introductory Section */}
-          <div className="text-center space-y-2 max-w-3xl mx-auto">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-50 dark:bg-emerald-950/80 border border-emerald-200 dark:border-emerald-800 rounded-full text-emerald-700 dark:text-emerald-300 text-xs font-semibold shadow-2xs">
+          <div className="text-center space-y-4 max-w-5xl mx-auto">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-emerald-500/10 border border-emerald-400/25 rounded-full text-emerald-200 text-[11px] font-bold tracking-[0.18em] uppercase shadow-[0_0_0_1px_rgba(16,185,129,0.12)]">
               <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Verified User Access Portal</span>
+              <span>Executive Access Portal</span>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-              Select Your User Profile
+            <h2 className="text-3xl sm:text-4xl lg:text-6xl font-black tracking-[-0.06em] text-white">
+              Control the operating rhythm of
+              <span className="block mt-1 text-transparent bg-gradient-to-r from-emerald-300 via-green-300 to-lime-200 bg-clip-text">
+                Paramount inventory
+              </span>
             </h2>
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              Click your name from the directory below to authenticate and enter the inventory management workspace.
+            <p className="text-sm sm:text-base text-emerald-50/75 max-w-2xl mx-auto leading-relaxed">
+              Authenticate to unlock the live stock command center, supplier workflows, and operational intelligence dashboards.
             </p>
+            <div className="flex flex-wrap items-center justify-center gap-2 pt-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-100/70">
+              <span className="px-3 py-1.5 rounded-full border border-emerald-400/25 bg-emerald-500/8">Secure auth</span>
+              <span className="px-3 py-1.5 rounded-full border border-emerald-400/25 bg-emerald-500/8">Offline ready</span>
+              <span className="px-3 py-1.5 rounded-full border border-emerald-400/25 bg-emerald-500/8">Live stock oversight</span>
+            </div>
           </div>
 
           {/* SPLIT 2-COLUMN MODERN LOGIN CONTAINER WITH VERTICAL BORDER */}
           <div
             id="login-split-portal-card"
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl sm:rounded-3xl shadow-xl overflow-hidden"
+            className="bg-[linear-gradient(135deg,rgba(9,16,13,0.94),rgba(12,22,18,0.96))] border border-emerald-500/20 rounded-[28px] sm:rounded-[32px] shadow-[0_35px_90px_-36px_rgba(16,185,129,0.5)] overflow-hidden ring-1 ring-emerald-500/10"
           >
-            <div className="grid grid-cols-1 lg:grid-cols-2">
+            <div className="grid grid-cols-1 lg:grid-cols-[1.08fr_0.92fr]">
               {/* ======================================================== */}
               {/* LEFT HALF: REGISTERED USERNAMES (2 COLUMNS, SCROLLABLE) */}
               {/* ======================================================== */}
-              <div className="p-5 sm:p-6 lg:p-7 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40">
+              <div className="p-5 sm:p-6 lg:p-7 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-emerald-500/15 bg-[linear-gradient(180deg,rgba(10,22,18,0.96),rgba(6,16,13,0.98))]">
                 <div className="space-y-4">
                   {/* Left Half Header & Search */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-slate-200/80 dark:border-slate-800">
-                    <div className="flex items-center space-x-2">
-                      <div className="p-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-emerald-500/15">
+                    <div className="flex items-center space-x-3">
+                      <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-[0_12px_30px_rgba(16,185,129,0.24)] text-white">
                         <UserCheck className="w-4 h-4" />
                       </div>
                       <div>
-                        <h3 className="text-sm font-bold text-slate-900 dark:text-white leading-tight">
+                        <h3 className="text-base font-black tracking-[-0.02em] text-white leading-tight">
                           Registered Users
                         </h3>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                          Click your card to select your username
+                        <p className="text-[11px] text-emerald-100/70 font-medium">
+                          Select your access profile
                         </p>
                       </div>
                     </div>
-                    <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/80 border border-emerald-200 dark:border-emerald-800 px-2.5 py-1 rounded-full self-start sm:self-auto whitespace-nowrap">
+                    <span className="text-[11px] font-bold text-emerald-100 bg-emerald-500/10 border border-emerald-400/30 px-2.5 py-1.5 rounded-full self-start sm:self-auto whitespace-nowrap shadow-sm">
                       {filteredAdmins.length} Active Users
                     </span>
                   </div>
 
                   {/* Search Input for Quick User Lookup */}
                   <div className="relative w-full">
-                    <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3 pointer-events-none" />
+                    <Search className="w-4 h-4 text-emerald-200/70 absolute left-3.5 top-3.5 pointer-events-none" />
                     <input
                       id="input-search-users"
                       type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Filter by name, role, or ID (e.g. Rachel, ADM001)..."
-                      className="w-full pl-10 pr-16 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs transition"
+                      placeholder="Find a user by name, role, or ID..."
+                      className="w-full pl-10 pr-16 py-3 bg-[#0b1c18] border border-emerald-500/20 rounded-2xl text-sm text-white placeholder-emerald-100/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] transition"
                     />
                     {searchQuery && (
                       <button
                         id="btn-clear-search-users"
                         type="button"
                         onClick={() => setSearchQuery('')}
-                        className="absolute right-3 top-2.5 text-xs font-semibold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 px-1.5 py-0.5 rounded cursor-pointer"
+                        className="absolute right-3 top-3 text-xs font-semibold text-emerald-100/70 hover:text-white px-1.5 py-1 rounded cursor-pointer"
                       >
                         Clear
                       </button>
@@ -282,7 +290,7 @@ export const LandingLoginPage: React.FC<LandingLoginPageProps> = ({
                   {/* Scrollable 2-Column User Grid (Displays 2 names per row going down) */}
                   <div
                     id="users-scrollable-grid-container"
-                    className="overflow-y-auto max-h-[460px] sm:max-h-[500px] pr-1.5 space-y-2.5"
+                    className="overflow-y-auto max-h-[510px] sm:max-h-[540px] pr-1.5 space-y-3"
                     tabIndex={0}
                     aria-label="Registered users directory list"
                   >
@@ -303,7 +311,7 @@ export const LandingLoginPage: React.FC<LandingLoginPageProps> = ({
                         {filteredAdmins.map((admin) => {
                           const isSelected = selectedAdmin?.IssuerID === admin.IssuerID;
                           const isSuperior = admin.IssuerID === 'ADM001';
-                          const roleDisplay = admin.Role || admin.IssuerRole || 'Authorized Staff';
+                          const roleDisplay = admin.Role || 'Authorized Staff';
                           const avatarColor = getAvatarColor(roleDisplay, isSuperior);
 
                           return (
@@ -312,55 +320,55 @@ export const LandingLoginPage: React.FC<LandingLoginPageProps> = ({
                               id={`user-card-${admin.IssuerID}`}
                               type="button"
                               onClick={() => handleSelectUser(admin)}
-                              className={`text-left p-3 rounded-xl border transition-all duration-200 cursor-pointer flex items-center justify-between gap-2.5 relative group ${
+                              className={`text-left p-3.5 rounded-2xl border transition-all duration-200 cursor-pointer flex items-center justify-between gap-2.5 relative group ${
                                 isSelected
-                                  ? 'bg-emerald-50/90 dark:bg-emerald-950/60 border-emerald-500 dark:border-emerald-500 shadow-md ring-2 ring-emerald-500/20'
-                                  : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-emerald-400 dark:hover:border-emerald-600 hover:shadow-xs'
+                                  ? 'bg-gradient-to-r from-emerald-500/14 to-emerald-400/8 border-emerald-400/50 shadow-[0_0_0_1px_rgba(16,185,129,0.12),0_24px_50px_-28px_rgba(16,185,129,0.85)] ring-2 ring-emerald-500/20'
+                                  : 'bg-[#0d1e1a] border-emerald-500/10 hover:border-emerald-400/30 hover:shadow-[0_16px_36px_-28px_rgba(16,185,129,0.8)] hover:-translate-y-0.5'
                               }`}
                             >
-                              <div className="flex items-center space-x-2.5 min-w-0 flex-1">
+                              <div className="flex items-center space-x-3 min-w-0 flex-1">
                                 <div
-                                  className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold text-xs shrink-0 transition-transform group-hover:scale-105 ${avatarColor}`}
+                                  className={`w-11 h-11 rounded-2xl border flex items-center justify-center font-black text-sm shrink-0 transition-transform group-hover:scale-105 ${avatarColor}`}
                                 >
                                   {getInitials(admin.IssuerName)}
                                 </div>
 
                                 <div className="min-w-0 flex-1">
-                                  <div className="flex items-center gap-1">
+                                  <div className="flex items-center gap-1.5">
                                     <span
-                                      className={`text-xs font-bold truncate block ${
+                                      className={`text-sm font-black truncate block ${
                                         isSelected
-                                          ? 'text-emerald-950 dark:text-emerald-200'
-                                          : 'text-slate-900 dark:text-slate-100'
+                                          ? 'text-emerald-100'
+                                          : 'text-slate-100'
                                       }`}
                                     >
                                       {admin.IssuerName}
                                     </span>
                                     {isSuperior && (
                                       <Crown
-                                        className="w-3 h-3 text-amber-500 shrink-0"
-                                        title="Superior Admin"
+                                        className="w-3.5 h-3.5 text-amber-300 shrink-0"
+                                        aria-label="Superior Admin"
                                       />
                                     )}
                                   </div>
 
-                                  <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                                    <span className="font-mono text-[9px] bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded border border-slate-200 dark:border-slate-700 font-semibold shrink-0">
+                                  <div className="flex items-center gap-1.5 text-[10px] text-emerald-50/70 mt-1">
+                                    <span className="font-mono text-[9px] bg-[#10231d] px-1.5 py-0.5 rounded-lg border border-emerald-500/20 font-semibold shrink-0">
                                       {admin.IssuerID}
                                     </span>
-                                    <span className="truncate">{roleDisplay}</span>
+                                    <span className="truncate font-medium">{roleDisplay}</span>
                                   </div>
                                 </div>
                               </div>
 
                               <div className="shrink-0">
                                 {isSelected ? (
-                                  <div className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+                                  <div className="w-6 h-6 rounded-full bg-emerald-400 text-[#04130f] flex items-center justify-center shadow-sm">
                                     <CheckCircle2 className="w-3.5 h-3.5" />
                                   </div>
                                 ) : (
-                                  <div className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
-                                    <ArrowRight className="w-3 h-3" />
+                                  <div className="w-6 h-6 rounded-full bg-[#10231d] border border-emerald-500/20 text-emerald-200/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                                    <ArrowRight className="w-3.5 h-3.5" />
                                   </div>
                                 )}
                               </div>
@@ -384,7 +392,7 @@ export const LandingLoginPage: React.FC<LandingLoginPageProps> = ({
               {/* ======================================================== */}
               <div
                 id="login-right-auth-panel"
-                className="p-6 sm:p-8 lg:p-10 flex flex-col justify-center bg-white dark:bg-slate-900"
+                className="p-6 sm:p-8 lg:p-10 flex flex-col justify-center bg-[linear-gradient(180deg,rgba(10,18,15,0.96),rgba(5,12,10,1))]"
               >
                 {!selectedAdmin ? (
                   /* Initial State: Prompt to select a user from the left side panel */
@@ -424,33 +432,33 @@ export const LandingLoginPage: React.FC<LandingLoginPageProps> = ({
                     </div>
 
                     {/* User Profile Summary Card with Change Button */}
-                    <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3">
+                    <div className="p-4 rounded-2xl bg-[linear-gradient(135deg,rgba(11,26,21,0.9),rgba(8,17,14,0.95))] border border-emerald-500/20 shadow-[0_18px_40px_-28px_rgba(16,185,129,0.8)] flex items-center justify-between gap-3">
                       <div className="flex items-center space-x-3 min-w-0">
                         <div
-                          className={`w-10 h-10 rounded-xl border flex items-center justify-center font-bold text-xs shrink-0 ${getAvatarColor(
-                            selectedAdmin.Role || selectedAdmin.IssuerRole,
+                          className={`w-12 h-12 rounded-2xl border flex items-center justify-center font-black text-sm shrink-0 shadow-sm ${getAvatarColor(
+                            selectedAdmin.Role,
                             selectedAdmin.IssuerID === 'ADM001'
                           )}`}
                         >
                           {getInitials(selectedAdmin.IssuerName)}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-base font-black text-white truncate">
                               {selectedAdmin.IssuerName}
                             </span>
                             {selectedAdmin.IssuerID === 'ADM001' && (
-                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 rounded text-[9px] font-bold">
-                                <Crown className="w-2.5 h-2.5 text-amber-500" />
+                              <span className="inline-flex items-center gap-0.5 px-2 py-0.5 bg-amber-500/10 text-amber-200 border border-amber-400/30 rounded-full text-[9px] font-bold uppercase tracking-[0.08em]">
+                                <Crown className="w-2.5 h-2.5 text-amber-300" />
                                 <span>Superior Admin</span>
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                            <span className="font-mono text-[10px] bg-white dark:bg-slate-900 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 font-semibold">
+                          <div className="flex items-center gap-1.5 text-xs text-emerald-50/70 mt-1">
+                            <span className="font-mono text-[10px] bg-[#0c1d18] px-1.5 py-0.5 rounded-md border border-emerald-500/20 font-semibold">
                               {selectedAdmin.IssuerID}
                             </span>
-                            <span className="truncate">{selectedAdmin.Role || selectedAdmin.IssuerRole}</span>
+                            <span className="truncate font-medium">{selectedAdmin.Role}</span>
                           </div>
                         </div>
                       </div>
@@ -459,7 +467,7 @@ export const LandingLoginPage: React.FC<LandingLoginPageProps> = ({
                         id="btn-change-selected-user"
                         type="button"
                         onClick={handleClearSelection}
-                        className="text-xs text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white px-2.5 py-1 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 font-semibold transition cursor-pointer whitespace-nowrap"
+                        className="text-xs text-emerald-100/80 hover:text-white px-3 py-2 rounded-xl hover:bg-emerald-500/10 border border-emerald-500/15 font-bold transition cursor-pointer whitespace-nowrap"
                       >
                         Change
                       </button>

@@ -59,9 +59,9 @@ export const IssueRequestTab: React.FC<IssueRequestTabProps> = ({
           ItemID: item.ItemID,
           ItemName: item.ItemName,
           Category: item.Category,
+          AvailableQty: item.Qty,
           RequestedQty: Math.min(1, Math.max(1, item.Qty)),
-          Unit: item.Unit,
-          CurrentAvailableQty: item.Qty,
+          Qty: item.Qty,
         }));
     }
     return [];

@@ -1162,7 +1162,7 @@ export function useSqliteProcurement() {
       DocumentRef: voucherNumber,
       Status: 'Adjusted',
       DiscrepancyReason: it.ReasonCode,
-      DiscrepancyNotes: it.DiscrepancyReason || adminNotes,
+      DiscrepancyNotes: it.Notes || adminNotes,
       CountRef: it.CountRef || req.id,
     }));
 

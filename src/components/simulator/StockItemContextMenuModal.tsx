@@ -443,7 +443,7 @@ export const StockItemContextMenuModal: React.FC<StockItemContextMenuModalProps>
                   <ShieldAlert className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                   <div>
                     <span className="font-bold">Option Disabled: </span>
-                    <span>An existing adjustment request with status &lsquo;PENDING&rsquo; is detected in the state ({pendingAdjustmentInState?.requestId || pendingAdjustmentForItem?.requestId || 'active'}).</span>
+                    <span>An existing adjustment request with status &lsquo;PENDING&rsquo; is detected in the state ({pendingAdjustmentInState?.id || pendingAdjustmentForItem?.id || 'active'}).</span>
                   </div>
                 </div>
               )}

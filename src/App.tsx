@@ -270,7 +270,7 @@ function AppContent() {
     try {
       const bkp = await handleCreateBackup('MANUAL', note);
       if (bkp) {
-        showToast('SQLite Backup Saved', 'success', `Snapshot ${bkp.id} archived with ${bkp.recordCounts.stock} stock items`);
+        showToast('SQLite Backup Saved', 'success', `Snapshot ${bkp.id} archived with ${bkp.itemCount} stock items`);
       }
       return bkp;
     } catch (e: any) {
@@ -282,7 +282,7 @@ function AppContent() {
   const handleRestoreBackupWithToast = async (snapshot: any) => {
     try {
       const restored = await handleRestoreBackup(snapshot.id || snapshot);
-      if (restored) {
+      if (restored !== undefined) {
         showToast('Database Restored', 'warning', `Snapshot applied successfully`);
       }
       return restored;
@@ -416,7 +416,7 @@ function AppContent() {
           onSuccess={(admin) => {
             setCurrentUser(admin);
             setIsLoginModalOpen(false);
-            showToast(`Welcome, ${admin.IssuerName}`, 'success', `Authenticated as ${admin.IssuerRole}`);
+            showToast(`Welcome, ${admin.IssuerName}`, 'success', `Authenticated as ${admin.Role}`);
           }}
           isOffline={isOffline}
           onOpenInstallModal={() => setIsInstallModalOpen(true)}
@@ -561,19 +561,20 @@ function AppContent() {
               currentUser={currentUser}
               backups={backups}
               onNavigateTab={(tab) => {
-                setActiveTab('simulator');
-                setExternalSimulatorAction({ type: 'OPEN_TAB', tab });
+                setActiveTab(tab as AppTab);
               }}
               onNavigateSheet={(sheet) => {
                 setActiveTab('simulator');
-                setExternalSimulatorAction({ type: 'NAVIGATE_SHEET', sheet });
+                if (sheet === 'Master_Stock' || sheet === 'Movement_Log' || sheet === 'Adjustment_Hub' || sheet === 'Admin_Config') {
+                  setExternalSimulatorAction({ type: 'NAVIGATE_SHEET', sheet });
+                }
               }}
               onOpenMovementDoc={handleOpenAuditMovementDocument}
               onSelectItemForReorder={(_item) => {
                 setActiveTab('simulator');
                 setExternalSimulatorAction({
-                  type: 'NAVIGATE_SHEET',
-                  sheet: 'Stock Re-Order & Safety Threshold Report',
+                  type: 'OPEN_MODAL',
+                  modal: 'reorderReport',
                 });
               }}
             />
@@ -707,6 +708,7 @@ function AppContent() {
             currentUser={currentUser}
             onClose={() => setIsAccountModalOpen(false)}
             onUpdateAdmin={handleUpdateAdmin}
+            onShowToast={(title, type) => showToast(title, type)}
           />
         </main>
 
@@ -723,8 +725,8 @@ function AppContent() {
           onQuickReorderReport={() => {
             setActiveTab('simulator');
             setExternalSimulatorAction({
-              type: 'NAVIGATE_SHEET',
-              sheet: 'Stock Re-Order & Safety Threshold Report',
+              type: 'OPEN_MODAL',
+              modal: 'reorderReport',
             });
           }}
           onOpenShortcuts={() => setIsShortcutsModalOpen(true)}
@@ -755,7 +757,7 @@ function AppContent() {
                   onSuccess={(admin) => {
                     setCurrentUser(admin);
                     setIsLoginModalOpen(false);
-                    showToast(`Welcome, ${admin.IssuerName}`, 'success', `Authenticated as ${admin.IssuerRole}`);
+                    showToast(`Welcome, ${admin.IssuerName}`, 'success', `Authenticated as ${admin.Role}`);
                   }}
                   isOffline={isOffline}
                   onOpenInstallModal={() => setIsInstallModalOpen(true)}
