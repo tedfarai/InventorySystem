@@ -21,6 +21,7 @@ import {
   ChevronRight,
   X,
   LogOut,
+  LogIn,
   Crown,
   Code2,
   BookOpen,
@@ -28,6 +29,7 @@ import {
   Lock,
   LayoutDashboard,
   UserCheck,
+  User,
 } from 'lucide-react';
 import { AdminUser } from '../../types';
 import { ProcurementTabType } from '../simulator/ProcurementOperationsDialog';
@@ -68,6 +70,7 @@ interface SidebarAccordionNavProps {
   onClose: () => void;
   currentUser: AdminUser | null;
   onLogout: () => void;
+  onOpenLogin?: () => void;
   onSelectAction: (action: SidebarAction) => void;
   activeSheet?: string;
   activeAppTab?: string;
@@ -80,6 +83,7 @@ export const SidebarAccordionNav: React.FC<SidebarAccordionNavProps> = ({
   onClose,
   currentUser,
   onLogout,
+  onOpenLogin,
   onSelectAction,
   activeSheet = 'Master_Stock',
   activeAppTab = 'simulator',
@@ -102,6 +106,19 @@ export const SidebarAccordionNav: React.FC<SidebarAccordionNavProps> = ({
   };
 
   const handleAction = (action: SidebarAction) => {
+    // Determine if the target view is allowed in unauthenticated read-only mode
+    const isPublicView =
+      (action.type === 'NAVIGATE_APP_TAB' && (action.appTab === 'dashboard' || action.appTab === 'simulator' || action.appTab === 'guide')) ||
+      (action.type === 'NAVIGATE_SHEET' && (action.sheet === 'Master_Stock' || action.sheet === 'Movement_Log'));
+
+    if (!currentUser && !isPublicView) {
+      if (onOpenLogin) {
+        onOpenLogin();
+      }
+      onClose();
+      return;
+    }
+
     onSelectAction(action);
     onClose();
   };
@@ -403,7 +420,7 @@ export const SidebarAccordionNav: React.FC<SidebarAccordionNavProps> = ({
             </div>
 
             {/* User Identity Card */}
-            {currentUser && (
+            {currentUser ? (
               <div className="p-3.5 mx-3 mt-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/80 rounded-xl">
                 <div className="flex items-center space-x-3">
                   <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
@@ -424,6 +441,27 @@ export const SidebarAccordionNav: React.FC<SidebarAccordionNavProps> = ({
                       </span>
                       <span className="truncate">{currentUser.Role || currentUser.IssuerRole || 'Staff'}</span>
                     </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-3.5 mx-3 mt-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80 rounded-xl">
+                <div className="flex items-center space-x-3">
+                  <div className="w-8 h-8 rounded-lg bg-amber-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                    <User className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                        Guest User
+                      </span>
+                      <span className="font-mono text-[10px] font-bold bg-amber-200 dark:bg-amber-900/80 px-1 py-0.2 rounded text-amber-900 dark:text-amber-200">
+                        Read-Only
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+                      Master Stock & Dashboard preview
+                    </p>
                   </div>
                 </div>
               </div>
@@ -596,18 +634,33 @@ export const SidebarAccordionNav: React.FC<SidebarAccordionNavProps> = ({
               })}
             </nav>
 
-            {/* Sidebar Footer with Logout Button */}
+            {/* Sidebar Footer with Logout/Login Button */}
             <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
-              <button
-                onClick={() => {
-                  onLogout();
-                  onClose();
-                }}
-                className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 rounded-xl font-bold text-xs transition cursor-pointer border border-rose-200 dark:border-rose-900"
-              >
-                <LogOut className="w-4 h-4" />
-                <span>Log Out Account</span>
-              </button>
+              {currentUser ? (
+                <button
+                  id="btn-nav-logout"
+                  onClick={() => {
+                    onLogout();
+                    onClose();
+                  }}
+                  className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 rounded-xl font-bold text-xs transition cursor-pointer border border-rose-200 dark:border-rose-900"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Log Out Account</span>
+                </button>
+              ) : (
+                <button
+                  id="btn-nav-login"
+                  onClick={() => {
+                    if (onOpenLogin) onOpenLogin();
+                    onClose();
+                  }}
+                  className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs transition cursor-pointer shadow-xs min-h-[38px]"
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span>Log In to Account</span>
+                </button>
+              )}
             </div>
           </motion.div>
         </div>

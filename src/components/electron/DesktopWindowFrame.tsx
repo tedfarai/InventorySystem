@@ -49,6 +49,7 @@ interface DesktopWindowFrameProps {
   onOpenMasterFolderModal?: () => void;
   onOpenBackupModal?: () => void;
   hideStatusBar?: boolean;
+  showNativeTitleBar?: boolean;
 }
 
 interface IpcLogEvent {
@@ -78,7 +79,8 @@ export const DesktopWindowFrame: React.FC<DesktopWindowFrameProps> = ({
   onOpenAdjustmentModal,
   onOpenMasterFolderModal,
   onOpenBackupModal,
-  hideStatusBar = false,
+  hideStatusBar = true,
+  showNativeTitleBar = false,
 }) => {
   const [osTheme, setOSTheme] = useState<OSTheme>('windows');
   const [isMaximized, setIsMaximized] = useState(false);
@@ -165,9 +167,10 @@ export const DesktopWindowFrame: React.FC<DesktopWindowFrameProps> = ({
   return (
     <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100 font-sans antialiased select-none">
       {/* ========================================================================= */}
-      {/* 1. NATIVE ELECTRON WINDOW TITLEBAR & SYSTEM MENUS */}
+      {/* 1. NATIVE ELECTRON WINDOW TITLEBAR & SYSTEM MENUS (Desktop only) */}
       {/* ========================================================================= */}
-      <div className="bg-slate-900 border-b border-slate-800/90 text-slate-300 select-none z-50 sticky top-0 shadow-md">
+      {showNativeTitleBar && (
+        <div className="bg-slate-900 border-b border-slate-800/90 text-slate-300 select-none z-50 sticky top-0 shadow-md">
         <div className="flex items-center justify-between h-9 px-2">
           {/* Left: Window Controls (macOS) or Brand Logo + Menu (Windows/Linux) */}
           <div className="flex items-center space-x-2.5">
@@ -611,11 +614,12 @@ export const DesktopWindowFrame: React.FC<DesktopWindowFrameProps> = ({
           </div>
         </div>
       </div>
+      )}
 
       {/* ========================================================================= */}
       {/* 2. IPC EVENT MONITOR & MESSAGE BUS DRAWER */}
       {/* ========================================================================= */}
-      {showIpcDrawer && (
+      {showNativeTitleBar && showIpcDrawer && (
         <div className="bg-slate-900 border-b border-teal-500/30 p-3 sm:p-4 text-xs font-mono shadow-2xl animate-in slide-in-from-top-2 duration-200">
           <div className="max-w-7xl mx-auto space-y-2">
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">

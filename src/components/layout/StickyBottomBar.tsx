@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   LogOut,
+  LogIn,
   ShieldCheck,
   Crown,
   CheckCircle2,
@@ -9,12 +10,14 @@ import {
   Sparkles,
   RefreshCw,
   SlidersHorizontal,
+  User,
 } from 'lucide-react';
 import { AdminUser } from '../../types';
 
 interface StickyBottomBarProps {
   currentUser: AdminUser | null;
   onLogout: () => void;
+  onOpenLogin?: () => void;
   totalSkuCount?: number;
   lowStockCount?: number;
   onQuickReorderReport?: () => void;
@@ -27,6 +30,7 @@ interface StickyBottomBarProps {
 export const StickyBottomBar: React.FC<StickyBottomBarProps> = ({
   currentUser,
   onLogout,
+  onOpenLogin,
   totalSkuCount = 0,
   lowStockCount = 0,
   onQuickReorderReport,
@@ -43,12 +47,12 @@ export const StickyBottomBar: React.FC<StickyBottomBarProps> = ({
         {/* Left: Current Logged In User Indicator */}
         <div className="flex items-center space-x-2.5 min-w-0">
           <div className="w-7 h-7 rounded-lg bg-emerald-600/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center justify-center font-bold text-xs shrink-0">
-            <ShieldCheck className="w-4 h-4" />
+            {currentUser ? <ShieldCheck className="w-4 h-4" /> : <User className="w-4 h-4 text-slate-500 dark:text-slate-400" />}
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                {currentUser ? currentUser.IssuerName : 'Guest'}
+                {currentUser ? currentUser.IssuerName : 'Guest User'}
               </span>
               {isSuperiorAdmin && (
                 <span className="hidden sm:inline-flex items-center gap-0.5 px-1 py-0.2 bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 rounded text-[9px] font-bold">
@@ -57,11 +61,15 @@ export const StickyBottomBar: React.FC<StickyBottomBarProps> = ({
                 </span>
               )}
               <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
-                ({currentUser?.IssuerID || 'OFFLINE'})
+                ({currentUser?.IssuerID || 'GUEST'})
               </span>
             </div>
-            <div className="text-[10px] text-slate-500 dark:text-slate-400 hidden xs:block truncate">
-              {currentUser?.Role || 'Authorized Operator'}
+            <div className="text-[10px] truncate">
+              {currentUser ? (
+                <span className="text-slate-500 dark:text-slate-400 hidden xs:inline">{currentUser.Role || currentUser.IssuerRole || 'Authorized Operator'}</span>
+              ) : (
+                <span className="text-amber-600 dark:text-amber-400 font-semibold">Read-Only Mode</span>
+              )}
             </div>
           </div>
         </div>
@@ -95,16 +103,29 @@ export const StickyBottomBar: React.FC<StickyBottomBarProps> = ({
           )}
         </div>
 
-        {/* Right: Log-Out / Switch Account Button */}
+        {/* Right: Log-Out / Log-In Button */}
         <div className="flex items-center space-x-2 shrink-0">
-          <button
-            onClick={onLogout}
-            className="flex items-center space-x-1.5 px-3.5 py-1.5 sm:px-4 sm:py-2 bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/80 rounded-xl font-bold text-xs transition cursor-pointer shadow-2xs min-h-[38px]"
-            title="End authenticated session & switch user"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>Log-Out</span>
-          </button>
+          {currentUser ? (
+            <button
+              id="btn-footer-logout"
+              onClick={onLogout}
+              className="flex items-center space-x-1.5 px-3.5 py-1.5 sm:px-4 sm:py-2 bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/80 rounded-xl font-bold text-xs transition cursor-pointer shadow-2xs min-h-[38px]"
+              title="End authenticated session & switch user"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Log-Out</span>
+            </button>
+          ) : (
+            <button
+              id="btn-footer-login"
+              onClick={onOpenLogin}
+              className="flex items-center space-x-1.5 px-3.5 py-1.5 sm:px-4 sm:py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs transition cursor-pointer shadow-xs min-h-[38px]"
+              title="Log In to System"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span>Log In</span>
+            </button>
+          )}
         </div>
       </div>
     </footer>

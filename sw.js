@@ -1,14 +1,28 @@
 importScripts('https://storage.googleapis.com/workbox-cdn/releases/7.4.0/workbox-sw.js');
 
-const CACHE_NAME = 'paramount-static-v4';
+const CACHE_NAME = 'paramount-static-v15';
 const DB_NAME = 'ProcureSim_Offline_DB_v3';
 const DB_VERSION = 3;
 
 if (self.workbox) {
   self.workbox.precaching.precacheAndRoute(self.__WB_MANIFEST || []);
+  
+  // Always fetch fresh HTML documents, scripts, and stylesheets from network first so code updates apply immediately.
+  // Falls back to offline cache when disconnected.
   self.workbox.routing.registerRoute(
-    ({ request }) => ['document', 'script', 'style', 'image', 'font'].includes(request.destination),
-    new self.workbox.strategies.CacheFirst({ cacheName: CACHE_NAME })
+    ({ request }) => ['document', 'script', 'style'].includes(request.destination),
+    new self.workbox.strategies.NetworkFirst({
+      cacheName: CACHE_NAME,
+      networkTimeoutSeconds: 2,
+    })
+  );
+
+  // Cache images and fonts with StaleWhileRevalidate for speed and offline availability
+  self.workbox.routing.registerRoute(
+    ({ request }) => ['image', 'font'].includes(request.destination),
+    new self.workbox.strategies.StaleWhileRevalidate({
+      cacheName: 'paramount-media-v15',
+    })
   );
 }
 
@@ -16,7 +30,11 @@ self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))
+      Promise.all(
+        keys
+          .filter((key) => key !== CACHE_NAME && key !== 'paramount-media-v15')
+          .map((key) => caches.delete(key))
+      )
     ).then(() => self.clients.claim())
   );
 });

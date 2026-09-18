@@ -10,6 +10,7 @@ import {
   FileSpreadsheet,
   Activity,
   Archive,
+  LogIn,
 } from 'lucide-react';
 import { AdminUser } from '../../types';
 import { OfflineStatusBadge } from '../pwa/OfflineStatusBadge';
@@ -17,6 +18,7 @@ import { OfflineStatusBadge } from '../pwa/OfflineStatusBadge';
 interface StickyTopHeaderProps {
   onToggleSidebar: () => void;
   currentUser: AdminUser | null;
+  onOpenLogin?: () => void;
   theme: 'dark' | 'light';
   onToggleTheme?: () => void;
   isOffline?: boolean;
@@ -33,6 +35,7 @@ interface StickyTopHeaderProps {
 export const StickyTopHeader: React.FC<StickyTopHeaderProps> = ({
   onToggleSidebar,
   currentUser,
+  onOpenLogin,
   theme,
   onToggleTheme,
   isOffline = false,
@@ -98,8 +101,8 @@ export const StickyTopHeader: React.FC<StickyTopHeaderProps> = ({
             {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-600" />}
           </button>
 
-          {/* User Profile Pill */}
-          {currentUser && (
+          {/* User Profile Pill or Log In Button */}
+          {currentUser ? (
             <div className="flex items-center space-x-2 pl-1 sm:pl-2 border-l border-slate-200 dark:border-slate-800">
               <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
                 {(currentUser.IssuerName || 'U').charAt(0).toUpperCase()}
@@ -114,6 +117,17 @@ export const StickyTopHeader: React.FC<StickyTopHeaderProps> = ({
                 </div>
               </div>
             </div>
+          ) : (
+            <button
+              id="btn-header-login"
+              type="button"
+              onClick={onOpenLogin}
+              className="flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer shrink-0 min-h-[40px]"
+              title="Log In to System"
+            >
+              <LogIn className="w-4 h-4" />
+              <span className="hidden sm:inline">Log In</span>
+            </button>
           )}
         </div>
       </div>

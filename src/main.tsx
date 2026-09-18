@@ -6,6 +6,7 @@ import { registerSW } from 'virtual:pwa-register';
 
 // Register Service Worker with automatic update handling.
 registerSW({
+  immediate: true,
   onNeedRefresh() {
     console.log('[PWA] New content available, dispatching update event...');
     window.dispatchEvent(new CustomEvent('pwa-update-available'));
@@ -16,12 +17,34 @@ registerSW({
   onRegistered(r) {
     if (r) {
       console.log('[PWA] Service Worker registered successfully:', r.scope);
+      // Proactively check for updates on each session launch
+      r.update().catch(() => {});
     }
   },
   onRegisterError(error) {
     console.warn('[PWA] Service Worker registration failed (normal in development/sandboxes):', error);
   },
 });
+
+// Clear any stale caches from previous iterations so fresh UI updates apply immediately
+if (typeof caches !== 'undefined') {
+  caches.keys().then((keys) => {
+    for (const key of keys) {
+      if (key !== 'paramount-static-v15' && key !== 'paramount-media-v15') {
+        caches.delete(key);
+      }
+    }
+  });
+}
+
+// Ensure all service worker registrations update immediately
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then((registrations) => {
+    for (const reg of registrations) {
+      reg.update().catch(() => {});
+    }
+  });
+}
 
 // Browser install prompt lifecycle for native browser omnibox install and custom in-app button.
 let deferredPrompt: any = null;

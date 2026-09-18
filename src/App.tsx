@@ -10,7 +10,7 @@ import { StyleGuide } from './components/styleguide/StyleGuide';
 import { DocumentViewerModal, DisplayableDocument } from './components/simulator/DocumentViewerModal';
 import { MovementLogEntry, IssuedDocument, ReceivedDocument, AdjustmentDocument, AdminUser } from './types';
 import { useSqliteProcurement } from './hooks/useSqliteProcurement';
-import { Database, Loader2, Sparkles, RefreshCw } from 'lucide-react';
+import { Database, Loader2, Sparkles, RefreshCw, X } from 'lucide-react';
 import { ToastProvider, useToast } from './context/ToastContext';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { KeyboardShortcutsModal } from './components/common/KeyboardShortcutsModal';
@@ -20,6 +20,7 @@ import { CrossPlatformInstallModal } from './components/pwa/CrossPlatformInstall
 import { SharedDocumentVaultModal } from './components/collaboration/SharedDocumentVaultModal';
 import { LandingLoginPage } from './components/layout/LandingLoginPage';
 import { StickyTopHeader } from './components/layout/StickyTopHeader';
+import { StickyBottomBar } from './components/layout/StickyBottomBar';
 import { SidebarAccordionNav, SidebarAction } from './components/layout/SidebarAccordionNav';
 import { AccountDetailsModal } from './components/auth/AccountDetailsModal';
 import { ExecutiveDashboardView } from './components/dashboard/ExecutiveDashboardView';
@@ -29,6 +30,7 @@ export type AppTab = 'simulator' | 'audit' | 'electron' | 'vba' | 'guide' | 'exp
 function AppContent() {
   const [activeTab, setActiveTab] = useState<AppTab>('simulator');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [externalSimulatorAction, setExternalSimulatorAction] = useState<SidebarAction | null>(null);
   const [activeSheetTitle, setActiveSheetTitle] = useState('Master Stock Sheet');
   const [activeSimulatorSheet, setActiveSimulatorSheet] = useState<'Master_Stock' | 'Movement_Log' | 'Adjustment_Hub' | 'Admin_Config'>('Master_Stock');
@@ -407,48 +409,7 @@ function AppContent() {
   }
 
   // ==========================================
-  // SCREEN 1: LANDING / LOG-IN PAGE
-  // ==========================================
-  if (!currentUser) {
-    return (
-      <DesktopWindowFrame
-        title="Paramount Exports — Stationery & Cleaning Stock Inventory System"
-        theme={theme}
-        onToggleTheme={handleToggleTheme}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        currentUser={null}
-        onLogout={() => {}}
-        onResetData={handleResetData}
-        stockCount={safeStockItems.length}
-        movementCount={movementLogs?.length || 0}
-        masterFolderPath={masterFolderPath}
-      >
-        <LandingLoginPage
-          admins={admins}
-          onSuccess={(admin) => {
-            setCurrentUser(admin);
-            showToast(`Welcome, ${admin.IssuerName}`, 'success', `Authenticated as ${admin.IssuerRole}`);
-          }}
-          isOffline={isOffline}
-          onOpenInstallModal={() => setIsInstallModalOpen(true)}
-          isInstallable={isInstallable}
-        />
-
-        {/* PWA Cross-Platform Install Modal */}
-        <CrossPlatformInstallModal
-          isOpen={isInstallModalOpen}
-          onClose={() => setIsInstallModalOpen(false)}
-          onDirectInstall={triggerInstall}
-          isInstallable={isInstallable}
-          isInstalled={isInstalled}
-        />
-      </DesktopWindowFrame>
-    );
-  }
-
-  // ==========================================
-  // SCREEN 2: POST-LOGIN WORKSPACE
+  // MAIN WORKSPACE (Accessible in Read-Only mode prior to authentication)
   // ==========================================
   return (
     <DesktopWindowFrame
@@ -526,6 +487,7 @@ function AppContent() {
         <StickyTopHeader
           onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
           currentUser={currentUser}
+          onOpenLogin={() => setIsLoginModalOpen(true)}
           theme={theme}
           onToggleTheme={handleToggleTheme}
           isOffline={isOffline}
@@ -548,6 +510,10 @@ function AppContent() {
             setCurrentUser(null);
             setIsSidebarOpen(false);
             showToast('Session Ended', 'info', 'Logged out successfully');
+          }}
+          onOpenLogin={() => {
+            setIsSidebarOpen(false);
+            setIsLoginModalOpen(true);
           }}
           onSelectAction={handleSelectSidebarAction}
           activeSheet={activeSheetTitle}
@@ -598,6 +564,7 @@ function AppContent() {
               adjustmentDocs={adjustmentDocs}
               currentUser={currentUser}
               setCurrentUser={setCurrentUser}
+              onOpenLogin={() => setIsLoginModalOpen(true)}
               adjustmentRequests={adjustmentRequests}
               activeTimedWindow={activeTimedWindow}
               onCreateAdjustmentRequest={handleCreateAdjustmentRequest}
@@ -714,6 +681,62 @@ function AppContent() {
             onUpdateAdmin={handleUpdateAdmin}
           />
         </main>
+
+        {/* Sticky Full-Width Bottom Bar */}
+        <StickyBottomBar
+          currentUser={currentUser}
+          onLogout={() => {
+            setCurrentUser(null);
+            showToast('Session Ended', 'info', 'Logged out successfully');
+          }}
+          onOpenLogin={() => setIsLoginModalOpen(true)}
+          totalSkuCount={safeStockItems.length}
+          lowStockCount={lowStockCount}
+          onQuickReorderReport={() => {
+            setActiveTab('simulator');
+            setExternalSimulatorAction({
+              type: 'NAVIGATE_SHEET',
+              sheet: 'Stock Re-Order & Safety Threshold Report',
+            });
+          }}
+          onOpenShortcuts={() => setIsShortcutsModalOpen(true)}
+          pendingMutationsCount={pendingMutationsCount}
+          onDrainQueue={drainPendingMutations}
+          syncStatus={syncStatus}
+        />
+
+        {/* Interactive Login Modal Portal */}
+        {isLoginModalOpen && (
+          <div
+            id="modal-login-portal-backdrop"
+            className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/80 backdrop-blur-md overflow-y-auto"
+          >
+            <div className="relative w-full max-w-5xl my-auto">
+              <button
+                id="btn-close-login-modal"
+                onClick={() => setIsLoginModalOpen(false)}
+                className="absolute -top-3 -right-3 sm:top-2 sm:right-2 z-50 p-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white transition cursor-pointer border border-slate-700 shadow-lg"
+                title="Close and return to Read-Only Master Stock Sheet"
+                aria-label="Close Login Modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <div className="rounded-2xl overflow-hidden shadow-2xl border border-slate-700/80 bg-slate-950">
+                <LandingLoginPage
+                  admins={admins}
+                  onSuccess={(admin) => {
+                    setCurrentUser(admin);
+                    setIsLoginModalOpen(false);
+                    showToast(`Welcome, ${admin.IssuerName}`, 'success', `Authenticated as ${admin.IssuerRole}`);
+                  }}
+                  isOffline={isOffline}
+                  onOpenInstallModal={() => setIsInstallModalOpen(true)}
+                  isInstallable={isInstallable}
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </DesktopWindowFrame>
   );

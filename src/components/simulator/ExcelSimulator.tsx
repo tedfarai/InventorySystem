@@ -5,6 +5,7 @@ import {
   PackagePlus,
   Send,
   Lock,
+  LogIn,
   Search,
   Plus,
   Filter,
@@ -146,6 +147,7 @@ interface ExcelSimulatorProps {
   } | null;
   onClearExternalAction?: () => void;
   onActiveSheetChange?: (sheet: 'Master_Stock' | 'Movement_Log' | 'Adjustment_Hub' | 'Admin_Config') => void;
+  onOpenLogin?: () => void;
 }
 
 export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
@@ -160,6 +162,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
   adjustmentDocs = [],
   currentUser,
   setCurrentUser,
+  onOpenLogin,
   adjustmentRequests = [],
   activeTimedWindow = null,
   onCreateAdjustmentRequest = (_req: any) => ({} as any),
@@ -377,7 +380,8 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
 
   const handleBulkAdjustmentFromContext = (targetItems: StockItem[]) => {
     if (!currentUser) {
-      setActiveModal('login');
+      if (onOpenLogin) onOpenLogin();
+      else setActiveModal('login');
       return;
     }
     const itemIds = targetItems.map((i) => i.ItemID);
@@ -391,11 +395,21 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
   };
 
   const handleBulkStockEditFromContext = (targetItems: StockItem[]) => {
+    if (!currentUser) {
+      if (onOpenLogin) onOpenLogin();
+      else setActiveModal('login');
+      return;
+    }
     setSelectedStockItemIds(targetItems.map((i) => i.ItemID));
     setShowBatchUpdateModal(true);
   };
 
   const handleQuickReceiveFromContext = (targetItems: StockItem[], mode: 'single' | 'bulkGrid') => {
+    if (!currentUser) {
+      if (onOpenLogin) onOpenLogin();
+      else setActiveModal('login');
+      return;
+    }
     setProcurementInitialTab('delivery');
     setProcurementInitialDeliveryMode(mode);
     if (mode === 'bulkGrid') {
@@ -410,6 +424,11 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
   };
 
   const handleQuickIssueFromContext = (targetItems: StockItem[]) => {
+    if (!currentUser) {
+      if (onOpenLogin) onOpenLogin();
+      else setActiveModal('login');
+      return;
+    }
     setProcurementInitialTab('issue');
     const ids = targetItems.map((i) => i.ItemID);
     setProcurementInitialItemId(ids[0]);
@@ -418,6 +437,11 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
   };
 
   const handleQuickEditFromContext = (item: StockItem) => {
+    if (!currentUser) {
+      if (onOpenLogin) onOpenLogin();
+      else setActiveModal('login');
+      return;
+    }
     setProcurementInitialTab('editStockItem');
     setProcurementInitialItemId(item.ItemID);
     setProcurementInitialItemIds([item.ItemID]);
@@ -458,6 +482,11 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
   };
 
   const handleQuickAdjustFromContext = (item: StockItem) => {
+    if (!currentUser) {
+      if (onOpenLogin) onOpenLogin();
+      else setActiveModal('login');
+      return;
+    }
     setProcurementInitialTab('adjustment');
     setProcurementInitialItemId(item.ItemID);
     setProcurementInitialItemIds([item.ItemID]);
@@ -504,15 +533,13 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
     onActiveSheetChange?.(activeSheet);
   }, [activeSheet, onActiveSheetChange]);
 
-  // On startup: Ensure workbook does not open signed in - welcome user with login screen
-  React.useEffect(() => {
-    if (!currentUser && activeModal === 'none') {
-      setActiveModal('login');
-    }
-  }, [currentUser, activeModal]);
-
   const handleSheetTabClick = (sheet: 'Master_Stock' | 'Movement_Log' | 'Adjustment_Hub' | 'Admin_Config') => {
     if ((sheet === 'Admin_Config' || sheet === 'Adjustment_Hub') && !isSuperiorAdmin) {
+      if (!currentUser) {
+        if (onOpenLogin) onOpenLogin();
+        else setActiveModal('login');
+        return;
+      }
       alert("Access Restricted: Only Rachel Pickard (Procurement Manager / Superior Admin) can access this workspace. Standard staff accounts must use the 'Request Adjustment' form to submit stock discrepancy lists.");
       return;
     }
@@ -575,11 +602,15 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
     },
   });
 
-  const handleOpenLogin = () => setActiveModal('login');
+  const handleOpenLogin = () => {
+    if (onOpenLogin) onOpenLogin();
+    else setActiveModal('login');
+  };
 
   const handleOpenNavigation = () => {
     if (!currentUser) {
-      setActiveModal('login');
+      if (onOpenLogin) onOpenLogin();
+      else setActiveModal('login');
     } else {
       setActiveModal('navigation');
     }
@@ -587,7 +618,8 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
 
   const handleOpenProcurementTab = (tab: ProcurementTabType) => {
     if (!currentUser) {
-      setActiveModal('login');
+      if (onOpenLogin) onOpenLogin();
+      else setActiveModal('login');
     } else {
       setProcurementInitialTab(tab);
       setActiveModal('procurement');
@@ -784,6 +816,11 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
 
   // Bulk Action Execution Handlers
   const handleTriggerBulkRestock = (items: StockItem[]) => {
+    if (!currentUser) {
+      if (onOpenLogin) onOpenLogin();
+      else setActiveModal('login');
+      return;
+    }
     if (items.length === 0) return;
     const deliveryItems: BulkDeliveryReviewItem[] = items.map((i) => ({
       itemId: i.ItemID,
@@ -862,7 +899,8 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
   const handleTriggerBulkIssue = (items: StockItem[]) => {
     if (items.length === 0) return;
     if (!currentUser) {
-      setActiveModal('login');
+      if (onOpenLogin) onOpenLogin();
+      else setActiveModal('login');
       return;
     }
     const defaultDept = departments[0] || {
@@ -893,7 +931,8 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
 
   const handleTriggerBulkAdjustment = (_items: StockItem[]) => {
     if (!currentUser) {
-      setActiveModal('login');
+      if (onOpenLogin) onOpenLogin();
+      else setActiveModal('login');
       return;
     }
     setActiveModal('adjustmentRequests');
@@ -966,6 +1005,11 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
   };
 
   const handleBulkDelete = () => {
+    if (!currentUser) {
+      if (onOpenLogin) onOpenLogin();
+      else setActiveModal('login');
+      return;
+    }
     if (!isSuperiorAdmin) {
       alert('Access Denied: Only Administrator Rachel Pickard (ADM001) can permanently delete stock items.');
       return;
@@ -1191,6 +1235,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
               filteredCount={filteredStock.length}
               belowThresholdCount={belowSafetyThresholdCount}
               onNewStockItem={() => handleOpenProcurementTab('createStock')}
+              isReadOnly={!currentUser}
             />
           </div>
 
@@ -1216,6 +1261,38 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                 onBulkDelete={onDeleteStockItem ? handleBulkDelete : undefined}
                 isSuperiorAdmin={isSuperiorAdmin}
               />
+            </div>
+          )}
+
+          {/* Read-Only Mode Indicator Banner for Unauthenticated Guest Session */}
+          {!currentUser && (
+            <div
+              id="master-stock-readonly-banner"
+              className="shrink-0 flex items-center justify-between px-3 sm:px-4 py-2 bg-amber-500/10 dark:bg-amber-950/40 border border-amber-500/30 rounded-xl text-xs text-amber-900 dark:text-amber-200 shadow-2xs"
+            >
+              <div className="flex items-center space-x-2.5 min-w-0">
+                <div className="p-1.5 rounded-lg bg-amber-500/20 text-amber-700 dark:text-amber-300 shrink-0">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="font-bold flex items-center gap-1.5 flex-wrap">
+                    <span>Read-Only Mode</span>
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-100 font-bold">Unauthenticated</span>
+                  </div>
+                  <p className="text-[11px] text-amber-800 dark:text-amber-300/90 truncate">
+                    Viewing live stock sheet & executive dashboard as Guest. Log in to create, edit, receive, issue, or adjust stock items.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                id="btn-stock-sheet-login"
+                onClick={() => (onOpenLogin ? onOpenLogin() : setActiveModal('login'))}
+                className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-xs transition cursor-pointer shrink-0 ml-3 min-h-[34px]"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Log In to Edit</span>
+              </button>
             </div>
           )}
 
@@ -1246,7 +1323,9 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                   </th>
                   <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-3 border-r border-slate-300 dark:border-slate-700 text-right font-bold shadow-xs">Reorder Level (Col E)</th>
                   <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-3 text-center font-bold shadow-xs">Stock Status</th>
-                  <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-3 border-l border-slate-300 dark:border-slate-700 text-center font-bold shadow-xs whitespace-nowrap">Actions</th>
+                  <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-3 border-l border-slate-300 dark:border-slate-700 text-center font-bold shadow-xs whitespace-nowrap">
+                    Actions {!currentUser && <span className="text-[10px] text-amber-600 dark:text-amber-400 font-normal font-sans">(Read-Only)</span>}
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-800 dark:text-slate-200">
@@ -1438,10 +1517,14 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => handleQuickEditFromContext(item)}
-                                  title="Edit Stock Item"
+                                  title={!currentUser ? 'Log in to edit stock item' : 'Edit Stock Item'}
                                   className="inline-flex items-center space-x-1 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-semibold border border-slate-300 dark:border-slate-600 transition cursor-pointer"
                                 >
-                                  <Edit3 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                                  {!currentUser ? (
+                                    <Lock className="w-3.5 h-3.5 text-amber-500" />
+                                  ) : (
+                                    <Edit3 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                                  )}
                                   <span>Edit</span>
                                 </button>
 
@@ -1450,10 +1533,14 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                                   type="button"
                                   onClick={() => handleQuickIssueFromContext([item])}
                                   disabled={item.Qty <= 0}
-                                  title={item.Qty <= 0 ? 'Cannot issue: Stock is 0' : 'Issue Stock Requisition'}
+                                  title={!currentUser ? 'Log in to issue stock' : item.Qty <= 0 ? 'Cannot issue: Stock is 0' : 'Issue Stock Requisition'}
                                   className="inline-flex items-center space-x-1 px-2.5 py-1.5 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 disabled:opacity-40 disabled:cursor-not-allowed text-emerald-700 dark:text-emerald-300 rounded-lg text-xs font-semibold border border-emerald-300 dark:border-emerald-700 transition cursor-pointer"
                                 >
-                                  <Send className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                  {!currentUser ? (
+                                    <Lock className="w-3.5 h-3.5 text-amber-500" />
+                                  ) : (
+                                    <Send className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                  )}
                                   <span>Issue</span>
                                 </button>
 
@@ -1461,10 +1548,14 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => handleQuickAdjustFromContext(item)}
-                                  title="Stock Count Adjustment & Reconcile"
+                                  title={!currentUser ? 'Log in to adjust stock count' : 'Stock Count Adjustment & Reconcile'}
                                   className="inline-flex items-center space-x-1 px-2.5 py-1.5 bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 rounded-lg text-xs font-semibold border border-purple-300 dark:border-purple-700 transition cursor-pointer"
                                 >
-                                  <SlidersHorizontal className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                                  {!currentUser ? (
+                                    <Lock className="w-3.5 h-3.5 text-amber-500" />
+                                  ) : (
+                                    <SlidersHorizontal className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                                  )}
                                   <span>Adjustment</span>
                                 </button>
                               </div>

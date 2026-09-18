@@ -14,6 +14,7 @@ import {
   ChevronUp,
   Hash,
   ArrowRight,
+  Lock,
 } from 'lucide-react';
 import { POPULAR_SEARCH_TAGS, StockStatusFilter } from '../../utils/searchEngine';
 import { ItemCategory } from '../../types';
@@ -35,6 +36,7 @@ interface StockSearchBarProps {
   belowThresholdCount?: number;
   onOpenReorderReport?: () => void;
   onNewStockItem?: () => void;
+  isReadOnly?: boolean;
   placeholder?: string;
   className?: string;
 }
@@ -56,6 +58,7 @@ export const StockSearchBar: React.FC<StockSearchBarProps> = ({
   belowThresholdCount,
   onOpenReorderReport,
   onNewStockItem,
+  isReadOnly = false,
   placeholder = 'Multi-facet search: Type text, or use tags like status:low, cat:cleaning, ST-001..ST-020...',
   className = '',
 }) => {
@@ -190,11 +193,15 @@ export const StockSearchBar: React.FC<StockSearchBarProps> = ({
             id="search-bar-new-stock-btn"
             type="button"
             onClick={onNewStockItem}
-            className="flex items-center space-x-1.5 px-3.5 py-2 bg-teal-600 hover:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-600 text-white rounded-lg text-xs font-bold shadow-xs transition shrink-0 cursor-pointer"
-            title="Create and register a new inventory stock item"
+            className={`flex items-center space-x-1.5 px-3.5 py-2 rounded-lg text-xs font-bold shadow-xs transition shrink-0 cursor-pointer ${
+              isReadOnly
+                ? 'bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700'
+                : 'bg-teal-600 hover:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-600 text-white'
+            }`}
+            title={isReadOnly ? 'Log in to create and register new inventory stock items' : 'Create and register a new inventory stock item'}
           >
-            <Plus className="w-3.5 h-3.5" />
-            <span>+ New Stock Item</span>
+            {isReadOnly ? <Lock className="w-3.5 h-3.5 text-amber-400" /> : <Plus className="w-3.5 h-3.5" />}
+            <span>+ New Stock Item {isReadOnly && <span className="text-[10px] opacity-80">(Log In)</span>}</span>
           </button>
         )}
       </div>
