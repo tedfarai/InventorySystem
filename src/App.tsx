@@ -408,8 +408,36 @@ function AppContent() {
     );
   }
 
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100">
+        <LandingLoginPage
+          admins={admins}
+          onSuccess={(admin) => {
+            setCurrentUser(admin);
+            setIsLoginModalOpen(false);
+            showToast(`Welcome, ${admin.IssuerName}`, 'success', `Authenticated as ${admin.IssuerRole}`);
+          }}
+          isOffline={isOffline}
+          onOpenInstallModal={() => setIsInstallModalOpen(true)}
+          isInstallable={isInstallable}
+          onUpdateAdmin={handleUpdateAdmin}
+        />
+        {isInstallModalOpen && (
+          <CrossPlatformInstallModal
+            isOpen={isInstallModalOpen}
+            onClose={() => setIsInstallModalOpen(false)}
+            onDirectInstall={triggerInstall}
+            isInstallable={isInstallable}
+            isInstalled={isInstalled}
+          />
+        )}
+      </div>
+    );
+  }
+
   // ==========================================
-  // MAIN WORKSPACE (Accessible in Read-Only mode prior to authentication)
+  // MAIN WORKSPACE (Only available after successful authentication)
   // ==========================================
   return (
     <DesktopWindowFrame
