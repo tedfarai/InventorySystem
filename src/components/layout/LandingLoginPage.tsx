@@ -213,24 +213,9 @@ export const LandingLoginPage: React.FC<LandingLoginPageProps> = ({
         <div className="w-full max-w-7xl mx-auto space-y-7">
           {/* Welcome Banner / Introductory Section */}
           <div className="text-center space-y-4 max-w-5xl mx-auto">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-emerald-500/10 border border-emerald-400/25 rounded-full text-emerald-200 text-[11px] font-bold tracking-[0.18em] uppercase shadow-[0_0_0_1px_rgba(16,185,129,0.12)]">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Executive Access Portal</span>
-            </div>
             <h2 className="text-3xl sm:text-4xl lg:text-6xl font-black tracking-[-0.06em] text-white">
-              Control the operating rhythm of
-              <span className="block mt-1 text-transparent bg-gradient-to-r from-emerald-300 via-green-300 to-lime-200 bg-clip-text">
-                Paramount inventory
-              </span>
+              Paramount Exports Stationery &amp; Cleaning Items Inventory
             </h2>
-            <p className="text-sm sm:text-base text-emerald-50/75 max-w-2xl mx-auto leading-relaxed">
-              Authenticate to unlock the live stock command center, supplier workflows, and operational intelligence dashboards.
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-2 pt-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-100/70">
-              <span className="px-3 py-1.5 rounded-full border border-emerald-400/25 bg-emerald-500/8">Secure auth</span>
-              <span className="px-3 py-1.5 rounded-full border border-emerald-400/25 bg-emerald-500/8">Offline ready</span>
-              <span className="px-3 py-1.5 rounded-full border border-emerald-400/25 bg-emerald-500/8">Live stock oversight</span>
-            </div>
           </div>
 
           {/* SPLIT 2-COLUMN MODERN LOGIN CONTAINER WITH VERTICAL BORDER */}
