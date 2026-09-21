@@ -6,8 +6,8 @@
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#f8fafc",
-  "theme_color": "#0f172a",
+  "background_color": "#22252A",
+  "theme_color": "#C6D92C",
   "lang": "en-US",
   "id": "/",
   "icons": [
@@ -27,7 +27,7 @@
       "src": "/maskable-icon.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "maskable any"
+      "purpose": "maskable"
     }
   ],
   "shortcuts": [

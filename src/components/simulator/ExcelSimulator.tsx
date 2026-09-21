@@ -85,6 +85,7 @@ import { ReorderReportModal } from './ReorderReportModal';
 import { StockItemContextMenuModal } from './StockItemContextMenuModal';
 import { useToast } from '../../context/ToastContext';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
+import { useWriteGuard } from '../../hooks/useWriteGuard';
 import { SearchHighlightText } from '../common/SearchHighlightText';
 
 interface ExcelSimulatorProps {
@@ -224,6 +225,10 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
   const addToast = ({ title, message, type }: { title: string; message?: string; type?: 'success' | 'error' | 'warning' | 'info' }) => {
     showToast(title, type, message);
   };
+
+  // Write-guard: intercepts write actions while logged out and opens login modal
+  const openLoginFn = onOpenLogin ?? (() => setActiveModal('login'));
+  const { guardWrite } = useWriteGuard(currentUser, openLoginFn);
   const pendingReplenishmentItemIds = Array.from(
     new Set(
       safeAdjustmentRequests
@@ -1241,7 +1246,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
               totalCount={stockItems.length}
               filteredCount={filteredStock.length}
               belowThresholdCount={belowSafetyThresholdCount}
-              onNewStockItem={() => handleOpenProcurementTab('createStock')}
+              onNewStockItem={() => guardWrite(() => handleOpenProcurementTab('createStock'))}
               isReadOnly={!currentUser}
             />
           </div>

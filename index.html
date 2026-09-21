@@ -2,35 +2,61 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="description" content="Paramount Exports automated Stationery & Cleaning Stock Inventory Management Progressive Web Application." />
+
+    <!-- ── PWA / Theme ─────────────────────────────────────────────────── -->
     <meta name="theme-color" content="#C6D92C" />
     <meta name="background-color" content="#22252A" />
+
+    <!-- ── Android / Chrome ────────────────────────────────────────────── -->
     <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="Paramount Stock" />
+
+    <!-- ── iOS / Safari ────────────────────────────────────────────────── -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Paramount Stock" />
-    <meta name="application-name" content="Paramount Exports" />
+
+    <!-- ── Windows (IE/Edge legacy pinned-site tiles) ──────────────────── -->
     <meta name="msapplication-TileColor" content="#22252A" />
+    <meta name="msapplication-TileImage" content="/pwa-192x192.png" />
     <meta name="msapplication-config" content="/browserconfig.xml" />
-    <title>Paramount Exports — Stationery & Cleaning Inventory</title>
+    <!-- Windows Start-menu / taskbar tooltip -->
+    <meta name="msapplication-tooltip" content="Paramount Exports Inventory" />
+    <!-- Prevent IE from opening links in a new window when pinned -->
+    <meta name="msapplication-navbutton-color" content="#C6D92C" />
+
+    <title>Paramount Exports — Stationery &amp; Cleaning Inventory</title>
+
+    <!-- ── Icons ───────────────────────────────────────────────────────── -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.json" />
+
+    <!-- iOS touch icons (multiple sizes for all Apple device resolutions) -->
     <link rel="apple-touch-icon" href="/pwa-192x192.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/pwa-192x192.png" />
+    <link rel="apple-touch-icon" sizes="120x120" href="/pwa-192x192.png" />
     <link rel="apple-touch-icon" sizes="152x152" href="/pwa-192x192.png" />
     <link rel="apple-touch-icon" sizes="167x167" href="/pwa-192x192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/pwa-192x192.png" />
+
+    <!-- iOS full-screen launch image (used when app is opened from home screen) -->
     <link rel="apple-touch-startup-image" href="/pwa-512x512.png" />
-    <meta name="msapplication-TileImage" content="/pwa-192x192.png" />
   </head>
   <body>
     <div id="root"></div>
 
+    <!--
+      Install button — hidden by default; shown only when the browser fires
+      'beforeinstallprompt' (Chrome / Edge / Android).  iOS users are guided
+      via the CrossPlatformInstallModal inside the React app.
+    -->
     <button
       id="install-btn"
       type="button"
       hidden
-      aria-label="Install app"
+      aria-label="Install Paramount Stock app"
+      aria-hidden="true"
       style="
         position: fixed;
         right: 20px;
@@ -52,55 +78,82 @@
         cursor: pointer;
         transition: transform 0.2s ease, box-shadow 0.2s ease;
       "
-      onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 16px 32px rgba(32, 38, 43, 0.32)';"
-      onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 12px 28px rgba(32, 38, 43, 0.28)';"
+      onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 16px 32px rgba(32,38,43,0.32)';"
+      onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 12px 28px rgba(32,38,43,0.28)';"
     >
-      Install App
+      ⬇ Install App
     </button>
 
     <script>
       (function () {
-        const isSecureContext = window.isSecureContext || location.protocol === 'https:' || location.hostname === 'localhost';
-        if ('serviceWorker' in navigator && isSecureContext) {
-          window.addEventListener('load', () => {
-            navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch((error) => {
-              console.warn('Service worker registration skipped or failed:', error);
-            });
+        'use strict';
+
+        /* ── 1. Service Worker Registration ─────────────────────────────── */
+        var isSecure =
+          window.isSecureContext ||
+          location.protocol === 'https:' ||
+          location.hostname === 'localhost' ||
+          location.hostname === '127.0.0.1';
+
+        if ('serviceWorker' in navigator && isSecure) {
+          window.addEventListener('load', function () {
+            navigator.serviceWorker
+              .register('/sw.js', { scope: '/' })
+              .then(function (reg) {
+                // Notify the React app when a new SW version is waiting
+                reg.addEventListener('updatefound', function () {
+                  var newWorker = reg.installing;
+                  if (!newWorker) return;
+                  newWorker.addEventListener('statechange', function () {
+                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                      window.dispatchEvent(new CustomEvent('pwa-update-available'));
+                    }
+                  });
+                });
+              })
+              .catch(function (err) {
+                console.warn('[SW] Registration failed:', err);
+              });
           });
         }
 
-        let deferredPrompt = null;
-        const installButton = document.getElementById('install-btn');
+        /* ── 2. Custom Install Button (beforeinstallprompt) ─────────────── */
+        var deferredPrompt = null;
+        var installBtn = document.getElementById('install-btn');
 
-        const handleBeforeInstallPrompt = (event) => {
-          event.preventDefault();
-          deferredPrompt = event;
+        window.addEventListener('beforeinstallprompt', function (e) {
+          // Prevent the mini-infobar from appearing on mobile
+          e.preventDefault();
+          deferredPrompt = e;
 
-          if (installButton) {
-            installButton.hidden = false;
-            installButton.setAttribute('aria-hidden', 'false');
+          if (installBtn) {
+            installBtn.hidden = false;
+            installBtn.style.display = 'flex';
+            installBtn.setAttribute('aria-hidden', 'false');
           }
-        };
+        });
 
-        window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-        if (installButton) {
-          installButton.addEventListener('click', async () => {
+        if (installBtn) {
+          installBtn.addEventListener('click', async function () {
             if (!deferredPrompt) return;
             deferredPrompt.prompt();
-            const { outcome } = await deferredPrompt.userChoice;
-            if (outcome === 'accepted') {
-              installButton.hidden = true;
+            var result = await deferredPrompt.userChoice;
+            if (result.outcome === 'accepted') {
+              installBtn.hidden = true;
+              installBtn.style.display = 'none';
             }
             deferredPrompt = null;
           });
         }
 
-        window.addEventListener('appinstalled', () => {
-          if (installButton) {
-            installButton.hidden = true;
-            installButton.setAttribute('aria-hidden', 'true');
+        // Hide button once the app is installed
+        window.addEventListener('appinstalled', function () {
+          if (installBtn) {
+            installBtn.hidden = true;
+            installBtn.style.display = 'none';
+            installBtn.setAttribute('aria-hidden', 'true');
           }
+          deferredPrompt = null;
         });
       })();
     </script>
@@ -108,4 +161,3 @@
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-
