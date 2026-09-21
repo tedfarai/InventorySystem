@@ -596,7 +596,8 @@ export function useSqliteProcurement() {
     itemId: string,
     addQty: number,
     deliveryNoteRef?: string,
-    supplier?: string
+    supplier?: string,
+    unitPrice?: number
   ) => {
     const item = stockItems.find((i) => i.ItemID === itemId);
     if (!item) return;
@@ -605,6 +606,7 @@ export function useSqliteProcurement() {
     const nowStr = new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '');
     const dateOnly = nowStr.split(' ')[0];
     const finalSupplier = supplier || item.LastSupplier || undefined;
+    const finalUnitPrice = unitPrice && unitPrice > 0 ? unitPrice : item.UnitPrice;
     const timestampFile = new Date().toISOString().replace(/[-:]/g, '').replace(/T/, '_').substring(0, 15);
     const voucherNumber = deliveryNoteRef || `GRN-${Math.floor(100000 + Math.random() * 900000)}`;
     const pdfFileName = `GRN_Voucher_${voucherNumber}_${timestampFile}.pdf`;
@@ -666,6 +668,7 @@ export function useSqliteProcurement() {
               SupplierName: finalSupplier || s.SupplierName || s.LastSupplier,
               LastSupplier: finalSupplier || s.SupplierName || s.LastSupplier,
               LastReceivedDate: dateOnly,
+              UnitPrice: finalUnitPrice ?? s.UnitPrice,
             }
           : s
       )
@@ -675,6 +678,11 @@ export function useSqliteProcurement() {
 
     try {
       await sqliteBridge.updateStockQty(itemId, newQty, finalSupplier, dateOnly);
+      // Persist updated unit price if provided
+      if (finalUnitPrice && finalUnitPrice > 0) {
+        const updatedItem = { ...item, Qty: newQty, LastSupplier: finalSupplier, LastReceivedDate: dateOnly, UnitPrice: finalUnitPrice };
+        await sqliteBridge.updateStockItem(updatedItem);
+      }
       await sqliteBridge.addReceivedDoc(newReceivedDoc);
       await sqliteBridge.addMovementLog(newLog);
       await handleCreateBackup('TRANSACTION', `Automatic Snapshot: Delivery (GRN) ${voucherNumber} for ${item.ItemID}`);

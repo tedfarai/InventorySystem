@@ -10,9 +10,6 @@ export default defineConfig(() => {
       react(),
       tailwindcss(),
       VitePWA({
-        strategies: 'injectManifest',
-        srcDir: '.',
-        filename: 'sw.js',
         registerType: 'autoUpdate',
         includeAssets: [
           'favicon.svg',
@@ -75,9 +72,9 @@ export default defineConfig(() => {
             },
           ],
         },
-        injectManifest: {
+        workbox: {
           globPatterns: ['**/*.{js,css,html,svg,png,ico,txt,woff2,wasm}'],
-          maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10 MiB for SQLite WASM and complete offline bundle
+          maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
         },
       }),
     ],

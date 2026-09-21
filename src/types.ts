@@ -70,6 +70,8 @@ export interface Department {
   DeptName: string;
   DeptHeadName: string;
   DeptHeadEmail: string;
+  /** Optional monthly unit allowance for budget enforcement */
+  monthlyBudgetUnits?: number;
 }
 
 export interface Manager {

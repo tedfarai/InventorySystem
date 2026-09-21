@@ -26,6 +26,7 @@ interface DeliveryQueueItem {
   addQty: number;
   unit: string;
   supplier?: string;
+  unitPrice?: number;
 }
 
 const COMMON_SUPPLIERS = [
@@ -55,6 +56,7 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
   const [singleItemId, setSingleItemId] = useState(initialItemId || stockItems[0]?.ItemID || '');
   const [singleAddQty, setSingleAddQty] = useState<number | ''>(10);
   const [singleSupplier, setSingleSupplier] = useState('');
+  const [singleUnitPrice, setSingleUnitPrice] = useState<number | ''>('');
   const [categoryFilter, setCategoryFilter] = useState<'All' | 'Stationery' | 'Cleaning' | 'General'>('All');
   const [searchFilter, setSearchFilter] = useState('');
 
@@ -63,6 +65,7 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
   const [queueItemId, setQueueItemId] = useState(stockItems[0]?.ItemID || '');
   const [queueAddQty, setQueueAddQty] = useState<number | ''>(20);
   const [queueSupplier, setQueueSupplier] = useState('');
+  const [queueUnitPrice, setQueueUnitPrice] = useState<number | ''>('');
 
   // Bulk Grid Delivery State (Dictionary mapping ItemID -> addQty and ItemID -> supplier override)
   const [gridSupplier, setGridSupplier] = useState('');
@@ -121,6 +124,7 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
         addQty: Number(singleAddQty),
         unit: selectedSingleItem.Unit,
         supplier: singleSupplier.trim(),
+        unitPrice: singleUnitPrice !== '' && Number(singleUnitPrice) > 0 ? Number(singleUnitPrice) : undefined,
       };
       setPendingBulkItems([reviewItem]);
       setShowConfirmationModal(true);
@@ -149,12 +153,15 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
 
     const qtyNum = Number(queueAddQty);
     const itemSupplier = queueSupplier.trim();
+    const itemUnitPrice = queueUnitPrice !== '' && Number(queueUnitPrice) > 0 ? Number(queueUnitPrice) : undefined;
 
     const existingIndex = queue.findIndex((q) => q.itemId === queueItemId);
     if (existingIndex >= 0) {
       setQueue((prev) =>
         prev.map((q, idx) =>
-          idx === existingIndex ? { ...q, addQty: q.addQty + qtyNum, supplier: itemSupplier } : q
+          idx === existingIndex
+            ? { ...q, addQty: q.addQty + qtyNum, supplier: itemSupplier, unitPrice: itemUnitPrice ?? q.unitPrice }
+            : q
         )
       );
     } else {
@@ -168,12 +175,14 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
           addQty: qtyNum,
           unit: selectedQueueItem.Unit,
           supplier: itemSupplier,
+          unitPrice: itemUnitPrice,
         },
       ]);
     }
 
     setQueueAddQty(20);
     setQueueSupplier('');
+    setQueueUnitPrice('');
   };
 
   const handleRemoveFromQueue = (itemId: string) => {
@@ -209,7 +218,8 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
       currentQty: q.currentQty,
       addQty: q.addQty,
       unit: q.unit,
-      supplier: q.supplier.trim(),
+      supplier: q.supplier?.trim() ?? '',
+      unitPrice: q.unitPrice,
     }));
 
     setPendingBulkItems(reviewItems);
@@ -497,9 +507,7 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
                   id="delivery-queue-item-drop-up-select"
                   stockItems={stockItems}
                   selectedItemId={queueItemId}
-                  onSelectItem={(item) => {
-                    setQueueItemId(item.ItemID);
-                  }}
+                  onSelectItem={(item) => { setQueueItemId(item.ItemID); }}
                   placeholder="-- Select delivered stock item --"
                   direction="up"
                 />
@@ -516,6 +524,21 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
                   onChange={(e) => setQueueSupplier(e.target.value)}
                   placeholder="Enter supplier name"
                   className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-slate-100"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Unit Price (R)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={queueUnitPrice}
+                  onChange={(e) => setQueueUnitPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                  placeholder="0.00"
+                  className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono text-slate-900 dark:text-slate-100"
                 />
               </div>
 
@@ -860,7 +883,7 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Supplier <span className="text-rose-500 font-bold">*</span>
@@ -872,6 +895,21 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
                 onChange={(e) => setSingleSupplier(e.target.value)}
                 placeholder="Enter supplier name"
                 className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-900 dark:text-slate-100"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Unit Price (R)
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={singleUnitPrice}
+                onChange={(e) => setSingleUnitPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                placeholder="0.00"
+                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono text-slate-900 dark:text-slate-100"
               />
             </div>
 
