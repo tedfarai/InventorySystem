@@ -3,34 +3,48 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  /* Semantic Light Theme Variables - Calibrated for high WCAG AAA contrast */
+  color-scheme: light;
   --bg-primary: #f8fafc;
   --bg-surface: #ffffff;
   --bg-elevated: #f1f5f9;
   --text-main: #0f172a;
   --text-muted: #334155;
+  --text-subtle: #475569;
+  --text-inverse: #ffffff;
   --border-subtle: #cbd5e1;
   --border-elevated: #94a3b8;
-  --accent-primary: #059669;
-  --accent-primary-hover: #047857;
+  --accent-primary: #047857;
+  --accent-primary-hover: #065f46;
+  --accent-on-primary: #ffffff;
   --accent-tint: #ecfdf5;
-  --shadow-color: rgba(15, 23, 42, 0.08);
+  --focus-ring: #005fcc;
+  --status-success: #176b3a;
+  --status-warning: #805500;
+  --status-danger: #b42318;
+  --shadow-color: rgb(15 23 42 / 8%);
 }
 
 :root[data-theme="dark"],
 .dark {
-  /* Semantic Dark Theme Variables (Strictly avoiding pure #000000) */
+  color-scheme: dark;
   --bg-primary: #0f172a;
   --bg-surface: #1e293b;
   --bg-elevated: #334155;
   --text-main: #f1f5f9;
-  --text-muted: #94a3b8;
-  --border-subtle: rgba(255, 255, 255, 0.12);
-  --border-elevated: rgba(255, 255, 255, 0.2);
-  --accent-primary: #10b981;
-  --accent-primary-hover: #34d399;
-  --accent-tint: rgba(16, 185, 129, 0.12);
-  --shadow-color: rgba(0, 0, 0, 0.35);
+  --text-muted: #cbd5e1;
+  --text-subtle: #94a3b8;
+  --text-inverse: #0f172a;
+  --border-subtle: rgb(255 255 255 / 16%);
+  --border-elevated: rgb(255 255 255 / 24%);
+  --accent-primary: #34d399;
+  --accent-primary-hover: #6ee7b7;
+  --accent-on-primary: #052e1b;
+  --accent-tint: rgb(16 185 129 / 14%);
+  --focus-ring: #72b7ff;
+  --status-success: #79d99d;
+  --status-warning: #f2c35f;
+  --status-danger: #ff9b93;
+  --shadow-color: rgb(0 0 0 / 35%);
 }
 
 @layer base {
@@ -42,240 +56,54 @@
     color: var(--text-main);
   }
 
-  /* Dark mode font weight reduction to prevent text blooming */
-  .dark body,
-  [data-theme="dark"] body {
-    font-weight: 400;
+  :where(button, a, input, select, textarea):focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
   }
 
-  /* Image dimming filter in dark mode */
-  .dark img:not([media-theme="light-only"]),
-  [data-theme="dark"] img:not([media-theme="light-only"]) {
-    filter: brightness(0.88) contrast(1.12);
-  }
+  :where(svg.lucide, svg[data-icon]) { stroke: currentColor; }
 
-  /* Light theme accessibility pass for dashboard labels, accents, and borders.
-     These overrides keep the app readable without changing the dark-mode palette. */
-  :root:not(.dark) .text-slate-200 { color: #475569 !important; }
-  :root:not(.dark) .text-slate-300 { color: #475569 !important; }
-  :root:not(.dark) .text-slate-400 { color: #475569 !important; }
-  :root:not(.dark) .text-slate-500 { color: #334155 !important; }
-  :root:not(.dark) .text-slate-600 { color: #1e293b !important; }
-  :root:not(.dark) .text-slate-700 { color: #0f172a !important; }
-  :root:not(.dark) .text-slate-800 { color: #020617 !important; }
-
-  :root:not(.dark) .border-slate-100 { border-color: #e2e8f0 !important; }
-  :root:not(.dark) .border-slate-200 { border-color: #cbd5e1 !important; }
-  :root:not(.dark) .border-slate-300 { border-color: #94a3b8 !important; }
-  :root:not(.dark) .border-slate-400 { border-color: #64748b !important; }
-  :root:not(.dark) .border-slate-700 { border-color: #334155 !important; }
-
-  :root:not(.dark) .bg-slate-50 { background-color: #f8fafc !important; }
-  :root:not(.dark) .bg-slate-100 { background-color: #f1f5f9 !important; }
-  :root:not(.dark) .bg-slate-200 { background-color: #e2e8f0 !important; }
-  :root:not(.dark) .bg-slate-300 { background-color: #cbd5e1 !important; }
-  :root:not(.dark) .bg-slate-800 { background-color: #f8fafc !important; }
-
-  /* SVG dynamic currentColor inheritance for icon libraries without clobbering charts */
-  svg.lucide,
-  svg[data-icon] {
-    stroke: currentColor;
-  }
-  
-  /* Custom clean scrollbars for Excel data grids & panels */
-  ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  ::-webkit-scrollbar-thumb {
-    background: rgba(148, 163, 184, 0.45);
-    border-radius: 4px;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    background: rgba(100, 116, 139, 0.65);
-  }
-  .dark ::-webkit-scrollbar-thumb {
-    background: rgba(71, 85, 105, 0.55);
-  }
-  .dark ::-webkit-scrollbar-thumb:hover {
-    background: rgba(100, 116, 139, 0.75);
-  }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgb(100 116 139 / 50%); border-radius: 999px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgb(71 85 105 / 70%); }
 }
 
 @layer utilities {
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
   @media print {
-    @page {
-      size: A4 portrait;
-      margin: 10mm 12mm 10mm 12mm;
-    }
-
-    *, *:before, *:after {
-      box-shadow: none !important;
-      text-shadow: none !important;
-    }
-
-    html, body {
-      background-color: #ffffff !important;
-      color: #0f172a !important;
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      font-size: 11pt !important;
-    }
-
-    /* Hide standard UI elements during print */
-    .no-print,
-    nav,
-    header,
-    footer,
-    button,
-    .modal-backdrop-overlay,
-    .excel-ribbon-bar,
-    .excel-formula-bar,
-    .excel-sheet-tabs,
-    .toast-container {
-      display: none !important;
-    }
-
-    /* Expand printable document container to standard A4 sheet */
-    .printable-document-modal {
-      position: absolute !important;
-      left: 0 !important;
-      top: 0 !important;
-      width: 100% !important;
-      min-height: 100% !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      background: #ffffff !important;
-      border: none !important;
-      box-shadow: none !important;
-      display: block !important;
-      z-index: 999999 !important;
-    }
-
-    .printable-document {
-      width: 100% !important;
-      max-width: 100% !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      border: none !important;
-      background-color: #ffffff !important;
-      color: #0f172a !important;
-      box-shadow: none !important;
-      page-break-inside: avoid !important;
-      break-inside: avoid !important;
-    }
-
-    .stationery-sheet {
-      border: 1.5pt solid #0f172a !important;
-      padding: 6mm 8mm !important;
-      background-color: #ffffff !important;
-      margin: 0 auto !important;
-      page-break-inside: avoid !important;
-      break-inside: avoid !important;
-    }
-
-    .stationery-sheet table {
-      border-collapse: collapse !important;
-      width: 100% !important;
-    }
-
-    .stationery-sheet th,
-    .stationery-sheet td {
-      border: 0.75pt solid #334155 !important;
-      padding: 4pt 6pt !important;
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
-    }
-
-    .stationery-sheet thead tr {
-      background-color: #f1f5f9 !important;
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
-    }
-
-    .stationery-sheet tr:nth-child(even) {
-      background-color: #f8fafc !important;
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
-    }
-
-    .stationery-sheet .logo-container {
-      background-color: #22252a !important;
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
-      min-width: 60px !important;
-    }
-
-    .stationery-sheet .logo-container img {
-      display: block !important;
-      max-height: 64px !important;
-      width: auto !important;
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
-    }
-
-    .printable-document-modal,
-    .printable-document-modal > div,
-    .printable-document-modal .printable-document,
-    .printable-document-modal div[class*="overflow-y-auto"] {
-      overflow: visible !important;
-      max-height: none !important;
-    }
+    @page { size: A4 portrait; margin: 10mm 12mm; }
+    *, *:before, *:after { box-shadow: none !important; text-shadow: none !important; }
+    html, body { background: #fff !important; color: #0f172a !important; print-color-adjust: exact !important; margin: 0 !important; padding: 0 !important; font-size: 11pt !important; }
+    .no-print, nav, header, footer, button, .modal-backdrop-overlay, .excel-ribbon-bar, .excel-formula-bar, .excel-sheet-tabs, .toast-container { display: none !important; }
+    .printable-document-modal { position: absolute !important; inset: 0 !important; width: 100% !important; min-height: 100% !important; padding: 0 !important; background: #fff !important; border: none !important; box-shadow: none !important; display: block !important; z-index: 999999 !important; }
+    .printable-document { width: 100% !important; max-width: 100% !important; padding: 0 !important; border: none !important; background: #fff !important; color: #0f172a !important; box-shadow: none !important; break-inside: avoid !important; }
+    .stationery-sheet { border: 1.5pt solid #0f172a !important; padding: 6mm 8mm !important; background: #fff !important; margin: 0 auto !important; break-inside: avoid !important; }
+    .stationery-sheet table { border-collapse: collapse !important; width: 100% !important; }
+    .stationery-sheet th, .stationery-sheet td { border: 0.75pt solid #334155 !important; padding: 4pt 6pt !important; print-color-adjust: exact !important; }
+    .stationery-sheet thead tr { background: #f1f5f9 !important; }
+    .stationery-sheet tr:nth-child(even) { background: #f8fafc !important; }
+    .stationery-sheet .logo-container { background: #22252a !important; min-width: 60px !important; }
+    .stationery-sheet .logo-container img { display: block !important; max-height: 64px !important; width: auto !important; }
+    .printable-document-modal, .printable-document-modal > div, .printable-document-modal .printable-document, .printable-document-modal div[class*="overflow-y-auto"] { overflow: visible !important; max-height: none !important; }
   }
 }
 
-/* Master Stock Sheet: Modern Comfortable Row Height & High Contrast Styling */
-.stock-table-row {
-  min-height: 48px;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
-}
-
-.stock-table-row td {
-  vertical-align: middle;
-}
-
-.network-status-pill {
-  min-height: 44px;
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-}
-
-.network-status-pill--online {
-  background: rgba(16, 185, 129, 0.15);
-  color: #065f46;
-  border-color: rgba(16, 185, 129, 0.3);
-}
-
-.network-status-pill--offline {
-  background: rgba(239, 68, 68, 0.15);
-  color: #991b1b;
-  border-color: rgba(239, 68, 68, 0.3);
-  animation: network-status-pulse 2.4s ease-in-out infinite;
-}
-
+.stock-table-row { min-height: 48px; transition: background-color 0.15s ease, border-color 0.15s ease; }
+.stock-table-row td { vertical-align: middle; }
+.network-status-pill { min-height: 44px; }
+.network-status-pill--online { background: rgb(16 185 129 / 15%); color: #065f46; border-color: rgb(16 185 129 / 30%); }
+.network-status-pill--offline { background: rgb(239 68 68 / 15%); color: #991b1b; border-color: rgb(239 68 68 / 30%); animation: network-status-pulse 2.4s ease-in-out infinite; }
 .dark .network-status-pill--online { color: #a7f3d0; }
 .dark .network-status-pill--offline { color: #fecaca; }
-
-@keyframes network-status-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.08); }
-  50% { box-shadow: 0 0 0 5px rgba(239, 68, 68, 0.12); }
-}
-
-.pwa-install-banner {
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  background: rgba(255, 255, 255, 0.45);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  transform: translateY(0);
-  transition: transform 240ms ease, opacity 240ms ease;
-}
-
-.dark .pwa-install-banner {
-  background: rgba(15, 23, 42, 0.72);
-  border-color: rgba(255, 255, 255, 0.12);
-}
+@keyframes network-status-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgb(239 68 68 / 8%); } 50% { box-shadow: 0 0 0 5px rgb(239 68 68 / 12%); } }
+.pwa-install-banner { background: rgb(255 255 255 / 82%); border: 1px solid var(--border-subtle); transition: transform 240ms ease, opacity 240ms ease; }
+.dark .pwa-install-banner { background: rgb(15 23 42 / 88%); border-color: var(--border-subtle); }
