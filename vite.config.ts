@@ -50,7 +50,6 @@ export default defineConfig(() => ({
   ],
   build: {
     target: 'es2020',
-    cssMinify: 'lightningcss',
     chunkSizeWarningLimit: 1200,
     rollupOptions: {
       output: {
