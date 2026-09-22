@@ -1,69 +1,67 @@
-const CACHE_NAME = 'paramount-baseline-v1';
+const CACHE_VERSION = 'paramount-v2';
+const STATIC_CACHE = `${CACHE_VERSION}-static`;
+const MEDIA_CACHE = `${CACHE_VERSION}-media`;
 const OFFLINE_URL = '/index.html';
-const APP_SHELL = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/favicon.svg',
-  '/pwa-192x192.png',
-  '/pwa-512x512.png',
-  '/maskable-icon.png'
-];
+const APP_SHELL = ['/', OFFLINE_URL, '/manifest.webmanifest', '/favicon.svg', '/pwa-192x192.png', '/pwa-512x512.png', '/maskable-icon.png'];
+const CACHE_NAMES = [STATIC_CACHE, MEDIA_CACHE];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting())
-  );
+  event.waitUntil(caches.open(STATIC_CACHE).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches
-      .keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
-      .then(() => self.clients.claim())
-  );
+  event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((key) => !CACHE_NAMES.includes(key)).map((key) => caches.delete(key)))).then(() => self.clients.claim()));
 });
 
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
+  const { request } = event;
+  if (request.method !== 'GET') return;
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
 
-  const requestUrl = new URL(event.request.url);
-  if (requestUrl.origin !== self.location.origin) return;
-
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-
-      return fetch(event.request)
-        .then((networkResponse) => {
-          const responseClone = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseClone);
-          });
-          return networkResponse;
-        })
-        .catch(() => {
-          if (event.request.mode === 'navigate') {
-            return caches.match(OFFLINE_URL);
-          }
-
-          return caches.match('/favicon.svg');
-        });
-    })
-  );
+  if (request.mode === 'navigate') {
+    event.respondWith(networkFirst(request, STATIC_CACHE, OFFLINE_URL));
+    return;
+  }
+  if (request.destination === 'image' || request.destination === 'font') {
+    event.respondWith(cacheFirst(request, MEDIA_CACHE));
+    return;
+  }
+  if (request.destination === 'script' || request.destination === 'style' || request.destination === 'manifest') {
+    event.respondWith(staleWhileRevalidate(request, STATIC_CACHE));
+  }
 });
 
-// =============================================================================
-// BACKGROUND SYNC & PERSISTENT SYNC-QUEUE DRAIN ENGINE
-// Automatically replays pending transactions and mutations stored locally
-// in IndexedDB when connectivity is restored.
-// =============================================================================
+async function cacheFirst(request, cacheName) {
+  const cached = await caches.match(request);
+  if (cached) return cached;
+  const response = await fetch(request);
+  if (response.ok) await (await caches.open(cacheName)).put(request, response.clone());
+  return response;
+}
+
+async function staleWhileRevalidate(request, cacheName) {
+  const cache = await caches.open(cacheName);
+  const cached = await cache.match(request);
+  const network = fetch(request).then((response) => {
+    if (response.ok) void cache.put(request, response.clone());
+    return response;
+  }).catch(() => cached);
+  return cached || network;
+}
+
+async function networkFirst(request, cacheName, fallbackUrl) {
+  const cache = await caches.open(cacheName);
+  try {
+    const response = await fetch(request);
+    if (response.ok) await cache.put(request, response.clone());
+    return response;
+  } catch {
+    return (await cache.match(request)) || (await cache.match(fallbackUrl)) || Response.error();
+  }
+}
 
 const DB_NAME = 'ProcureSim_Offline_DB_v3';
-
 function openIndexedDB() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME);
@@ -71,88 +69,32 @@ function openIndexedDB() {
     request.onerror = () => reject(request.error);
   });
 }
-
 async function notifyAllClients(message) {
   const clientsList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-  for (const client of clientsList) {
-    client.postMessage(message);
-  }
+  for (const client of clientsList) client.postMessage(message);
 }
-
 async function replayPersistentSyncQueue() {
-  console.log('[Service Worker] Executing persistent sync-queue background drain...');
   try {
     const db = await openIndexedDB();
-
-    // 1. Check sync_queue if present
     if (db.objectStoreNames.contains('sync_queue')) {
-      const syncItems = await new Promise((resolve, reject) => {
-        const tx = db.transaction('sync_queue', 'readonly');
-        const req = tx.objectStore('sync_queue').getAll();
-        req.onsuccess = () => resolve(req.result || []);
-        req.onerror = () => reject(req.error);
+      const items = await new Promise((resolve, reject) => {
+        const request = db.transaction('sync_queue', 'readonly').objectStore('sync_queue').getAll();
+        request.onsuccess = () => resolve(request.result || []);
+        request.onerror = () => reject(request.error);
       });
-
-      for (const item of syncItems) {
+      for (const item of items) {
         try {
-          const endpoint = item.endpoint || '/api/sync';
-          const res = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(item),
-          });
-          if (res.ok) {
-            await new Promise((resolve, reject) => {
-              const tx = db.transaction('sync_queue', 'readwrite');
-              const req = tx.objectStore('sync_queue').delete(item.sync_id);
-              req.onsuccess = () => resolve();
-              req.onerror = () => reject(req.error);
-            });
-          }
-        } catch (postErr) {
-          console.warn('[Service Worker] Sync queue endpoint replay failed:', postErr);
-        }
+          const response = await fetch(item.endpoint || '/api/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(item) });
+          if (response.ok || response.status === 409) db.transaction('sync_queue', 'readwrite').objectStore('sync_queue').delete(item.sync_id);
+        } catch { /* Keep failed entries queued. */ }
       }
     }
-
-    // 2. Notify active client tabs to drain SQLite & mutation_queue with multi-client mesh
-    await notifyAllClients({
-      type: 'SW_SYNC_TRIGGER',
-      timestamp: Date.now(),
-      tag: 'sync-documents',
-    });
-
-    console.log('[Service Worker] Background sync completed successfully.');
-  } catch (err) {
-    console.warn('[Service Worker] Background sync could not access IndexedDB:', err);
-    // Fallback notification to clients anyway
-    await notifyAllClients({
-      type: 'SW_SYNC_TRIGGER',
-      timestamp: Date.now(),
-      tag: 'sync-documents',
-    });
-  }
+  } catch { /* Client database remains the source of truth. */ }
+  await notifyAllClients({ type: 'SW_SYNC_TRIGGER', timestamp: Date.now(), tag: 'sync-documents' });
 }
-
-// Background Sync Event Listener (SyncManager)
-self.addEventListener('sync', (event) => {
-  if (event.tag === 'sync-documents' || event.tag === 'sync-transactions') {
-    console.log(`[Service Worker] Background sync event triggered for tag: ${event.tag}`);
-    event.waitUntil(replayPersistentSyncQueue());
-  }
-});
-
-// Periodic Sync Event Listener (for supported browsers)
-self.addEventListener('periodicsync', (event) => {
-  if (event.tag === 'sync-documents' || event.tag === 'check-stock-sync') {
-    console.log(`[Service Worker] Periodic background sync triggered for tag: ${event.tag}`);
-    event.waitUntil(replayPersistentSyncQueue());
-  }
-});
-
-// Message Listener from Main Thread (e.g. manual drain or force sync command)
+self.addEventListener('sync', (event) => { if (event.tag === 'sync-documents' || event.tag === 'sync-transactions') event.waitUntil(replayPersistentSyncQueue()); });
+self.addEventListener('periodicsync', (event) => { if (event.tag === 'sync-documents' || event.tag === 'check-stock-sync') event.waitUntil(replayPersistentSyncQueue()); });
 self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'FORCE_SYNC_DRAIN') {
-    event.waitUntil(replayPersistentSyncQueue());
-  }
+  if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
+  if (event.data?.type === 'FORCE_SYNC_DRAIN') event.waitUntil(replayPersistentSyncQueue());
 });
