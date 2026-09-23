@@ -1222,7 +1222,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
 
       {/* 1. DIRECT MASTER STOCK WORKSPACE VIEW (TAKES UP 96% OF HEIGHT FROM TOP TO BOTTOM, NO DEAD BOTTOM BAR) */}
       {activeSheet === 'Master_Stock' ? (
-        <div className="h-[96vh] flex flex-col font-sans w-full space-y-2 pb-0">
+        <div className="h-[97vh] flex flex-col font-sans w-full space-y-2 pb-0">
           {/* Search & Multi-Facet Filter Container */}
           <div className="shrink-0 bg-[#f8fafc] dark:bg-slate-950 pt-0.5 pb-2 -mx-1 px-1 border-b border-slate-300 dark:border-slate-800 transition-colors shadow-2xs">
             <StockSearchBar

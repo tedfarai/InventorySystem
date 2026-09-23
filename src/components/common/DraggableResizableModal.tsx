@@ -70,6 +70,7 @@ export const DraggableResizableModal: React.FC<DraggableResizableModalProps> = (
   initialHeight,
   minWidth = 320,
   minHeight = 200,
+  // Default to 70vw × 60vh landscape-style sizing
   maxWidth,
   maxHeight,
   title,
@@ -98,17 +99,15 @@ export const DraggableResizableModal: React.FC<DraggableResizableModalProps> = (
 
   const isInitializedRef = useRef(false);
 
-  // Measure initial natural geometry on mount
+  // Measure initial natural geometry on mount — default 70vw × 60vh
   useLayoutEffect(() => {
     if (!isOpen) return;
     if (!isInitializedRef.current && modalRef.current) {
-      const rect = modalRef.current.getBoundingClientRect();
-      const calculatedWidth = initialWidth || Math.round(rect.width);
-      const calculatedHeight = initialHeight || Math.round(rect.height);
-
-      // Safe viewport clamping
       const viewportW = window.innerWidth || 1024;
       const viewportH = window.innerHeight || 768;
+
+      const calculatedWidth = initialWidth || Math.round(viewportW * 0.70);
+      const calculatedHeight = initialHeight || Math.round(viewportH * 0.60);
 
       const finalW = Math.min(calculatedWidth, viewportW - 24);
       const finalH = Math.min(calculatedHeight, viewportH - 24);
@@ -477,16 +476,14 @@ export const DraggableResizableModal: React.FC<DraggableResizableModalProps> = (
 
   return (
     <DraggableModalContext.Provider value={contextValue}>
+      {/* Backdrop: semi-transparent overlay, NO blur so background UI stays visible.
+          pointer-events-none lets sidebar/nav clicks pass through the backdrop area.
+          The modal itself re-enables pointer events so it stays interactive. */}
       <div
         id={modalId ? `${modalId}-backdrop` : undefined}
-        className={`fixed inset-0 bg-slate-950/40 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 ${zIndex} ${
+        className={`fixed inset-0 bg-slate-950/30 flex items-center justify-center p-2 sm:p-4 ${zIndex} pointer-events-none ${
           isDragging || isResizing ? 'select-none' : ''
         } ${backdropClassName}`}
-        onClick={(e) => {
-          if (e.target === e.currentTarget && closeOnBackdropClick && onClose) {
-            onClose();
-          }
-        }}
         role="presentation"
       >
         <div
@@ -498,7 +495,7 @@ export const DraggableResizableModal: React.FC<DraggableResizableModalProps> = (
           style={windowStyle}
           onPointerDown={handleWindowPointerDown}
           onDoubleClick={handleHeaderDoubleClick}
-          className={`relative flex flex-col transition-shadow ${
+          className={`relative flex flex-col transition-shadow pointer-events-auto ${
             isDragging ? 'shadow-2xl ring-2 ring-emerald-500/40 cursor-grabbing' : ''
           } ${isResizing ? 'shadow-2xl ring-1 ring-emerald-500/30' : ''} ${className}`}
         >

@@ -20,7 +20,6 @@ import { CrossPlatformInstallModal } from './components/pwa/CrossPlatformInstall
 import { SharedDocumentVaultModal } from './components/collaboration/SharedDocumentVaultModal';
 import { LandingLoginPage } from './components/layout/LandingLoginPage';
 import { StickyTopHeader } from './components/layout/StickyTopHeader';
-import { StickyBottomBar } from './components/layout/StickyBottomBar';
 import { SidebarAccordionNav, SidebarAction } from './components/layout/SidebarAccordionNav';
 import { AccountDetailsModal } from './components/auth/AccountDetailsModal';
 import { ExecutiveDashboardView } from './components/dashboard/ExecutiveDashboardView';
@@ -712,34 +711,11 @@ function AppContent() {
           />
         </main>
 
-        {/* Sticky Full-Width Bottom Bar */}
-        <StickyBottomBar
-          currentUser={currentUser}
-          onLogout={() => {
-            setCurrentUser(null);
-            showToast('Session Ended', 'info', 'Logged out successfully');
-          }}
-          onOpenLogin={() => setIsLoginModalOpen(true)}
-          totalSkuCount={safeStockItems.length}
-          lowStockCount={lowStockCount}
-          onQuickReorderReport={() => {
-            setActiveTab('simulator');
-            setExternalSimulatorAction({
-              type: 'OPEN_MODAL',
-              modal: 'reorderReport',
-            });
-          }}
-          onOpenShortcuts={() => setIsShortcutsModalOpen(true)}
-          pendingMutationsCount={pendingMutationsCount}
-          onDrainQueue={drainPendingMutations}
-          syncStatus={syncStatus}
-        />
-
         {/* Interactive Login Modal Portal */}
         {isLoginModalOpen && (
           <div
             id="modal-login-portal-backdrop"
-            className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/80 backdrop-blur-md overflow-y-auto"
+            className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/50 overflow-y-auto"
           >
             <div className="relative w-full max-w-5xl my-auto">
               <button

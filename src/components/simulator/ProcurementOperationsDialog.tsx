@@ -92,7 +92,9 @@ export const ProcurementOperationsDialog: React.FC<ProcurementOperationsDialogPr
     <DraggableResizableModal
       onClose={onClose}
       modalId="procurement-operations-dialog"
-      className="bg-slate-100 dark:bg-slate-800 rounded-2xl shadow-2xl border-2 border-emerald-600/70 w-full max-w-4xl overflow-hidden my-auto"
+      initialWidth={Math.round(window.innerWidth * 0.70)}
+      initialHeight={Math.round(window.innerHeight * 0.60)}
+      className="bg-slate-100 dark:bg-slate-800 rounded-2xl shadow-2xl border-2 border-emerald-600/70 w-full overflow-hidden my-auto"
     >
       {/* UserForm Header */}
       <div

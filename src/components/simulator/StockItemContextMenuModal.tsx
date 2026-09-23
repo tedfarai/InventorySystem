@@ -95,7 +95,9 @@ export const StockItemContextMenuModal: React.FC<StockItemContextMenuModalProps>
     <DraggableResizableModal
       onClose={onClose}
       modalId={`stock-item-context-menu-${item.ItemID}`}
-      className="w-full max-w-[380px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden m-auto"
+      initialWidth={Math.round(window.innerWidth * 0.70)}
+      initialHeight={Math.round(window.innerHeight * 0.60)}
+      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden m-auto"
     >
       {/* Header with Item Context */}
       <div
