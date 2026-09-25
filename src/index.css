@@ -22,6 +22,24 @@
   --status-warning: #805500;
   --status-danger: #b42318;
   --shadow-color: rgb(15 23 42 / 8%);
+  --inventory-header-height: 3.5rem;
+  --inventory-row-height: 2.5rem;
+}
+
+html {
+  font-size: 13px;
+}
+
+@media (min-width: 1280px) {
+  html { font-size: 13.5px; }
+}
+
+@media (min-width: 1600px) {
+  html { font-size: 14px; }
+}
+
+@media (max-width: 640px) {
+  html { font-size: 12.5px; }
 }
 
 :root[data-theme="dark"],
@@ -54,6 +72,13 @@
     -moz-osx-font-smoothing: grayscale;
     background-color: var(--bg-primary);
     color: var(--text-main);
+    font-size: 0.875rem;
+    line-height: 1.4;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    overscroll-behavior-y: none;
   }
 
   :where(button, a, input, select, textarea):focus-visible {
@@ -67,6 +92,22 @@
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: rgb(100 116 139 / 50%); border-radius: 999px; }
   ::-webkit-scrollbar-thumb:hover { background: rgb(71 85 105 / 70%); }
+
+  .inventory-table-shell {
+    scrollbar-gutter: stable both-edges;
+    overscroll-behavior: contain;
+  }
+
+  .inventory-table-shell table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 68rem;
+  }
+
+  .inventory-table-shell th,
+  .inventory-table-shell td {
+    white-space: nowrap;
+  }
 }
 
 @layer utilities {
@@ -97,8 +138,12 @@
   }
 }
 
-.stock-table-row { min-height: 48px; transition: background-color 0.15s ease, border-color 0.15s ease; }
+.stock-table-row { min-height: var(--inventory-row-height); transition: background-color 0.15s ease, border-color 0.15s ease; }
 .stock-table-row td { vertical-align: middle; }
+.inventory-table-shell .stock-table-row td,
+.inventory-table-shell thead th {
+  line-height: 1.2;
+}
 .network-status-pill { min-height: 44px; }
 .network-status-pill--online { background: rgb(16 185 129 / 15%); color: #065f46; border-color: rgb(16 185 129 / 30%); }
 .network-status-pill--offline { background: rgb(239 68 68 / 15%); color: #991b1b; border-color: rgb(239 68 68 / 30%); animation: network-status-pulse 2.4s ease-in-out infinite; }

@@ -1222,7 +1222,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
 
       {/* 1. DIRECT MASTER STOCK WORKSPACE VIEW (TAKES UP 96% OF HEIGHT FROM TOP TO BOTTOM, NO DEAD BOTTOM BAR) */}
       {activeSheet === 'Master_Stock' ? (
-        <div className="h-[97vh] flex flex-col font-sans w-full space-y-2 pb-0">
+        <div className="w-full flex flex-col font-sans space-y-2 pb-0 min-h-0">
           {/* Search & Multi-Facet Filter Container */}
           <div className="shrink-0 bg-[#f8fafc] dark:bg-slate-950 pt-0.5 pb-2 -mx-1 px-1 border-b border-slate-300 dark:border-slate-800 transition-colors shadow-2xs">
             <StockSearchBar
@@ -1309,11 +1309,11 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
           )}
 
           {/* Stock Management Inventory Table with Fixed Table Header and Visible High-Contrast Borders (Fills 100% of remaining 96vh space) */}
-          <div className="flex-1 min-h-0 border-2 border-slate-300 dark:border-slate-700 rounded-2xl overflow-x-auto overflow-y-auto bg-white dark:bg-slate-900 shadow-sm transition-colors relative">
-            <table id="stock-management-table" className="w-full text-xs text-left border-collapse font-sans">
-              <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-mono text-[11px] uppercase border-b-2 border-slate-300 dark:border-slate-700 shadow-xs select-none">
+          <div className="inventory-table-shell flex-1 min-h-0 border-2 border-slate-300 dark:border-slate-700 rounded-2xl overflow-x-auto bg-white dark:bg-slate-900 shadow-sm transition-colors relative">
+            <table id="stock-management-table" className="w-full text-[11px] text-left border-collapse font-sans">
+              <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-mono text-[10px] uppercase border-b-2 border-slate-300 dark:border-slate-700 shadow-xs select-none">
                 <tr>
-                  <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-3 w-10 border-r border-slate-300 dark:border-slate-700 text-center shadow-xs">
+                  <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-2 w-10 border-r border-slate-300 dark:border-slate-700 text-center shadow-xs">
                     <input
                       id="stock-table-master-checkbox"
                       type="checkbox"
@@ -1322,21 +1322,21 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                         if (input) input.indeterminate = isPartiallySelected;
                       }}
                       onChange={handleToggleSelectAllVisible}
-                      className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500 cursor-pointer"
+                      className="w-3.5 h-3.5 text-teal-600 rounded focus:ring-teal-500 cursor-pointer"
                       title={isAllVisibleSelected ? 'Deselect all visible' : 'Select all visible'}
                     />
                   </th>
-                  <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-3 border-r border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 font-bold shadow-xs">Row</th>
-                  <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-3 border-r border-slate-300 dark:border-slate-700 font-bold shadow-xs">ItemID (Col A)</th>
-                  <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-3 border-r border-slate-300 dark:border-slate-700 font-bold shadow-xs">ItemName (Col B)</th>
-                  <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-3 border-r border-slate-300 dark:border-slate-700 font-bold shadow-xs">Category (Col C)</th>
-                  <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-3 border-r border-slate-300 dark:border-slate-700 text-right font-bold shadow-xs">
+                  <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-2 border-r border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 font-bold shadow-xs">Row</th>
+                  <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-2 border-r border-slate-300 dark:border-slate-700 font-bold shadow-xs">ItemID (Col A)</th>
+                  <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-2 border-r border-slate-300 dark:border-slate-700 font-bold shadow-xs">ItemName (Col B)</th>
+                  <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-2 border-r border-slate-300 dark:border-slate-700 font-bold shadow-xs">Category (Col C)</th>
+                  <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-2 border-r border-slate-300 dark:border-slate-700 text-right font-bold shadow-xs">
                     Available Qty (Col D)
                   </th>
-                  <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-3 border-r border-slate-300 dark:border-slate-700 text-right font-bold shadow-xs">Reorder Level (Col E)</th>
-                  <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-3 text-center font-bold shadow-xs">Stock Status</th>
-                  <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-3 border-l border-slate-300 dark:border-slate-700 text-center font-bold shadow-xs whitespace-nowrap">
-                    Actions {!currentUser && <span className="text-[10px] text-amber-600 dark:text-amber-400 font-normal font-sans">(Read-Only)</span>}
+                  <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-2 border-r border-slate-300 dark:border-slate-700 text-right font-bold shadow-xs">Reorder Level (Col E)</th>
+                  <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-2 text-center font-bold shadow-xs">Stock Status</th>
+                  <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-2 border-l border-slate-300 dark:border-slate-700 text-center font-bold shadow-xs whitespace-nowrap">
+                    Actions {!currentUser && <span className="text-[9px] text-amber-600 dark:text-amber-400 font-normal font-sans">(Read-Only)</span>}
                   </th>
                 </tr>
               </thead>
@@ -1394,7 +1394,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                             }`}
                           >
                             <td
-                              className="py-3 px-3 text-center border-r border-slate-300 dark:border-slate-700 align-middle"
+                              className="py-1.5 px-2 text-center border-r border-slate-300 dark:border-slate-700 align-middle"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleToggleSelectRow(item.ItemID);
@@ -1408,11 +1408,11 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                                   onClick={(e) => e.stopPropagation()}
                                   id={`stock-checkbox-${item.ItemID}`}
                                   aria-label={`Select ${item.ItemID}`}
-                                  className="w-4 h-4 rounded text-purple-600 accent-purple-600 border-slate-300 dark:border-slate-600 focus:ring-purple-500 cursor-pointer"
+                                  className="w-3.5 h-3.5 rounded text-purple-600 accent-purple-600 border-slate-300 dark:border-slate-600 focus:ring-purple-500 cursor-pointer"
                                 />
                               </div>
                             </td>
-                            <td className="py-3 px-3 font-mono text-slate-500 dark:text-slate-400 text-[11px] border-r border-slate-300 dark:border-slate-700 text-center whitespace-nowrap select-none">
+                            <td className="py-1.5 px-2 font-mono text-slate-500 dark:text-slate-400 text-[10px] border-r border-slate-300 dark:border-slate-700 text-center whitespace-nowrap select-none">
                               <div className="flex items-center justify-center space-x-1">
                                 <button
                                   type="button"
@@ -1429,15 +1429,15 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                                 <span>{idx + 2}</span>
                               </div>
                             </td>
-                            <td className="py-3 px-3.5 font-mono font-bold text-xs text-purple-700 dark:text-purple-300 border-r border-slate-300 dark:border-slate-700 group-hover:text-purple-900 dark:group-hover:text-purple-200 transition-colors whitespace-nowrap">
+                            <td className="py-1.5 px-2.5 font-mono font-bold text-[10.5px] text-purple-700 dark:text-purple-300 border-r border-slate-300 dark:border-slate-700 group-hover:text-purple-900 dark:group-hover:text-purple-200 transition-colors whitespace-nowrap">
                               <SearchHighlightText text={item.ItemID} query={searchQuery} />
                             </td>
-                            <td className="py-3 px-3.5 font-semibold text-xs sm:text-sm text-slate-800 dark:text-slate-100 group-hover:text-slate-950 dark:group-hover:text-white border-r border-slate-300 dark:border-slate-700 truncate max-w-[280px]">
+                            <td className="py-1.5 px-2.5 font-semibold text-[11px] text-slate-800 dark:text-slate-100 group-hover:text-slate-950 dark:group-hover:text-white border-r border-slate-300 dark:border-slate-700 truncate max-w-[260px]">
                               <SearchHighlightText text={item.ItemName} query={searchQuery} />
                             </td>
-                            <td className="py-3 px-3.5 border-r border-slate-300 dark:border-slate-700 whitespace-nowrap">
+                            <td className="py-1.5 px-2.5 border-r border-slate-300 dark:border-slate-700 whitespace-nowrap">
                               <span
-                                className={`text-xs font-semibold ${
+                                className={`text-[10.5px] font-semibold ${
                                   item.Category === 'Cleaning'
                                     ? 'text-emerald-700 dark:text-emerald-400'
                                     : item.Category === 'Stationery'
@@ -1448,9 +1448,9 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                                 <SearchHighlightText text={item.Category} query={searchQuery} />
                               </span>
                             </td>
-                            <td className="py-2.5 px-3.5 text-right font-mono border-r border-slate-300 dark:border-slate-700 whitespace-nowrap">
+                            <td className="py-1.5 px-2.5 text-right font-mono border-r border-slate-300 dark:border-slate-700 whitespace-nowrap">
                               <span
-                                className={`font-bold text-xs sm:text-sm ${
+                                className={`font-bold text-[11px] ${
                                   isOutOfStock
                                     ? 'text-rose-600 dark:text-rose-400 font-extrabold'
                                     : isCritical || isLow
@@ -1461,7 +1461,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                                 {item.Qty}
                               </span>{' '}
                               <span
-                                className={`text-xs font-medium ml-1 ${
+                                className={`text-[10px] font-medium ml-1 ${
                                   isOutOfStock
                                     ? 'text-rose-500 dark:text-rose-400/90'
                                     : isCritical || isLow
@@ -1472,17 +1472,17 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                                 <SearchHighlightText text={item.Unit} query={searchQuery} />
                               </span>
                             </td>
-                            <td className="py-3 px-3.5 text-right font-mono text-slate-600 dark:text-slate-400 border-r border-slate-300 dark:border-slate-700 whitespace-nowrap">
-                              <span className="text-slate-800 dark:text-slate-200 font-semibold text-xs">{item.ReorderLevel}</span>{' '}
-                              <span className="text-[11px] text-slate-400 dark:text-slate-500 font-normal ml-1">
+                            <td className="py-1.5 px-2.5 text-right font-mono text-slate-600 dark:text-slate-400 border-r border-slate-300 dark:border-slate-700 whitespace-nowrap">
+                              <span className="text-slate-800 dark:text-slate-200 font-semibold text-[10.5px]">{item.ReorderLevel}</span>{' '}
+                              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal ml-1">
                                 <SearchHighlightText text={item.Unit} query={searchQuery} />
                               </span>
                             </td>
-                            <td className="py-3 px-4 text-center whitespace-nowrap">
+                            <td className="py-1.5 px-2 text-center whitespace-nowrap">
                               {hasPendingReplenishment ? (
                                 <span
                                   id={`status-text-replenish-${item.ItemID.toLowerCase()}`}
-                                  className="font-bold text-xs text-purple-600 dark:text-purple-400"
+                                  className="font-bold text-[10.5px] text-purple-600 dark:text-purple-400"
                                   title="Replenishment or stock adjustment authorization is pending"
                                 >
                                   <SearchHighlightText text="Replenishment Pending" query={searchQuery} />
@@ -1490,7 +1490,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                               ) : isOutOfStock ? (
                                 <span
                                   id={`status-text-oos-${item.ItemID.toLowerCase()}`}
-                                  className="font-extrabold text-xs text-rose-600 dark:text-rose-400"
+                                  className="font-extrabold text-[10.5px] text-rose-600 dark:text-rose-400"
                                   title="Zero inventory available — immediate replenishment needed"
                                 >
                                   <SearchHighlightText text="Out of Stock" query={searchQuery} />
@@ -1498,7 +1498,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                               ) : isCritical ? (
                                 <span
                                   id={`status-text-critical-${item.ItemID.toLowerCase()}`}
-                                  className="font-bold text-xs text-amber-600 dark:text-amber-400"
+                                  className="font-bold text-[10.5px] text-amber-600 dark:text-amber-400"
                                   title={`Critical Low Stock: Available quantity is ≤ 50% of reorder threshold (${item.ReorderLevel} ${item.Unit})`}
                                 >
                                   <SearchHighlightText text="Critical Low" query={searchQuery} />
@@ -1506,7 +1506,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                               ) : isLow ? (
                                 <span
                                   id={`status-text-low-${item.ItemID.toLowerCase()}`}
-                                  className="font-semibold text-xs text-amber-500 dark:text-amber-400"
+                                  className="font-semibold text-[10.5px] text-amber-500 dark:text-amber-400"
                                   title={`Low Stock: Below reorder threshold of ${item.ReorderLevel} ${item.Unit}`}
                                 >
                                   <SearchHighlightText text="Low Stock" query={searchQuery} />
@@ -1514,59 +1514,56 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                               ) : (
                                 <span
                                   id={`status-text-healthy-${item.ItemID.toLowerCase()}`}
-                                  className="font-semibold text-xs text-emerald-600 dark:text-emerald-400"
+                                  className="font-semibold text-[10.5px] text-emerald-600 dark:text-emerald-400"
                                 >
                                   <SearchHighlightText text="Optimal" query={searchQuery} />
                                 </span>
                               )}
                             </td>
                             <td
-                              className="py-2.5 px-3 border-l border-slate-300 dark:border-slate-700 text-center whitespace-nowrap"
+                              className="py-1.5 px-2 border-l border-slate-300 dark:border-slate-700 text-center whitespace-nowrap"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <div className="flex items-center justify-center space-x-1.5">
-                                {/* Edit Button */}
+                              <div className="flex items-center justify-center gap-1">
                                 <button
                                   type="button"
                                   onClick={() => handleQuickEditFromContext(item)}
                                   title={!currentUser ? 'Log in to edit stock item' : 'Edit Stock Item'}
-                                  className="inline-flex items-center space-x-1 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-semibold border border-slate-300 dark:border-slate-600 transition cursor-pointer"
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-md text-[10px] font-semibold border border-slate-300 dark:border-slate-600 transition cursor-pointer"
                                 >
                                   {!currentUser ? (
-                                    <Lock className="w-3.5 h-3.5 text-amber-500" />
+                                    <Lock className="w-3 h-3 text-amber-500" />
                                   ) : (
-                                    <Edit3 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                                    <Edit3 className="w-3 h-3 text-blue-600 dark:text-blue-400" />
                                   )}
                                   <span>Edit</span>
                                 </button>
 
-                                {/* Issue Button */}
                                 <button
                                   type="button"
                                   onClick={() => handleQuickIssueFromContext([item])}
                                   disabled={item.Qty <= 0}
                                   title={!currentUser ? 'Log in to issue stock' : item.Qty <= 0 ? 'Cannot issue: Stock is 0' : 'Issue Stock Requisition'}
-                                  className="inline-flex items-center space-x-1 px-2.5 py-1.5 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 disabled:opacity-40 disabled:cursor-not-allowed text-emerald-700 dark:text-emerald-300 rounded-lg text-xs font-semibold border border-emerald-300 dark:border-emerald-700 transition cursor-pointer"
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 disabled:opacity-40 disabled:cursor-not-allowed text-emerald-700 dark:text-emerald-300 rounded-md text-[10px] font-semibold border border-emerald-300 dark:border-emerald-700 transition cursor-pointer"
                                 >
                                   {!currentUser ? (
-                                    <Lock className="w-3.5 h-3.5 text-amber-500" />
+                                    <Lock className="w-3 h-3 text-amber-500" />
                                   ) : (
-                                    <Send className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                    <Send className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
                                   )}
                                   <span>Issue</span>
                                 </button>
 
-                                {/* Adjustment Button */}
                                 <button
                                   type="button"
                                   onClick={() => handleQuickAdjustFromContext(item)}
                                   title={!currentUser ? 'Log in to adjust stock count' : 'Stock Count Adjustment & Reconcile'}
-                                  className="inline-flex items-center space-x-1 px-2.5 py-1.5 bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 rounded-lg text-xs font-semibold border border-purple-300 dark:border-purple-700 transition cursor-pointer"
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 rounded-md text-[10px] font-semibold border border-purple-300 dark:border-purple-700 transition cursor-pointer"
                                 >
                                   {!currentUser ? (
-                                    <Lock className="w-3.5 h-3.5 text-amber-500" />
+                                    <Lock className="w-3 h-3 text-amber-500" />
                                   ) : (
-                                    <SlidersHorizontal className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                                    <SlidersHorizontal className="w-3 h-3 text-purple-600 dark:text-purple-400" />
                                   )}
                                   <span>Adjustment</span>
                                 </button>
