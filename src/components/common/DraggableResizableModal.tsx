@@ -70,20 +70,26 @@ export const DraggableResizableModal: React.FC<DraggableResizableModalProps> = (
   initialHeight,
   minWidth = 320,
   minHeight = 200,
-  // Default to 70vw × 60vh landscape-style sizing
+  // Default to 70vw × 60vh landscape-style sizing for popups and modal windows.
   maxWidth,
   maxHeight,
   title,
   showControls = true,
   closeOnBackdropClick = true,
   closeOnEsc = true,
-  zIndex = 'z-50',
+  zIndex = 'z-40',
   modalId,
   'aria-label': ariaLabel,
   'aria-modal': ariaModal = true,
   role = 'dialog',
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
+  const viewportW = typeof window !== 'undefined' ? window.innerWidth || 1024 : 1024;
+  const viewportH = typeof window !== 'undefined' ? window.innerHeight || 768 : 768;
+  const defaultLandscapeWidth = Math.max(320, Math.min(Math.round(viewportW * 0.70), viewportW - 24));
+  const defaultLandscapeHeight = Math.max(240, Math.min(Math.round(viewportH * 0.60), viewportH - 24));
+  const resolvedMaxWidth = maxWidth ?? defaultLandscapeWidth;
+  const resolvedMaxHeight = maxHeight ?? defaultLandscapeHeight;
   const [position, setPosition] = useState<Position | null>(null);
   const [size, setSize] = useState<Size | null>(null);
   const [isMaximized, setIsMaximized] = useState(false);
@@ -103,11 +109,8 @@ export const DraggableResizableModal: React.FC<DraggableResizableModalProps> = (
   useLayoutEffect(() => {
     if (!isOpen) return;
     if (!isInitializedRef.current && modalRef.current) {
-      const viewportW = window.innerWidth || 1024;
-      const viewportH = window.innerHeight || 768;
-
-      const calculatedWidth = initialWidth || Math.round(viewportW * 0.70);
-      const calculatedHeight = initialHeight || Math.round(viewportH * 0.60);
+      const calculatedWidth = initialWidth || defaultLandscapeWidth;
+      const calculatedHeight = initialHeight || defaultLandscapeHeight;
 
       const finalW = Math.min(calculatedWidth, viewportW - 24);
       const finalH = Math.min(calculatedHeight, viewportH - 24);
@@ -125,9 +128,6 @@ export const DraggableResizableModal: React.FC<DraggableResizableModalProps> = (
   useEffect(() => {
     const handleWindowResize = () => {
       if (!position || !size || isMaximized) return;
-      const viewportW = window.innerWidth;
-      const viewportH = window.innerHeight;
-
       let newX = position.x;
       let newY = position.y;
       let newW = size.width;
@@ -345,13 +345,10 @@ export const DraggableResizableModal: React.FC<DraggableResizableModalProps> = (
       const dx = moveEv.clientX - resizeRef.current.startX;
       const dy = moveEv.clientY - resizeRef.current.startY;
 
-      const viewportW = window.innerWidth;
-      const viewportH = window.innerHeight;
-
       const effMinWidth = Math.min(minWidth, viewportW - 24);
       const effMinHeight = Math.min(minHeight, viewportH - 24);
-      const effMaxWidth = maxWidth || viewportW - 16;
-      const effMaxHeight = maxHeight || viewportH - 16;
+      const effMaxWidth = resolvedMaxWidth || viewportW - 16;
+      const effMaxHeight = resolvedMaxHeight || viewportH - 16;
 
       let newW = resizeRef.current.startWidth;
       let newH = resizeRef.current.startHeight;

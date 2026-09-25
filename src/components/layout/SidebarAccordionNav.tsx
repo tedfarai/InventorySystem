@@ -374,7 +374,7 @@ export const SidebarAccordionNav: React.FC<SidebarAccordionNavProps> = ({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex justify-start pointer-events-auto" role="dialog" aria-modal="true">
+        <div className="fixed inset-0 z-[70] flex justify-start pointer-events-auto" role="dialog" aria-modal="true">
           {/* Backdrop Overlay with Smooth Opacity Fade-in Transition (No blur to keep master stock sheet crisp) */}
           <motion.div
             initial={{ opacity: 0 }}

@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'paramount-v2';
+const CACHE_VERSION = 'paramount-v3';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const MEDIA_CACHE = `${CACHE_VERSION}-media`;
 const OFFLINE_URL = '/index.html';

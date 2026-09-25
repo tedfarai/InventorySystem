@@ -579,13 +579,6 @@ export const LandingLoginPage: React.FC<LandingLoginPageProps> = ({
         />
       )}
 
-      {/* Minimal Footer */}
-      <footer className="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-4 px-6 text-xs text-slate-500 text-center">
-        <div className="w-full max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>Paramount Exports — Stationery &amp; Cleaning Inventory System</span>
-          <span className="text-slate-400">100% Offline SQLite &amp; Local Persistence</span>
-        </div>
-      </footer>
     </div>
   );
 };

@@ -407,36 +407,8 @@ function AppContent() {
     );
   }
 
-  if (!currentUser) {
-    return (
-      <div className="min-h-screen bg-slate-950 text-slate-100">
-        <LandingLoginPage
-          admins={admins}
-          onSuccess={(admin) => {
-            setCurrentUser(admin);
-            setIsLoginModalOpen(false);
-            showToast(`Welcome, ${admin.IssuerName}`, 'success', `Authenticated as ${admin.Role}`);
-          }}
-          isOffline={isOffline}
-          onOpenInstallModal={() => setIsInstallModalOpen(true)}
-          isInstallable={isInstallable}
-          onUpdateAdmin={handleUpdateAdmin}
-        />
-        {isInstallModalOpen && (
-          <CrossPlatformInstallModal
-            isOpen={isInstallModalOpen}
-            onClose={() => setIsInstallModalOpen(false)}
-            onDirectInstall={triggerInstall}
-            isInstallable={isInstallable}
-            isInstalled={isInstalled}
-          />
-        )}
-      </div>
-    );
-  }
-
   // ==========================================
-  // MAIN WORKSPACE (Only available after successful authentication)
+  // MAIN WORKSPACE (Always visible in guest read-only mode until authentication)
   // ==========================================
   return (
     <DesktopWindowFrame
@@ -507,6 +479,15 @@ function AppContent() {
               <RefreshCw className="w-3.5 h-3.5" />
               <span>Update Now</span>
             </button>
+          </div>
+        )}
+
+        {!currentUser && (
+          <div className="w-full border-b border-amber-500/30 bg-amber-500/10 dark:bg-amber-950/30 px-3 py-2 text-center text-[11px] sm:text-xs font-semibold text-amber-900 dark:text-amber-200">
+            <span className="inline-flex items-center gap-2 rounded-full border border-amber-500/40 bg-amber-200/60 dark:bg-amber-900/30 px-2.5 py-1 font-bold uppercase tracking-[0.12em]">
+              Read-Only Guest View
+            </span>
+            <span className="ml-2">Master Stock is visible for review only. Log in to unlock stock actions, receiving, issue requests, and admin controls.</span>
           </div>
         )}
 
@@ -715,7 +696,7 @@ function AppContent() {
         {isLoginModalOpen && (
           <div
             id="modal-login-portal-backdrop"
-            className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/50 overflow-y-auto"
+            className="fixed inset-0 z-40 flex items-center justify-center p-3 sm:p-6 bg-slate-950/50 overflow-y-auto"
           >
             <div className="relative w-full max-w-5xl my-auto">
               <button
