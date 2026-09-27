@@ -265,16 +265,17 @@ function AppContent() {
     }
   };
 
-  const handleCreateBackupWithToast = async (note: string) => {
+  const handleCreateBackupWithToast = async (_type: import('./types').BackupType, note: string): Promise<import('./types').BackupSnapshot> => {
     try {
       const bkp = await handleCreateBackup('MANUAL', note);
       if (bkp) {
         showToast('SQLite Backup Saved', 'success', `Snapshot ${bkp.id} archived with ${bkp.itemCount} stock items`);
+        return bkp;
       }
-      return bkp;
+      throw new Error('Backup returned empty');
     } catch (e: any) {
       showToast('Backup Error', 'error', e?.message || 'Failed to generate snapshot');
-      return null;
+      throw e;
     }
   };
 
@@ -302,7 +303,7 @@ function AppContent() {
         timestamp: log.Timestamp,
         deliveryRef: docRef,
         issuerID: log.IssuerID,
-        issuerName: log.IssuerName,
+        issuerName: log.IssuerName || 'Rachel Pickard',
         issuerRole: 'Procurement Manager',
         items: [
           {
@@ -332,7 +333,7 @@ function AppContent() {
         reasonLabel: log.DiscrepancyReason || 'Physical Count Adjustment',
         notes: log.DiscrepancyNotes || `Audit log entry ${log.id}`,
         issuerID: log.IssuerID,
-        issuerName: log.IssuerName,
+        issuerName: log.IssuerName || 'Rachel Pickard',
         issuerRole: 'Procurement Manager',
         items: [
           {
@@ -364,7 +365,7 @@ function AppContent() {
       deptHeadName: log.DeptHead,
       deptHeadEmail: log.DeptEmail,
       issuerID: log.IssuerID,
-      issuerName: log.IssuerName,
+      issuerName: log.IssuerName || 'Rachel Pickard',
       items: [
         {
           ItemID: log.ItemID,
