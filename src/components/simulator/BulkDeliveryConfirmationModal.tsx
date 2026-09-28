@@ -22,6 +22,7 @@ export interface BulkDeliveryReviewItem {
   addQty: number;
   unit: string;
   supplier?: string;
+  unitPrice?: number;
 }
 
 interface BulkDeliveryConfirmationModalProps {

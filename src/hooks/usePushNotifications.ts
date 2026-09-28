@@ -43,13 +43,14 @@ export function usePushNotifications() {
       : `${item.ItemID} is at ${item.Qty} ${item.Unit} — below the ${item.ReorderLevel} ${item.Unit} reorder threshold.`;
 
     try {
-      const n = new Notification(title, {
+      const options: NotificationOptions & { renotify?: boolean } = {
         body,
         icon: '/pwa-192x192.png',
         badge: '/pwa-192x192.png',
         tag: `low-stock-${item.ItemID}`,
         renotify: false,
-      });
+      };
+      const n = new Notification(title, options);
       // Auto-close after 8 s
       setTimeout(() => n.close(), 8000);
     } catch {
