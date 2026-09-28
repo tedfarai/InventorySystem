@@ -93,7 +93,7 @@ export const StockSearchBar: React.FC<StockSearchBarProps> = ({
   return (
     <div
       id="stock-management-search-bar"
-      className={`space-y-2.5 bg-white dark:bg-slate-900 p-3.5 rounded-2xl border-2 border-slate-300 dark:border-slate-700 shadow-sm transition-colors ${className}`}
+      className={`space-y-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-2.5 sm:p-3 rounded-2xl border-2 border-slate-300 dark:border-slate-700 shadow-md transition-all sticky top-9 sm:top-10 z-20 ${className}`}
     >
       {/* Main Search Input & Primary Filter Controls Row */}
       <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2.5">

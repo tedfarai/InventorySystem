@@ -1223,8 +1223,8 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
       {/* 1. DIRECT MASTER STOCK WORKSPACE VIEW (TAKES UP 96% OF HEIGHT FROM TOP TO BOTTOM, NO DEAD BOTTOM BAR) */}
       {activeSheet === 'Master_Stock' ? (
         <div className="w-full flex flex-col font-sans space-y-2 pb-0 min-h-0">
-          {/* Search & Multi-Facet Filter Container */}
-          <div className="shrink-0 bg-[#f8fafc] dark:bg-slate-950 pt-0.5 pb-2 -mx-1 px-1 border-b border-slate-300 dark:border-slate-800 transition-colors shadow-2xs">
+          {/* Search & Multi-Facet Filter Container (Sticky below shrunk 40% top header) */}
+          <div className="sticky top-9 sm:top-10 z-20 bg-[#f8fafc]/95 dark:bg-slate-950/95 backdrop-blur-md pt-0.5 pb-1.5 -mx-1 px-1 border-b border-slate-300/80 dark:border-slate-800/80 transition-all shadow-xs">
             <StockSearchBar
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
@@ -1309,7 +1309,19 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
           )}
 
           {/* Stock Management Inventory Table with Fixed Table Header and Visible High-Contrast Borders (Fills 100% of remaining 96vh space) */}
-          <div className="inventory-table-shell flex-1 min-h-0 border-2 border-slate-300 dark:border-slate-700 rounded-2xl overflow-x-auto bg-white dark:bg-slate-900 shadow-sm transition-colors relative">
+          <div
+            className="inventory-table-shell flex-1 min-h-0 border-2 border-slate-300 dark:border-slate-700 rounded-2xl overflow-x-auto bg-white dark:bg-slate-900 shadow-sm transition-colors relative"
+            onWheel={(e) => {
+              // Ensure vertical mouse scroll wheel works seamlessly anywhere over the master stock sheet
+              if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && !e.shiftKey) {
+                const target = e.currentTarget;
+                const canScrollVertically = target.scrollHeight > target.clientHeight;
+                if (!canScrollVertically) {
+                  window.scrollBy({ top: e.deltaY, behavior: 'auto' });
+                }
+              }
+            }}
+          >
             <table id="stock-management-table" className="w-full text-[11px] text-left border-collapse font-sans">
               <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-mono text-[10px] uppercase border-b-2 border-slate-300 dark:border-slate-700 shadow-xs select-none">
                 <tr>

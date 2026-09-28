@@ -45,6 +45,7 @@ export interface DraggableResizableModalProps {
   backdropClassName?: string;
   initialWidth?: number;
   initialHeight?: number;
+  initialPosition?: { x: number; y: number } | null;
   minWidth?: number;
   minHeight?: number;
   maxWidth?: number;
@@ -68,9 +69,9 @@ export const DraggableResizableModal: React.FC<DraggableResizableModalProps> = (
   backdropClassName = '',
   initialWidth,
   initialHeight,
+  initialPosition,
   minWidth = 320,
-  minHeight = 200,
-  // Default to 70vw × 60vh landscape-style sizing for popups and modal windows.
+  minHeight = 180,
   maxWidth,
   maxHeight,
   title,
@@ -88,8 +89,7 @@ export const DraggableResizableModal: React.FC<DraggableResizableModalProps> = (
   const viewportH = typeof window !== 'undefined' ? window.innerHeight || 768 : 768;
   const defaultLandscapeWidth = Math.max(320, Math.min(Math.round(viewportW * 0.70), viewportW - 24));
   const defaultLandscapeHeight = Math.max(240, Math.min(Math.round(viewportH * 0.60), viewportH - 24));
-  const resolvedMaxWidth = maxWidth ?? defaultLandscapeWidth;
-  const resolvedMaxHeight = maxHeight ?? defaultLandscapeHeight;
+
   const [position, setPosition] = useState<Position | null>(null);
   const [size, setSize] = useState<Size | null>(null);
   const [isMaximized, setIsMaximized] = useState(false);
@@ -105,24 +105,44 @@ export const DraggableResizableModal: React.FC<DraggableResizableModalProps> = (
 
   const isInitializedRef = useRef(false);
 
-  // Measure initial natural geometry on mount — default 70vw × 60vh
+  // Reset initialization state whenever modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      isInitializedRef.current = false;
+      setIsMaximized(false);
+      setIsDragging(false);
+      setIsResizing(false);
+      setActiveDirection(null);
+    }
+  }, [isOpen]);
+
+  // Measure initial natural geometry on mount or when opening
   useLayoutEffect(() => {
     if (!isOpen) return;
     if (!isInitializedRef.current && modalRef.current) {
+      const curW = typeof window !== 'undefined' ? window.innerWidth : viewportW;
+      const curH = typeof window !== 'undefined' ? window.innerHeight : viewportH;
+
       const calculatedWidth = initialWidth || defaultLandscapeWidth;
       const calculatedHeight = initialHeight || defaultLandscapeHeight;
 
-      const finalW = Math.min(calculatedWidth, viewportW - 24);
-      const finalH = Math.min(calculatedHeight, viewportH - 24);
+      const finalW = Math.min(calculatedWidth, curW - 24);
+      const finalH = Math.min(calculatedHeight, curH - 24);
 
-      const left = Math.max(12, Math.round((viewportW - finalW) / 2));
-      const top = Math.max(12, Math.round((viewportH - finalH) / 2));
+      let left = Math.max(12, Math.round((curW - finalW) / 2));
+      let top = Math.max(12, Math.round((curH - finalH) / 2));
+
+      if (initialPosition && typeof initialPosition.x === 'number' && typeof initialPosition.y === 'number') {
+        // Clamped smartly so context menu doesn't bleed off-screen
+        left = Math.max(12, Math.min(initialPosition.x, curW - finalW - 12));
+        top = Math.max(12, Math.min(initialPosition.y, curH - finalH - 12));
+      }
 
       setPosition({ x: left, y: top });
       setSize({ width: finalW, height: finalH });
       isInitializedRef.current = true;
     }
-  }, [isOpen, initialWidth, initialHeight]);
+  }, [isOpen, initialWidth, initialHeight, initialPosition, defaultLandscapeWidth, defaultLandscapeHeight, viewportW, viewportH]);
 
   // Keep window in bounds if browser window resizes
   useEffect(() => {
@@ -308,6 +328,26 @@ export const DraggableResizableModal: React.FC<DraggableResizableModalProps> = (
     direction: 'se',
   });
 
+  // Helper to determine active cursor for resizing
+  const getResizeCursor = (dir: ResizeDirection | null): string => {
+    switch (dir) {
+      case 'n':
+      case 's':
+        return 'cursor-ns-resize';
+      case 'e':
+      case 'w':
+        return 'cursor-ew-resize';
+      case 'nw':
+      case 'se':
+        return 'cursor-nwse-resize';
+      case 'ne':
+      case 'sw':
+        return 'cursor-nesw-resize';
+      default:
+        return '';
+    }
+  };
+
   // Start Resize
   const startResize = (e: React.PointerEvent, direction: ResizeDirection) => {
     if (isMaximized) return;
@@ -328,6 +368,12 @@ export const DraggableResizableModal: React.FC<DraggableResizableModalProps> = (
       }
     }
 
+    try {
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {
+      // safe fallback
+    }
+
     resizeRef.current = {
       startX: e.clientX,
       startY: e.clientY,
@@ -345,57 +391,74 @@ export const DraggableResizableModal: React.FC<DraggableResizableModalProps> = (
       const dx = moveEv.clientX - resizeRef.current.startX;
       const dy = moveEv.clientY - resizeRef.current.startY;
 
-      const effMinWidth = Math.min(minWidth, viewportW - 24);
-      const effMinHeight = Math.min(minHeight, viewportH - 24);
-      const effMaxWidth = resolvedMaxWidth || viewportW - 16;
-      const effMaxHeight = resolvedMaxHeight || viewportH - 16;
+      const curViewportW = typeof window !== 'undefined' ? window.innerWidth : viewportW;
+      const curViewportH = typeof window !== 'undefined' ? window.innerHeight : viewportH;
+
+      const effMinWidth = Math.max(160, Math.min(minWidth, curViewportW - 24));
+      const effMinHeight = Math.max(120, Math.min(minHeight, curViewportH - 24));
+      const effMaxWidth = maxWidth ? Math.min(maxWidth, curViewportW - 16) : curViewportW - 16;
+      const effMaxHeight = maxHeight ? Math.min(maxHeight, curViewportH - 16) : curViewportH - 16;
 
       let newW = resizeRef.current.startWidth;
       let newH = resizeRef.current.startHeight;
       let newX = resizeRef.current.startPosX;
       let newY = resizeRef.current.startPosY;
 
+      const startRight = resizeRef.current.startPosX + resizeRef.current.startWidth;
+      const startBottom = resizeRef.current.startPosY + resizeRef.current.startHeight;
+
       const dir = resizeRef.current.direction;
 
-      // Horizontal resizing
+      // Horizontal resizing: East ('e') or West ('w')
       if (dir.includes('e')) {
-        newW = Math.max(effMinWidth, Math.min(effMaxWidth, resizeRef.current.startWidth + dx));
-        if (newX + newW > viewportW - 8) {
-          newW = viewportW - 8 - newX;
+        let proposedW = resizeRef.current.startWidth + dx;
+        proposedW = Math.max(effMinWidth, Math.min(effMaxWidth, proposedW));
+        if (newX + proposedW > curViewportW - 8) {
+          proposedW = Math.max(effMinWidth, curViewportW - 8 - newX);
         }
+        newW = proposedW;
       } else if (dir.includes('w')) {
-        const proposedW = resizeRef.current.startWidth - dx;
-        newW = Math.max(effMinWidth, Math.min(effMaxWidth, proposedW));
-        newX = resizeRef.current.startPosX + (resizeRef.current.startWidth - newW);
-        if (newX < 8) {
-          const diff = 8 - newX;
-          newX = 8;
-          newW -= diff;
+        let proposedW = resizeRef.current.startWidth - dx;
+        proposedW = Math.max(effMinWidth, Math.min(effMaxWidth, proposedW));
+        let proposedX = startRight - proposedW;
+        if (proposedX < 8) {
+          proposedX = 8;
+          proposedW = Math.min(effMaxWidth, Math.max(effMinWidth, startRight - 8));
         }
+        newX = proposedX;
+        newW = proposedW;
       }
 
-      // Vertical resizing
+      // Vertical resizing: South ('s') or North ('n')
       if (dir.includes('s')) {
-        newH = Math.max(effMinHeight, Math.min(effMaxHeight, resizeRef.current.startHeight + dy));
-        if (newY + newH > viewportH - 8) {
-          newH = viewportH - 8 - newY;
+        let proposedH = resizeRef.current.startHeight + dy;
+        proposedH = Math.max(effMinHeight, Math.min(effMaxHeight, proposedH));
+        if (newY + proposedH > curViewportH - 8) {
+          proposedH = Math.max(effMinHeight, curViewportH - 8 - newY);
         }
+        newH = proposedH;
       } else if (dir.includes('n')) {
-        const proposedH = resizeRef.current.startHeight - dy;
-        newH = Math.max(effMinHeight, Math.min(effMaxHeight, proposedH));
-        newY = resizeRef.current.startPosY + (resizeRef.current.startHeight - newH);
-        if (newY < 8) {
-          const diff = 8 - newY;
-          newY = 8;
-          newH -= diff;
+        let proposedH = resizeRef.current.startHeight - dy;
+        proposedH = Math.max(effMinHeight, Math.min(effMaxHeight, proposedH));
+        let proposedY = startBottom - proposedH;
+        if (proposedY < 8) {
+          proposedY = 8;
+          proposedH = Math.min(effMaxHeight, Math.max(effMinHeight, startBottom - 8));
         }
+        newY = proposedY;
+        newH = proposedH;
       }
 
       setPosition({ x: Math.round(newX), y: Math.round(newY) });
       setSize({ width: Math.round(newW), height: Math.round(newH) });
     };
 
-    const handlePointerUp = () => {
+    const handlePointerUp = (upEv: PointerEvent) => {
+      try {
+        (e.target as HTMLElement).releasePointerCapture(upEv.pointerId);
+      } catch {
+        // safe fallback
+      }
       setIsResizing(false);
       setActiveDirection(null);
       window.removeEventListener('pointermove', handlePointerMove);
@@ -413,7 +476,7 @@ export const DraggableResizableModal: React.FC<DraggableResizableModalProps> = (
     const target = e.target as HTMLElement;
     if (
       target.closest(
-        'button, input, textarea, select, a, [role="button"], [role="tab"], [data-no-drag="true"]'
+        'button, input, textarea, select, a, [role="button"], [role="tab"], [data-no-drag="true"], [data-resize-handle="true"]'
       )
     ) {
       return;
@@ -423,7 +486,11 @@ export const DraggableResizableModal: React.FC<DraggableResizableModalProps> = (
 
   // Inspect child header clicks for automatic dragging
   const handleWindowPointerDown = (e: React.PointerEvent) => {
+    if (isResizing) return;
     const target = e.target as HTMLElement;
+    if (target.closest('[data-resize-handle="true"], .resize-handle')) {
+      return;
+    }
     // If target has data-drag-handle or is inside the top header area
     const dragHandle = target.closest('[data-drag-handle="true"], .modal-drag-handle, header');
     const modalRect = modalRef.current?.getBoundingClientRect();
@@ -474,12 +541,16 @@ export const DraggableResizableModal: React.FC<DraggableResizableModalProps> = (
   return (
     <DraggableModalContext.Provider value={contextValue}>
       {/* Backdrop: semi-transparent overlay, NO blur so background UI stays visible.
-          pointer-events-none lets sidebar/nav clicks pass through the backdrop area.
-          The modal itself re-enables pointer events so it stays interactive. */}
+          pointer-events-none lets sidebar/nav clicks pass through the backdrop area,
+          except when dragging or resizing so mouse pointer remains locked to the active operation. */}
       <div
         id={modalId ? `${modalId}-backdrop` : undefined}
-        className={`fixed inset-0 bg-slate-950/30 flex items-center justify-center p-2 sm:p-4 ${zIndex} pointer-events-none ${
-          isDragging || isResizing ? 'select-none' : ''
+        className={`fixed inset-0 bg-slate-950/30 flex items-center justify-center p-2 sm:p-4 ${zIndex} ${
+          isResizing
+            ? `${getResizeCursor(activeDirection)} pointer-events-auto select-none`
+            : isDragging
+            ? 'cursor-grabbing pointer-events-auto select-none'
+            : 'pointer-events-none'
         } ${backdropClassName}`}
         role="presentation"
       >
@@ -535,53 +606,84 @@ export const DraggableResizableModal: React.FC<DraggableResizableModalProps> = (
           {/* 8-Directional Perimeter Mouse Resize Handles (Disabled when Maximized) */}
           {!isMaximized && (
             <>
-              {/* North Edge */}
+              {/* North Edge (Top) */}
               <div
+                data-resize-handle="true"
                 onPointerDown={(e) => startResize(e, 'n')}
-                className="absolute top-0 left-3 right-3 h-2 cursor-ns-resize z-40 hover:bg-emerald-500/20 active:bg-emerald-500/40 transition-colors"
-                title="Resize window vertically"
-              />
-              {/* South Edge */}
+                className="absolute top-0 left-4 right-4 h-4 cursor-ns-resize z-50 touch-none group flex items-start justify-center"
+                title="Drag to resize vertically from top"
+                aria-label="Resize window vertically from top"
+              >
+                <div className="w-16 h-1 rounded-full bg-slate-400/0 group-hover:bg-emerald-500/60 group-active:bg-emerald-500 transition-colors mt-0.5" />
+              </div>
+
+              {/* South Edge (Bottom) */}
               <div
+                data-resize-handle="true"
                 onPointerDown={(e) => startResize(e, 's')}
-                className="absolute bottom-0 left-3 right-3 h-2.5 cursor-ns-resize z-40 hover:bg-emerald-500/20 active:bg-emerald-500/40 transition-colors"
-                title="Resize window vertically"
-              />
-              {/* East Edge */}
+                className="absolute bottom-0 left-4 right-4 h-4 cursor-ns-resize z-50 touch-none group flex items-end justify-center"
+                title="Drag to resize vertically from bottom"
+                aria-label="Resize window vertically from bottom"
+              >
+                <div className="w-16 h-1 rounded-full bg-slate-400/0 group-hover:bg-emerald-500/60 group-active:bg-emerald-500 transition-colors mb-0.5" />
+              </div>
+
+              {/* East Edge (Right) */}
               <div
+                data-resize-handle="true"
                 onPointerDown={(e) => startResize(e, 'e')}
-                className="absolute top-3 bottom-3 right-0 w-2.5 cursor-ew-resize z-40 hover:bg-emerald-500/20 active:bg-emerald-500/40 transition-colors"
-                title="Resize window horizontally"
-              />
-              {/* West Edge */}
+                className="absolute top-4 bottom-4 right-0 w-4 cursor-ew-resize z-50 touch-none group flex items-center justify-end"
+                title="Drag to resize horizontally from right"
+                aria-label="Resize window horizontally from right"
+              >
+                <div className="h-16 w-1 rounded-full bg-slate-400/0 group-hover:bg-emerald-500/60 group-active:bg-emerald-500 transition-colors mr-0.5" />
+              </div>
+
+              {/* West Edge (Left) */}
               <div
+                data-resize-handle="true"
                 onPointerDown={(e) => startResize(e, 'w')}
-                className="absolute top-3 bottom-3 left-0 w-2.5 cursor-ew-resize z-40 hover:bg-emerald-500/20 active:bg-emerald-500/40 transition-colors"
-                title="Resize window horizontally"
-              />
+                className="absolute top-4 bottom-4 left-0 w-4 cursor-ew-resize z-50 touch-none group flex items-center justify-start"
+                title="Drag to resize horizontally from left"
+                aria-label="Resize window horizontally from left"
+              >
+                <div className="h-16 w-1 rounded-full bg-slate-400/0 group-hover:bg-emerald-500/60 group-active:bg-emerald-500 transition-colors ml-0.5" />
+              </div>
+
               {/* North-West Corner */}
               <div
+                data-resize-handle="true"
                 onPointerDown={(e) => startResize(e, 'nw')}
-                className="absolute top-0 left-0 w-3.5 h-3.5 cursor-nwse-resize z-40 hover:bg-emerald-500/30 active:bg-emerald-500/50 rounded-tl-xl transition-colors"
-                title="Resize window diagonally"
+                className="absolute top-0 left-0 w-5 h-5 cursor-nwse-resize z-50 touch-none rounded-tl-xl hover:bg-emerald-500/30 active:bg-emerald-500/50 transition-colors"
+                title="Drag to resize diagonally"
+                aria-label="Resize window diagonally from top left"
               />
+
               {/* North-East Corner */}
               <div
+                data-resize-handle="true"
                 onPointerDown={(e) => startResize(e, 'ne')}
-                className="absolute top-0 right-0 w-3.5 h-3.5 cursor-nesw-resize z-40 hover:bg-emerald-500/30 active:bg-emerald-500/50 rounded-tr-xl transition-colors"
-                title="Resize window diagonally"
+                className="absolute top-0 right-0 w-5 h-5 cursor-nesw-resize z-50 touch-none rounded-tr-xl hover:bg-emerald-500/30 active:bg-emerald-500/50 transition-colors"
+                title="Drag to resize diagonally"
+                aria-label="Resize window diagonally from top right"
               />
+
               {/* South-West Corner */}
               <div
+                data-resize-handle="true"
                 onPointerDown={(e) => startResize(e, 'sw')}
-                className="absolute bottom-0 left-0 w-3.5 h-3.5 cursor-nesw-resize z-40 hover:bg-emerald-500/30 active:bg-emerald-500/50 rounded-bl-xl transition-colors"
-                title="Resize window diagonally"
+                className="absolute bottom-0 left-0 w-5 h-5 cursor-nesw-resize z-50 touch-none rounded-bl-xl hover:bg-emerald-500/30 active:bg-emerald-500/50 transition-colors"
+                title="Drag to resize diagonally"
+                aria-label="Resize window diagonally from bottom left"
               />
+
               {/* South-East Corner (Tactile 6-Dot Resize Grip) */}
               <div
+                data-resize-handle="true"
                 onPointerDown={(e) => startResize(e, 'se')}
-                className="absolute bottom-0 right-0 w-6 h-6 cursor-nwse-resize z-40 flex items-end justify-end p-1 select-none text-slate-400 dark:text-slate-500 hover:text-emerald-500 active:text-emerald-600 transition-colors group"
+                className="absolute bottom-0 right-0 w-6 h-6 cursor-nwse-resize z-50 touch-none flex items-end justify-end p-1 select-none text-slate-400 dark:text-slate-500 hover:text-emerald-500 active:text-emerald-600 transition-colors group"
                 title="Click and drag to resize window"
+                aria-label="Resize window diagonally from bottom right"
               >
                 <svg
                   width="11"

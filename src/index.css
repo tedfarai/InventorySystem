@@ -22,7 +22,7 @@
   --status-warning: #805500;
   --status-danger: #b42318;
   --shadow-color: rgb(15 23 42 / 8%);
-  --inventory-header-height: 3.5rem;
+  --inventory-header-height: 2.5rem;
   --inventory-row-height: 2.5rem;
 }
 
@@ -78,7 +78,7 @@ html {
   }
 
   body {
-    overscroll-behavior-y: none;
+    overscroll-behavior-y: auto;
   }
 
   :where(button, a, input, select, textarea):focus-visible {
@@ -95,7 +95,8 @@ html {
 
   .inventory-table-shell {
     scrollbar-gutter: stable both-edges;
-    overscroll-behavior: contain;
+    overscroll-behavior: auto;
+    overscroll-behavior-y: auto;
   }
 
   .inventory-table-shell table {
