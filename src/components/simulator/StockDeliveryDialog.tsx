@@ -6,7 +6,7 @@ import { DraggableResizableModal } from '../common/DraggableResizableModal';
 
 interface StockDeliveryDialogProps {
   stockItems: StockItem[];
-  onSaveDelivery: (itemId: string, addQty: number, supplier?: string) => void;
+  onSaveDelivery: (itemId: string, addQty: number, supplier?: string, unitPrice?: number) => void;
   onBack: () => void;
 }
 
@@ -19,12 +19,16 @@ export const StockDeliveryDialog: React.FC<StockDeliveryDialogProps> = ({
   const [addQty, setAddQty] = useState<number | ''>(10);
   const selectedItem = stockItems.find((i) => i.ItemID === selectedItemId);
   const [supplier, setSupplier] = useState(selectedItem?.LastSupplier || '');
+  const [unitPrice, setUnitPrice] = useState<number | ''>(selectedItem?.UnitPrice !== undefined ? selectedItem.UnitPrice : '');
   const [errorMsg, setErrorMsg] = useState('');
 
   const handleSelectItem = (item: StockItem) => {
     setSelectedItemId(item.ItemID);
     if (item.LastSupplier && !supplier) {
       setSupplier(item.LastSupplier);
+    }
+    if (item.UnitPrice !== undefined) {
+      setUnitPrice(item.UnitPrice);
     }
   };
 
@@ -42,7 +46,8 @@ export const StockDeliveryDialog: React.FC<StockDeliveryDialogProps> = ({
       return;
     }
 
-    onSaveDelivery(selectedItemId, Number(addQty), supplier.trim() || undefined);
+    const priceNum = unitPrice !== '' && Number(unitPrice) > 0 ? Number(unitPrice) : (selectedItem?.UnitPrice || undefined);
+    onSaveDelivery(selectedItemId, Number(addQty), supplier.trim() || undefined, priceNum);
   };
 
   return (
@@ -145,17 +150,35 @@ export const StockDeliveryDialog: React.FC<StockDeliveryDialogProps> = ({
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Received Delivery Quantity
-              </label>
-              <input
-                type="number"
-                min="1"
-                value={addQty}
-                onChange={(e) => setAddQty(e.target.value === '' ? '' : Number(e.target.value))}
-                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 font-mono"
-              />
+            {/* Unit Price & Quantity Row */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Unit Price (R)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={unitPrice}
+                  onChange={(e) => setUnitPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Received Delivery Quantity
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={addQty}
+                  onChange={(e) => setAddQty(e.target.value === '' ? '' : Number(e.target.value))}
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 font-mono"
+                />
+              </div>
             </div>
 
             {selectedItem && addQty !== '' && (

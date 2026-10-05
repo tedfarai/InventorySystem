@@ -13,8 +13,8 @@ interface StockDeliveryTabProps {
   initialMode?: 'single' | 'bulkQueue' | 'bulkGrid';
   initialItemId?: string;
   initialSelectedIds?: string[];
-  onSaveDelivery?: (itemId: string, addQty: number, deliveryNoteRef?: string, supplier?: string) => Promise<ReceivedDocument | void> | ReceivedDocument | void;
-  onSaveBulkDeliveries?: (deliveries: { itemId: string; addQty: number; supplier?: string }[], deliveryNoteRef?: string, defaultSupplier?: string) => Promise<ReceivedDocument | void> | ReceivedDocument | void;
+  onSaveDelivery?: (itemId: string, addQty: number, deliveryNoteRef?: string, supplier?: string, unitPrice?: number) => Promise<ReceivedDocument | void> | ReceivedDocument | void;
+  onSaveBulkDeliveries?: (deliveries: { itemId: string; addQty: number; supplier?: string; unitPrice?: number }[], deliveryNoteRef?: string, defaultSupplier?: string) => Promise<ReceivedDocument | void> | ReceivedDocument | void;
   onDeliverySuccess?: (doc: ReceivedDocument) => void;
 }
 
@@ -53,10 +53,11 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
   const [deliveryMode, setDeliveryMode] = useState<'single' | 'bulkQueue' | 'bulkGrid'>(initialMode || 'bulkQueue');
 
   // Single Delivery State
+  const initialSingle = stockItems.find((i) => i.ItemID === (initialItemId || stockItems[0]?.ItemID));
   const [singleItemId, setSingleItemId] = useState(initialItemId || stockItems[0]?.ItemID || '');
   const [singleAddQty, setSingleAddQty] = useState<number | ''>(10);
-  const [singleSupplier, setSingleSupplier] = useState('');
-  const [singleUnitPrice, setSingleUnitPrice] = useState<number | ''>('');
+  const [singleSupplier, setSingleSupplier] = useState(initialSingle?.LastSupplier || '');
+  const [singleUnitPrice, setSingleUnitPrice] = useState<number | ''>(initialSingle?.UnitPrice !== undefined ? initialSingle.UnitPrice : '');
   const [categoryFilter, setCategoryFilter] = useState<'All' | 'Stationery' | 'Cleaning' | 'General'>('All');
   const [searchFilter, setSearchFilter] = useState('');
 
@@ -67,9 +68,21 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
   const [queueSupplier, setQueueSupplier] = useState('');
   const [queueUnitPrice, setQueueUnitPrice] = useState<number | ''>('');
 
-  // Bulk Grid Delivery State (Dictionary mapping ItemID -> addQty and ItemID -> supplier override)
+  // Bulk Grid Delivery State (Dictionary mapping ItemID -> addQty and ItemID -> supplier override & unitPrice)
   const [gridSupplier, setGridSupplier] = useState('');
+  const [gridUnitPrice, setGridUnitPrice] = useState<number | ''>('');
   const [gridItemSuppliers, setGridItemSuppliers] = useState<Record<string, string>>({});
+  const [gridItemUnitPrices, setGridItemUnitPrices] = useState<Record<string, number | ''>>(() => {
+    if (initialSelectedIds && initialSelectedIds.length > 0) {
+      const initMap: Record<string, number | ''> = {};
+      initialSelectedIds.forEach((id) => {
+        const item = stockItems.find((s) => s.ItemID === id);
+        initMap[id] = item?.UnitPrice !== undefined ? item.UnitPrice : '';
+      });
+      return initMap;
+    }
+    return {};
+  });
   const [gridQuantities, setGridQuantities] = useState<Record<string, number>>(() => {
     if (initialSelectedIds && initialSelectedIds.length > 0) {
       const initMap: Record<string, number> = {};
@@ -239,6 +252,7 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
       addQty: (idx + 1) * 15,
       unit: item.Unit,
       supplier: item.LastSupplier || 'Paramount Wholesale Supplies',
+      unitPrice: item.UnitPrice || (idx + 1) * 14.50,
     }));
 
     setQueue(samples);
@@ -282,6 +296,14 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
     const reviewItems: BulkDeliveryReviewItem[] = activeEntries.map(([itemId, addQty]) => {
       const stock = stockItems.find((s) => s.ItemID === itemId);
       const rowSupplier = gridItemSuppliers[itemId]?.trim();
+      const rowPriceVal = gridItemUnitPrices[itemId];
+      const rowPrice =
+        rowPriceVal !== undefined && rowPriceVal !== '' && Number(rowPriceVal) > 0
+          ? Number(rowPriceVal)
+          : gridUnitPrice !== '' && Number(gridUnitPrice) > 0
+          ? Number(gridUnitPrice)
+          : stock?.UnitPrice || undefined;
+
       return {
         itemId,
         itemName: stock ? stock.ItemName : itemId,
@@ -290,6 +312,7 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
         addQty: Number(addQty),
         unit: stock ? stock.Unit : 'Units',
         supplier: rowSupplier || gridSupplier.trim(),
+        unitPrice: rowPrice,
       };
     });
 
@@ -310,6 +333,7 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
       itemId: item.itemId,
       addQty: item.addQty,
       supplier: item.supplier || batchSupplier,
+      unitPrice: item.unitPrice,
     }));
 
     let generatedDoc: ReceivedDocument | undefined = undefined;
@@ -320,11 +344,11 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
         if (res) generatedDoc = res;
       } else if (onSaveDelivery) {
         if (deliveries.length === 1) {
-          const res = await onSaveDelivery(deliveries[0].itemId, deliveries[0].addQty, deliveryNoteRef, deliveries[0].supplier);
+          const res = await onSaveDelivery(deliveries[0].itemId, deliveries[0].addQty, deliveryNoteRef, deliveries[0].supplier, deliveries[0].unitPrice);
           if (res) generatedDoc = res;
         } else {
           for (const d of deliveries) {
-            const res = await onSaveDelivery(d.itemId, d.addQty, deliveryNoteRef, d.supplier);
+            const res = await onSaveDelivery(d.itemId, d.addQty, deliveryNoteRef, d.supplier, d.unitPrice);
             if (res) generatedDoc = res;
           }
         }
@@ -358,6 +382,8 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
           Unit: item.unit,
           SupplierName: item.supplier || finalSupplierName,
           Supplier: item.supplier || finalSupplierName,
+          UnitPrice: item.unitPrice,
+          unitPrice: item.unitPrice,
         })),
         pdfFileName,
         folderPath: `C:\\Stationery & Cleaning\\Received_Items\\`,
@@ -599,68 +625,96 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
                       <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 w-44">
                         Supplier (Provenance) <span className="text-rose-500 font-bold">*</span>
                       </th>
+                      <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-right w-24">
+                        Unit Price (R)
+                      </th>
                       <th className="p-2.5 border-r border-slate-200 dark:border-slate-700">Category</th>
                       <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-right">Current Stock</th>
                       <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-right text-emerald-600 dark:text-emerald-400">Incoming Delivery</th>
+                      <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-right font-bold w-24">Line Total (R)</th>
                       <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-right font-bold">New Total</th>
                       <th className="p-2.5 text-center">Remove</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-800 dark:text-slate-200">
-                    {queue.map((item) => (
-                      <tr key={item.itemId} className="hover:bg-slate-50 dark:hover:bg-slate-800/60">
-                        <td className="p-2.5 font-mono font-bold text-blue-600 dark:text-blue-400 border-r border-slate-200 dark:border-slate-800">
-                          {item.itemId}
-                        </td>
-                        <td className="p-2.5 font-medium border-r border-slate-200 dark:border-slate-800">
-                          {item.itemName}
-                        </td>
-                        <td className="p-1.5 border-r border-slate-200 dark:border-slate-800">
-                          <input
-                            type="text"
-                            required
-                            value={item.supplier || ''}
-                            onChange={(e) => handleQueueSupplierChange(item.itemId, e.target.value)}
-                            placeholder="Enter supplier name"
-                            className={`w-full px-2 py-1 text-xs rounded border bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium ${
-                              !item.supplier?.trim()
-                                ? 'border-rose-500 focus:ring-rose-500'
-                                : 'border-slate-300 dark:border-slate-700'
-                            }`}
-                          />
-                        </td>
-                        <td className="p-2.5 border-r border-slate-200 dark:border-slate-800">
-                          <span className="px-2 py-0.5 rounded text-[10px] bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                            {item.category}
-                          </span>
-                        </td>
-                        <td className="p-2.5 text-right font-mono text-slate-500 border-r border-slate-200 dark:border-slate-800">
-                          {item.currentQty} {item.unit}
-                        </td>
-                        <td className="p-2.5 text-right font-mono font-extrabold text-emerald-600 dark:text-emerald-400 border-r border-slate-200 dark:border-slate-800">
-                          +{item.addQty} {item.unit}
-                        </td>
-                        <td className="p-2.5 text-right font-mono font-bold text-slate-900 dark:text-slate-100 border-r border-slate-200 dark:border-slate-800">
-                          {item.currentQty + item.addQty} {item.unit}
-                        </td>
-                        <td className="p-2.5 text-center">
-                          <button
-                            onClick={() => handleRemoveFromQueue(item.itemId)}
-                            className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950 rounded cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {queue.map((item) => {
+                      const itemPrice = item.unitPrice !== undefined ? item.unitPrice : 0;
+                      const lineTotal = item.addQty * itemPrice;
+                      return (
+                        <tr key={item.itemId} className="hover:bg-slate-50 dark:hover:bg-slate-800/60">
+                          <td className="p-2.5 font-mono font-bold text-blue-600 dark:text-blue-400 border-r border-slate-200 dark:border-slate-800">
+                            {item.itemId}
+                          </td>
+                          <td className="p-2.5 font-medium border-r border-slate-200 dark:border-slate-800">
+                            {item.itemName}
+                          </td>
+                          <td className="p-1.5 border-r border-slate-200 dark:border-slate-800">
+                            <input
+                              type="text"
+                              required
+                              value={item.supplier || ''}
+                              onChange={(e) => handleQueueSupplierChange(item.itemId, e.target.value)}
+                              placeholder="Enter supplier name"
+                              className={`w-full px-2 py-1 text-xs rounded border bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium ${
+                                !item.supplier?.trim()
+                                  ? 'border-rose-500 focus:ring-rose-500'
+                                  : 'border-slate-300 dark:border-slate-700'
+                              }`}
+                            />
+                          </td>
+                          <td className="p-1.5 border-r border-slate-200 dark:border-slate-800 text-right">
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="0.00"
+                              value={item.unitPrice !== undefined ? item.unitPrice : ''}
+                              onChange={(e) => {
+                                const val = e.target.value === '' ? undefined : Number(e.target.value);
+                                setQueue((prev) => prev.map((q) => (q.itemId === item.itemId ? { ...q, unitPrice: val } : q)));
+                              }}
+                              className="w-20 px-1.5 py-1 text-right rounded border font-mono text-xs bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:ring-1 focus:ring-blue-500"
+                            />
+                          </td>
+                          <td className="p-2.5 border-r border-slate-200 dark:border-slate-800">
+                            <span className="px-2 py-0.5 rounded text-[10px] bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                              {item.category}
+                            </span>
+                          </td>
+                          <td className="p-2.5 text-right font-mono text-slate-500 border-r border-slate-200 dark:border-slate-800">
+                            {item.currentQty} {item.unit}
+                          </td>
+                          <td className="p-2.5 text-right font-mono font-extrabold text-emerald-600 dark:text-emerald-400 border-r border-slate-200 dark:border-slate-800">
+                            +{item.addQty} {item.unit}
+                          </td>
+                          <td className="p-2.5 text-right font-mono text-teal-600 dark:text-teal-400 font-bold border-r border-slate-200 dark:border-slate-800 whitespace-nowrap">
+                            R {lineTotal.toFixed(2)}
+                          </td>
+                          <td className="p-2.5 text-right font-mono font-bold text-slate-900 dark:text-slate-100 border-r border-slate-200 dark:border-slate-800">
+                            {item.currentQty + item.addQty} {item.unit}
+                          </td>
+                          <td className="p-2.5 text-center">
+                            <button
+                              onClick={() => handleRemoveFromQueue(item.itemId)}
+                              className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950 rounded cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                   <tfoot className="bg-slate-100 dark:bg-slate-800 font-bold border-t-2 border-slate-300 dark:border-slate-700">
                     <tr>
-                      <td colSpan={5} className="p-2.5 text-slate-700 dark:text-slate-300 text-right">
+                      <td colSpan={6} className="p-2.5 text-slate-700 dark:text-slate-300 text-right">
                         Shipment Batch Summary Totals:
                       </td>
                       <td className="p-2.5 text-right font-mono text-emerald-600 dark:text-emerald-400 font-extrabold text-sm">
                         +{(Array.isArray(queue) ? queue : []).reduce((sum, q) => sum + (q?.addQty || 0), 0)} Units
+                      </td>
+                      <td className="p-2.5 text-right font-mono text-teal-600 dark:text-teal-400 font-extrabold text-sm">
+                        R {(Array.isArray(queue) ? queue : []).reduce((sum, q) => sum + ((q?.addQty || 0) * (q?.unitPrice || 0)), 0).toFixed(2)}
                       </td>
                       <td colSpan={2}></td>
                     </tr>
@@ -687,22 +741,33 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
       {/* MODE 2: INTERACTIVE BULK STOCK GRID ENTRY */}
       {deliveryMode === 'bulkGrid' && (
         <div className="space-y-4">
-          <div className="p-3 bg-slate-100 dark:bg-slate-900 rounded-xl border border-slate-300 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex-1 min-w-[240px]">
+          <div className="p-3 bg-slate-100 dark:bg-slate-900 rounded-xl border border-slate-300 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
               <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Supplier <span className="text-rose-500 font-bold">*</span>
+                Batch Supplier <span className="text-rose-500 font-bold">*</span>
               </label>
               <input
                 type="text"
                 required
                 value={gridSupplier}
                 onChange={(e) => setGridSupplier(e.target.value)}
-                placeholder="Enter supplier name"
+                placeholder="Enter supplier name for this delivery batch"
                 className="w-full px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-900 dark:text-slate-100"
               />
             </div>
-            <div className="text-xs text-slate-500 dark:text-slate-400 max-w-sm">
-              This vendor will be recorded as the delivery supplier for modified items, unless overridden in a specific row below.
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Batch Default Unit Price (R)
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="e.g. 25.00 (optional default for modified rows)"
+                value={gridUnitPrice}
+                onChange={(e) => setGridUnitPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                className="w-full px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono font-semibold text-slate-900 dark:text-slate-100"
+              />
             </div>
           </div>
 
@@ -723,6 +788,7 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
                 onClick={() => {
                   setGridQuantities({});
                   setGridItemSuppliers({});
+                  setGridItemUnitPrices({});
                 }}
                 className="px-3 py-1.5 bg-rose-950/80 hover:bg-rose-900 border border-rose-800 text-rose-300 rounded-xl text-xs font-semibold transition cursor-pointer"
               >
@@ -738,11 +804,15 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
                   <th className="p-2.5 border-r border-slate-200 dark:border-slate-700">Stock Code</th>
                   <th className="p-2.5 border-r border-slate-200 dark:border-slate-700">Item Description</th>
                   <th className="p-2.5 border-r border-slate-200 dark:border-slate-700">Category</th>
-                  <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 w-44">
+                  <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 w-36">
                     Supplier (Provenance) <span className="text-rose-500 font-bold">*</span>
                   </th>
+                  <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-right w-24">
+                    Unit Price (R)
+                  </th>
                   <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-right">Current Stock</th>
-                  <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-center w-36">Delivered Qty (+)</th>
+                  <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-center w-28">Delivered Qty (+)</th>
+                  <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-right font-bold w-24">Line Cost (R)</th>
                   <th className="p-2.5 text-right font-bold">Projected Total</th>
                 </tr>
               </thead>
@@ -751,6 +821,14 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
                   const enteredQty = gridQuantities[item.ItemID] || 0;
                   const isModified = enteredQty > 0;
                   const itemSpecificSupplier = gridItemSuppliers[item.ItemID];
+                  const itemSpecificPrice = gridItemUnitPrices[item.ItemID];
+                  const effectiveUnitPrice =
+                    itemSpecificPrice !== undefined && itemSpecificPrice !== ''
+                      ? Number(itemSpecificPrice)
+                      : gridUnitPrice !== ''
+                      ? Number(gridUnitPrice)
+                      : item.UnitPrice || 0;
+                  const lineCost = enteredQty * effectiveUnitPrice;
 
                   return (
                     <tr
@@ -785,6 +863,20 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
                           }`}
                         />
                       </td>
+                      <td className="p-1.5 border-r border-slate-200 dark:border-slate-800 text-right">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder={item.UnitPrice ? item.UnitPrice.toFixed(2) : (gridUnitPrice !== '' ? Number(gridUnitPrice).toFixed(2) : '0.00')}
+                          value={itemSpecificPrice !== undefined ? itemSpecificPrice : ''}
+                          onChange={(e) => {
+                            const val = e.target.value === '' ? '' : Number(e.target.value);
+                            setGridItemUnitPrices((prev) => ({ ...prev, [item.ItemID]: val }));
+                          }}
+                          className="w-20 px-1.5 py-1 text-right rounded border font-mono text-xs bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:ring-1 focus:ring-blue-500"
+                        />
+                      </td>
                       <td className="p-2.5 text-right font-mono text-slate-500 border-r border-slate-200 dark:border-slate-800">
                         {item.Qty} {item.Unit}
                       </td>
@@ -795,12 +887,15 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
                           placeholder="0"
                           value={enteredQty === 0 ? '' : enteredQty}
                           onChange={(e) => handleGridQtyChange(item.ItemID, e.target.value)}
-                          className={`w-24 px-2 py-1 text-center rounded border font-mono font-bold text-xs ${
+                          className={`w-20 px-2 py-1 text-center rounded border font-mono font-bold text-xs ${
                             isModified
                               ? 'bg-emerald-950 border-emerald-500 text-emerald-300 ring-1 ring-emerald-500'
                               : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100'
                           }`}
                         />
+                      </td>
+                      <td className="p-2.5 text-right font-mono font-bold text-teal-600 dark:text-teal-400 border-r border-slate-200 dark:border-slate-800 whitespace-nowrap">
+                        {isModified ? `R ${lineCost.toFixed(2)}` : '—'}
                       </td>
                       <td className="p-2.5 text-right font-mono font-bold text-slate-900 dark:text-slate-100">
                         {item.Qty + enteredQty} {item.Unit}
@@ -814,7 +909,11 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
 
           <div className="flex items-center justify-between pt-2">
             <div className="text-xs font-mono text-slate-600 dark:text-slate-400">
-              Bulk Grid Status: <strong className="text-emerald-500">{activeGridEntries.length} items modified</strong> ({totalGridUnits} total incoming units)
+              Bulk Grid Status: <strong className="text-emerald-500">{activeGridEntries.length} items modified</strong> ({totalGridUnits} total incoming units | Est. Total: <strong className="text-teal-600 dark:text-teal-400">R {activeGridEntries.reduce((sum, [id, qty]) => {
+                const itemSpecificPrice = gridItemUnitPrices[id];
+                const p = itemSpecificPrice !== undefined && itemSpecificPrice !== '' ? Number(itemSpecificPrice) : (gridUnitPrice !== '' ? Number(gridUnitPrice) : (stockItems.find((s) => s.ItemID === id)?.UnitPrice || 0));
+                return sum + (Number(qty) * p);
+              }, 0).toFixed(2)}</strong>)
             </div>
 
             <button
@@ -852,6 +951,12 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
               selectedItemId={singleItemId}
               onSelectItem={(item) => {
                 setSingleItemId(item.ItemID);
+                if (item.LastSupplier && !singleSupplier) {
+                  setSingleSupplier(item.LastSupplier);
+                }
+                if (item.UnitPrice !== undefined) {
+                  setSingleUnitPrice(item.UnitPrice);
+                }
               }}
               placeholder="-- Select item from Master_Stock drop-up list --"
               direction="up"

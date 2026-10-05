@@ -1,5 +1,7 @@
 export type ItemCategory = 'Stationery' | 'Cleaning' | 'General';
 
+export type CurrencyCode = 'USD' | 'ZWG';
+
 export interface StockItem {
   ItemID: string;
   ItemName: string;
@@ -8,6 +10,7 @@ export interface StockItem {
   ReorderLevel: number;
   Unit: string;
   UnitPrice?: number;
+  Currency?: CurrencyCode;
   Location?: string;
   UpdatedAt?: string;
   Version?: number;
@@ -55,6 +58,8 @@ export interface MovementLogEntry {
   NewQty?: number;
   UpdatedAt?: string;
   ClientId?: string;
+  UnitPrice?: number;
+  Currency?: CurrencyCode;
 }
 
 export interface AdminUser {
@@ -130,6 +135,10 @@ export interface ReceivedDocument {
     Unit?: string;
     SupplierName?: string;
     Supplier?: string;
+    UnitPrice?: number;
+    unitPrice?: number;
+    Currency?: CurrencyCode;
+    currency?: CurrencyCode;
   }[];
   pdfFileName: string;
   folderPath: string;

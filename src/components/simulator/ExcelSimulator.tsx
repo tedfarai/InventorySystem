@@ -43,6 +43,7 @@ import {
   ChevronRight,
   Calendar,
   Truck,
+  Trash2,
 } from 'lucide-react';
 import {
   StockItem,
@@ -107,8 +108,8 @@ interface ExcelSimulatorProps {
   onGrantTimedAccess?: (requestId: string, durationMinutes: number, adminNotes: string) => void;
   onRevokeTimedAccess?: (requestId: string) => void;
   onRejectRequest?: (requestId: string, adminNotes: string) => void;
-  onSaveDelivery: (itemId: string, addQty: number, deliveryNoteRef?: string, supplier?: string) => Promise<ReceivedDocument | void> | ReceivedDocument | void;
-  onSaveBulkDeliveries?: (deliveries: { itemId: string; addQty: number; supplier?: string }[], deliveryNoteRef?: string, defaultSupplier?: string) => Promise<ReceivedDocument | void> | ReceivedDocument | void;
+  onSaveDelivery: (itemId: string, addQty: number, deliveryNoteRef?: string, supplier?: string, unitPrice?: number) => Promise<ReceivedDocument | void> | ReceivedDocument | void;
+  onSaveBulkDeliveries?: (deliveries: { itemId: string; addQty: number; supplier?: string; unitPrice?: number }[], deliveryNoteRef?: string, defaultSupplier?: string) => Promise<ReceivedDocument | void> | ReceivedDocument | void;
   onSaveAdjustment?: (adjData: {
     itemId: string;
     physicalQty: number;
@@ -775,10 +776,21 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
 
   // Multi-Select & Bulk Operations State
   const [selectedStockItemIds, setSelectedStockItemIds] = useState<string[]>([]);
+  const [activeRowId, setActiveRowId] = useState<string | null>(null);
   const [showBatchUpdateModal, setShowBatchUpdateModal] = useState(false);
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [showBulkDeliveryConfirmModal, setShowBulkDeliveryConfirmModal] = useState(false);
   const [bulkDeliveryReviewItems, setBulkDeliveryReviewItems] = useState<BulkDeliveryReviewItem[]>([]);
+
+  // Handle clicking row: toggle active state, toggle expand, and scroll into view if needed
+  const handleRowClick = (itemId: string, e: React.MouseEvent<HTMLTableRowElement>) => {
+    setActiveRowId((prev) => (prev === itemId ? null : itemId));
+    handleToggleExpandRow(itemId);
+    const rowEl = e.currentTarget;
+    if (rowEl) {
+      rowEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  };
 
   // Selection Helper Calculations
   const selectedStockItems = safeStockItems.filter((i) => selectedStockItemIds.includes(i.ItemID));
@@ -838,6 +850,8 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
       currentQty: i.Qty,
       addQty: i.Qty <= i.ReorderLevel ? Math.max(10, (i.ReorderLevel * 2) - i.Qty) : 10,
       unit: i.Unit,
+      supplier: i.LastSupplier || i.SupplierName || '',
+      unitPrice: i.UnitPrice || undefined,
     }));
     setBulkDeliveryReviewItems(deliveryItems);
     setShowBulkDeliveryConfirmModal(true);
@@ -853,7 +867,12 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
     if (onSaveBulkDeliveries) {
       try {
         const bulkDoc = await onSaveBulkDeliveries(
-          deliveriesToSave.map((d) => ({ itemId: d.itemId, addQty: d.addQty, supplier: d.supplier || batchSupplier })),
+          deliveriesToSave.map((d) => ({
+            itemId: d.itemId,
+            addQty: d.addQty,
+            supplier: d.supplier || batchSupplier,
+            unitPrice: d.unitPrice,
+          })),
           deliveryNoteRef,
           batchSupplier
         );
@@ -866,7 +885,13 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
     } else if (onSaveDelivery) {
       for (const d of deliveriesToSave) {
         try {
-          const doc = await onSaveDelivery(d.itemId, d.addQty, deliveryNoteRef, d.supplier || batchSupplier);
+          const doc = await onSaveDelivery(
+            d.itemId,
+            d.addQty,
+            deliveryNoteRef,
+            d.supplier || batchSupplier,
+            d.unitPrice
+          );
           if (doc) resDoc = doc;
         } catch (err) {
           console.error('Error in delivery save:', err);
@@ -893,6 +918,10 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
           Category: d.category,
           Qty: d.addQty,
           Unit: d.unit,
+          SupplierName: d.supplier || batchSupplier,
+          Supplier: d.supplier || batchSupplier,
+          UnitPrice: d.unitPrice,
+          unitPrice: d.unitPrice,
         })),
         pdfFileName,
         folderPath: `${masterFolderPath}\\Received_Items\\`,
@@ -1027,6 +1056,25 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
       return;
     }
     setShowBulkDeleteModal(true);
+  };
+
+  const handleSingleDelete = (item: StockItem, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!currentUser) {
+      if (onOpenLogin) onOpenLogin();
+      else setActiveModal('login');
+      return;
+    }
+    if (!isSuperiorAdmin) {
+      showToast('Access Restricted', 'error', 'Stock deletion is strictly restricted to Superior Admin ADM001 Rachel Pickard.');
+      return;
+    }
+    if (window.confirm(`Permanently delete stock item ${item.ItemID} ("${item.ItemName}") from Master_Stock?\n\nThis will remove the item record from the active inventory database.`)) {
+      if (onDeleteStockItem) {
+        onDeleteStockItem(item.ItemID);
+        showToast('Stock Item Deleted', 'info', `Item ${item.ItemID} was permanently removed`);
+      }
+    }
   };
 
   const handleConfirmBulkDelete = () => {
@@ -1323,9 +1371,9 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
             }}
           >
             <table id="stock-management-table" className="w-full text-[11px] text-left border-collapse font-sans">
-              <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-mono text-[10px] uppercase border-b-2 border-slate-300 dark:border-slate-700 shadow-xs select-none">
+              <thead className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-mono text-[10px] uppercase border-b-2 border-slate-300 dark:border-slate-700 shadow-xs select-none">
                 <tr>
-                  <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-2 w-10 border-r border-slate-300 dark:border-slate-700 text-center shadow-xs">
+                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 p-2 w-10 border-r border-slate-300 dark:border-slate-700 text-center shadow-xs">
                     <input
                       id="stock-table-master-checkbox"
                       type="checkbox"
@@ -1338,16 +1386,16 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                       title={isAllVisibleSelected ? 'Deselect all visible' : 'Select all visible'}
                     />
                   </th>
-                  <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-2 border-r border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 font-bold shadow-xs">Row</th>
-                  <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-2 border-r border-slate-300 dark:border-slate-700 font-bold shadow-xs">ItemID (Col A)</th>
-                  <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-2 border-r border-slate-300 dark:border-slate-700 font-bold shadow-xs">ItemName (Col B)</th>
-                  <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-2 border-r border-slate-300 dark:border-slate-700 font-bold shadow-xs">Category (Col C)</th>
-                  <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-2 border-r border-slate-300 dark:border-slate-700 text-right font-bold shadow-xs">
+                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 p-2 border-r border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 font-bold shadow-xs">Row</th>
+                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 p-2 border-r border-slate-300 dark:border-slate-700 font-bold shadow-xs">ItemID (Col A)</th>
+                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 p-2 border-r border-slate-300 dark:border-slate-700 font-bold shadow-xs">ItemName (Col B)</th>
+                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 p-2 border-r border-slate-300 dark:border-slate-700 font-bold shadow-xs">Category (Col C)</th>
+                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 p-2 border-r border-slate-300 dark:border-slate-700 text-right font-bold shadow-xs">
                     Available Qty (Col D)
                   </th>
-                  <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-2 border-r border-slate-300 dark:border-slate-700 text-right font-bold shadow-xs">Reorder Level (Col E)</th>
-                  <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-2 text-center font-bold shadow-xs">Stock Status</th>
-                  <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 p-2 border-l border-slate-300 dark:border-slate-700 text-center font-bold shadow-xs whitespace-nowrap">
+                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 p-2 border-r border-slate-300 dark:border-slate-700 text-right font-bold shadow-xs">Reorder Level (Col E)</th>
+                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 p-2 text-center font-bold shadow-xs">Stock Status</th>
+                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 p-2 border-l border-slate-300 dark:border-slate-700 text-center font-bold shadow-xs whitespace-nowrap">
                     Actions {!currentUser && <span className="text-[9px] text-amber-600 dark:text-amber-400 font-normal font-sans">(Read-Only)</span>}
                   </th>
                 </tr>
@@ -1381,6 +1429,8 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                 ) : (
                   filteredStock.map((item, idx) => {
                     const isSelected = selectedStockItemIds.includes(item.ItemID);
+                    const isCurrentActive = activeRowId === item.ItemID;
+                    const isRowActiveOrSelected = isCurrentActive || isSelected;
                     const isExpanded = expandedRowIds.has(item.ItemID);
                     const isOutOfStock = item.Qty === 0;
                     const isCritical = item.Qty > 0 && item.Qty <= item.ReorderLevel * 0.5;
@@ -1391,15 +1441,29 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                         <React.Fragment key={item.ItemID}>
                           <motion.tr
                             key={item.ItemID}
-                            layout
-                            whileHover={{ scale: 1.006 }}
+                            layout={!isRowActiveOrSelected}
+                            whileHover={isRowActiveOrSelected ? undefined : { scale: 1.006 }}
                             transition={{ type: 'spring', stiffness: 450, damping: 28 }}
-                            onClick={() => handleToggleExpandRow(item.ItemID)}
+                            onClick={(e) => handleRowClick(item.ItemID, e)}
                             onContextMenu={(e) => handleRowContextMenu(e, item)}
-                            title="Click row to expand/collapse secondary details. Right-click for Quick Actions."
-                            className={`stock-table-row cursor-pointer transition-all duration-150 group border-b border-slate-300 dark:border-slate-700 hover:shadow-md hover:shadow-slate-300/60 dark:hover:shadow-black/70 hover:z-20 relative origin-center ${
+                            tabIndex={0}
+                            onKeyDown={(e) => {
+                              if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+                                e.preventDefault();
+                                handleRowClick(item.ItemID, e as any);
+                              }
+                            }}
+                            title="Click or press Enter on row to set active & expand/collapse details. Tab to navigate Quick Actions."
+                            aria-label={`Stock row ${item.ItemID} - ${item.ItemName}`}
+                            data-active={isCurrentActive ? 'true' : undefined}
+                            data-selected={isSelected ? 'true' : undefined}
+                            className={`stock-table-row cursor-pointer transition-all duration-150 group border-b border-slate-300 dark:border-slate-700 relative origin-center overflow-visible focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-inset ${
+                              isRowActiveOrSelected ? 'is-active is-selected' : ''
+                            } ${
                               isSelected
                                 ? 'bg-purple-50/95 dark:bg-purple-950/50 border-l-4 border-l-purple-600 dark:border-l-purple-400 font-medium'
+                                : isCurrentActive
+                                ? 'bg-emerald-50/95 dark:bg-emerald-950/70 border-l-4 border-l-emerald-600 dark:border-l-emerald-400 font-medium'
                                 : isExpanded
                                 ? 'bg-slate-50 dark:bg-slate-800/70 border-l-4 border-l-teal-600 dark:border-l-teal-400'
                                 : 'bg-white dark:bg-slate-900 hover:bg-slate-50/90 dark:hover:bg-slate-800/90'
@@ -1533,30 +1597,95 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                               )}
                             </td>
                             <td
-                              className="py-1.5 px-2 border-l border-slate-300 dark:border-slate-700 text-center whitespace-nowrap"
+                              className="py-1 px-2 border-l border-slate-300 dark:border-slate-700 text-center whitespace-nowrap overflow-visible"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <div className="flex items-center justify-center gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => handleQuickEditFromContext(item)}
-                                  title={!currentUser ? 'Log in to edit stock item' : 'Edit Stock Item'}
-                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-md text-[10px] font-semibold border border-slate-300 dark:border-slate-600 transition cursor-pointer"
+                              <div className="flex items-center justify-center gap-1.5 overflow-visible">
+                                {/* Hidden 'Quick Action' menu (Edit/Delete icons) that appears when hovering, focusing, or selecting the row */}
+                                <div
+                                  data-quick-actions="true"
+                                  className="row-quick-actions quick-action-menu flex items-center gap-1 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xs p-0.5 rounded-lg border border-slate-300/80 dark:border-slate-700/80 shadow-xs overflow-visible"
                                 >
-                                  {!currentUser ? (
-                                    <Lock className="w-3 h-3 text-amber-500" />
-                                  ) : (
-                                    <Edit3 className="w-3 h-3 text-blue-600 dark:text-blue-400" />
-                                  )}
-                                  <span>Edit</span>
-                                </button>
+                                  {/* Quick Edit Icon */}
+                                  <button
+                                    type="button"
+                                    tabIndex={0}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleQuickEditFromContext(item);
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        handleQuickEditFromContext(item);
+                                      }
+                                    }}
+                                    title={!currentUser ? 'Log in to edit stock item' : `Edit Stock Item ${item.ItemID}`}
+                                    aria-label={!currentUser ? 'Log in to edit stock item' : `Edit Stock Item ${item.ItemID}`}
+                                    className="quick-action-item quick-action-btn inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-50 dark:bg-blue-950/70 hover:bg-blue-100 dark:hover:bg-blue-900/70 text-blue-700 dark:text-blue-300 rounded text-[10px] font-bold border border-blue-200 dark:border-blue-800 transition cursor-pointer shadow-2xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500"
+                                  >
+                                    {!currentUser ? (
+                                      <Lock className="w-3 h-3 text-amber-500" />
+                                    ) : (
+                                      <Edit3 className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                                    )}
+                                    <span>Edit</span>
+                                  </button>
 
+                                  {/* Quick Delete Icon */}
+                                  <button
+                                    type="button"
+                                    tabIndex={0}
+                                    onClick={(e) => handleSingleDelete(item, e)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        handleSingleDelete(item, e as any);
+                                      }
+                                    }}
+                                    title={
+                                      !currentUser
+                                        ? 'Log in to delete stock item'
+                                        : !isSuperiorAdmin
+                                        ? 'Deletion restricted to Superior Admin ADM001 Rachel Pickard'
+                                        : `Permanently delete stock item ${item.ItemID}`
+                                    }
+                                    aria-label={
+                                      !currentUser
+                                        ? 'Log in to delete stock item'
+                                        : !isSuperiorAdmin
+                                        ? 'Deletion restricted to Superior Admin ADM001 Rachel Pickard'
+                                        : `Permanently delete stock item ${item.ItemID}`
+                                    }
+                                    className={`quick-action-item quick-action-btn inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border transition cursor-pointer shadow-2xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-rose-500 ${
+                                      !isSuperiorAdmin
+                                        ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700 hover:text-slate-600'
+                                        : 'bg-rose-50 dark:bg-rose-950/70 hover:bg-rose-100 dark:hover:bg-rose-900/70 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800'
+                                    }`}
+                                  >
+                                    <Trash2 className="w-3 h-3 text-rose-600 dark:text-rose-400" />
+                                    <span>Delete</span>
+                                  </button>
+                                </div>
+
+                                {/* Standard Workflow Actions: Quick Issue & Adjustment */}
                                 <button
                                   type="button"
+                                  tabIndex={0}
                                   onClick={() => handleQuickIssueFromContext([item])}
+                                  onKeyDown={(e) => {
+                                    if ((e.key === 'Enter' || e.key === ' ') && item.Qty > 0) {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      handleQuickIssueFromContext([item]);
+                                    }
+                                  }}
                                   disabled={item.Qty <= 0}
                                   title={!currentUser ? 'Log in to issue stock' : item.Qty <= 0 ? 'Cannot issue: Stock is 0' : 'Issue Stock Requisition'}
-                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 disabled:opacity-40 disabled:cursor-not-allowed text-emerald-700 dark:text-emerald-300 rounded-md text-[10px] font-semibold border border-emerald-300 dark:border-emerald-700 transition cursor-pointer"
+                                  aria-label={!currentUser ? 'Log in to issue stock' : item.Qty <= 0 ? 'Cannot issue: Stock is 0' : `Issue Stock Requisition for ${item.ItemID}`}
+                                  className="workflow-preview-btn inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 disabled:opacity-40 disabled:cursor-not-allowed text-emerald-700 dark:text-emerald-300 rounded text-[10px] font-semibold border border-emerald-300 dark:border-emerald-700 hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all cursor-pointer shadow-2xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-emerald-500"
                                 >
                                   {!currentUser ? (
                                     <Lock className="w-3 h-3 text-amber-500" />
@@ -1568,9 +1697,18 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
 
                                 <button
                                   type="button"
+                                  tabIndex={0}
                                   onClick={() => handleQuickAdjustFromContext(item)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      handleQuickAdjustFromContext(item);
+                                    }
+                                  }}
                                   title={!currentUser ? 'Log in to adjust stock count' : 'Stock Count Adjustment & Reconcile'}
-                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 rounded-md text-[10px] font-semibold border border-purple-300 dark:border-purple-700 transition cursor-pointer"
+                                  aria-label={!currentUser ? 'Log in to adjust stock count' : `Stock Count Adjustment and Reconcile for ${item.ItemID}`}
+                                  className="workflow-preview-btn inline-flex items-center gap-1 px-1.5 py-0.5 bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 rounded text-[10px] font-semibold border border-purple-300 dark:border-purple-700 hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all cursor-pointer shadow-2xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-purple-500"
                                 >
                                   {!currentUser ? (
                                     <Lock className="w-3 h-3 text-amber-500" />
@@ -2005,9 +2143,17 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                               onClick={() => handleToggleSelectRow(item.ItemID)}
                               onContextMenu={(e) => handleRowContextMenu(e, item)}
                               title="Right-click for Quick Actions (Receive, Issue, Edit, Adjust, Export)"
-                              className={`stock-table-row cursor-pointer transition-colors duration-150 group border-b border-slate-200/70 dark:border-slate-800/70 ${
+                              data-selected={isSelected ? 'true' : undefined}
+                              tabIndex={0}
+                              onKeyDown={(e) => {
+                                if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+                                  e.preventDefault();
+                                  handleToggleSelectRow(item.ItemID);
+                                }
+                              }}
+                              className={`stock-table-row cursor-pointer transition-colors duration-150 group border-b border-slate-200/70 dark:border-slate-800/70 overflow-visible focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-inset ${
                                 isSelected
-                                  ? 'bg-purple-50/90 dark:bg-purple-950/40 border-l-4 border-l-purple-600 dark:border-l-purple-400 font-medium'
+                                  ? 'is-selected is-active bg-purple-50/90 dark:bg-purple-950/40 border-l-4 border-l-purple-600 dark:border-l-purple-400 font-medium'
                                   : 'bg-white dark:bg-slate-900 hover:bg-slate-50/80 dark:hover:bg-slate-800/50'
                               }`}
                             >

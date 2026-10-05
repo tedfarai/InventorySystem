@@ -11,8 +11,11 @@ import {
   AlertCircle,
   Sparkles,
   Edit3,
+  DollarSign,
 } from 'lucide-react';
+import { CurrencyCode } from '../../types';
 import { DraggableResizableModal } from '../common/DraggableResizableModal';
+import { formatCurrency, collateDualCurrencyValuation, getExchangeRate } from '../../utils/currencyUtils';
 
 export interface BulkDeliveryReviewItem {
   itemId: string;
@@ -23,6 +26,7 @@ export interface BulkDeliveryReviewItem {
   unit: string;
   supplier?: string;
   unitPrice?: number;
+  currency?: CurrencyCode;
 }
 
 interface BulkDeliveryConfirmationModalProps {
@@ -74,6 +78,7 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
   const safeItemsList = Array.isArray(itemsList) ? itemsList : [];
   const totalItemsCount = safeItemsList.length;
   const totalUnits = safeItemsList.reduce((sum, item) => sum + (item?.addQty || 0), 0);
+  const totalBatchValue = safeItemsList.reduce((sum, item) => sum + ((item?.addQty || 0) * (item?.unitPrice || 0)), 0);
   const stationeryCount = safeItemsList.filter((i) => i?.category === 'Stationery').length;
   const cleaningCount = safeItemsList.filter((i) => i?.category === 'Cleaning').length;
 
@@ -85,6 +90,15 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
     const newQty = isNaN(num) || num < 0 ? 0 : num;
     setItemsList((prev) =>
       prev.map((item) => (item.itemId === itemId ? { ...item, addQty: newQty } : item))
+    );
+  };
+
+  // Handle unit price change in Step 1
+  const handleUnitPriceChange = (itemId: string, val: string) => {
+    const num = parseFloat(val);
+    const newPrice = isNaN(num) || num < 0 ? undefined : num;
+    setItemsList((prev) =>
+      prev.map((item) => (item.itemId === itemId ? { ...item, unitPrice: newPrice } : item))
     );
   };
 
@@ -213,25 +227,32 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
               </div>
 
               {/* Summary Cards */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
                   <div className="text-[10px] font-semibold text-slate-500 uppercase">Stock Items</div>
-                  <div className="text-xl font-extrabold text-blue-600 dark:text-blue-400 font-mono mt-0.5">
+                  <div className="text-lg font-extrabold text-blue-600 dark:text-blue-400 font-mono mt-0.5">
                     {totalItemsCount} <span className="text-xs font-normal text-slate-400">lines</span>
                   </div>
                 </div>
 
-                <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
+                <div className="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
                   <div className="text-[10px] font-semibold text-slate-500 uppercase">Total Units</div>
-                  <div className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400 font-mono mt-0.5">
+                  <div className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400 font-mono mt-0.5">
                     +{totalUnits} <span className="text-xs font-normal text-slate-400">units</span>
                   </div>
                 </div>
 
-                <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
+                <div className="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <div className="text-[10px] font-semibold text-slate-500 uppercase">Total Cost (Est)</div>
+                  <div className="text-lg font-extrabold text-teal-600 dark:text-teal-400 font-mono mt-0.5 truncate" title={`R ${totalBatchValue.toFixed(2)}`}>
+                    R {totalBatchValue.toFixed(2)}
+                  </div>
+                </div>
+
+                <div className="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
                   <div className="text-[10px] font-semibold text-slate-500 uppercase">Categories</div>
-                  <div className="text-xs font-bold text-slate-700 dark:text-slate-300 mt-1">
-                    Stationery: {stationeryCount} | Cleaning: {cleaningCount}
+                  <div className="text-xs font-bold text-slate-700 dark:text-slate-300 mt-1 truncate">
+                    Stat: {stationeryCount} | Clean: {cleaningCount}
                   </div>
                 </div>
               </div>
@@ -241,7 +262,7 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                     <ListPlus className="w-4 h-4 text-blue-500" />
-                    Delivery Shipment Manifest (Adjust Quantities or Delete Items)
+                    Delivery Shipment Manifest (Adjust Quantities, Unit Prices, or Delete Items)
                   </h4>
                   <span className="text-[11px] text-slate-500 font-mono">
                     Target Table: Master_Stock
@@ -266,60 +287,84 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
                           <th className="p-2.5 border-r border-slate-200 dark:border-slate-700">Code</th>
                           <th className="p-2.5 border-r border-slate-200 dark:border-slate-700">Description</th>
                           <th className="p-2.5 border-r border-slate-200 dark:border-slate-700">Supplier</th>
+                          <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-right w-24">
+                            Unit Price (R)
+                          </th>
                           <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-right">Current</th>
-                          <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-center text-emerald-600 dark:text-emerald-400 font-bold w-28">
+                          <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-center text-emerald-600 dark:text-emerald-400 font-bold w-24">
                             Incoming (+)
                           </th>
+                          <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-right font-bold w-24">
+                            Line Total (R)
+                          </th>
                           <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-right font-bold">New Total</th>
-                          <th className="p-2.5 text-center w-16">Delete</th>
+                          <th className="p-2.5 text-center w-14">Delete</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-800 dark:text-slate-200 font-sans">
-                        {itemsList.map((item) => (
-                          <tr key={item.itemId} className="hover:bg-slate-50 dark:hover:bg-slate-800/60">
-                            <td className="p-2.5 font-mono font-bold text-blue-600 dark:text-blue-400 border-r border-slate-200 dark:border-slate-800">
-                              {item.itemId}
-                            </td>
-                            <td className="p-2.5 font-medium border-r border-slate-200 dark:border-slate-800">
-                              {item.itemName}
-                              <span className="block text-[10px] text-slate-400">{item.category}</span>
-                            </td>
-                            <td className="p-2.5 border-r border-slate-200 dark:border-slate-800">
-                              <input
-                                type="text"
-                                value={item.supplier || vendorSupplier}
-                                onChange={(e) => handleSupplierChange(item.itemId, e.target.value)}
-                                placeholder="Supplier name"
-                                className="w-28 px-1.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-xs text-slate-900 dark:text-slate-100 font-medium focus:ring-1 focus:ring-blue-500"
-                              />
-                            </td>
-                            <td className="p-2.5 text-right font-mono text-slate-500 border-r border-slate-200 dark:border-slate-800">
-                              {item.currentQty} {item.unit}
-                            </td>
-                            <td className="p-2.5 text-center border-r border-slate-200 dark:border-slate-800">
-                              <input
-                                type="number"
-                                min="1"
-                                value={item.addQty}
-                                onChange={(e) => handleQtyChange(item.itemId, e.target.value)}
-                                className="w-20 px-2 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-right font-mono font-bold text-emerald-600 dark:text-emerald-400 focus:ring-1 focus:ring-blue-500 focus:bg-white dark:focus:bg-slate-900"
-                              />
-                            </td>
-                            <td className="p-2.5 text-right font-mono font-bold text-slate-900 dark:text-slate-100 border-r border-slate-200 dark:border-slate-800">
-                              {item.currentQty + item.addQty} {item.unit}
-                            </td>
-                            <td className="p-2.5 text-center">
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteItem(item.itemId)}
-                                className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded transition cursor-pointer"
-                                title="Remove item from delivery shipment"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
+                        {itemsList.map((item) => {
+                          const unitPriceVal = item.unitPrice !== undefined ? item.unitPrice : 0;
+                          const lineTotal = (item.addQty || 0) * unitPriceVal;
+                          return (
+                            <tr key={item.itemId} className="hover:bg-slate-50 dark:hover:bg-slate-800/60">
+                              <td className="p-2.5 font-mono font-bold text-blue-600 dark:text-blue-400 border-r border-slate-200 dark:border-slate-800">
+                                {item.itemId}
+                              </td>
+                              <td className="p-2.5 font-medium border-r border-slate-200 dark:border-slate-800">
+                                {item.itemName}
+                                <span className="block text-[10px] text-slate-400">{item.category}</span>
+                              </td>
+                              <td className="p-2 border-r border-slate-200 dark:border-slate-800">
+                                <input
+                                  type="text"
+                                  value={item.supplier || vendorSupplier}
+                                  onChange={(e) => handleSupplierChange(item.itemId, e.target.value)}
+                                  placeholder="Supplier name"
+                                  className="w-24 px-1.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-xs text-slate-900 dark:text-slate-100 font-medium focus:ring-1 focus:ring-blue-500"
+                                />
+                              </td>
+                              <td className="p-2 border-r border-slate-200 dark:border-slate-800 text-right">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  placeholder="0.00"
+                                  value={item.unitPrice !== undefined ? item.unitPrice : ''}
+                                  onChange={(e) => handleUnitPriceChange(item.itemId, e.target.value)}
+                                  className="w-20 px-1.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-right font-mono text-xs text-slate-900 dark:text-slate-100 focus:ring-1 focus:ring-blue-500"
+                                />
+                              </td>
+                              <td className="p-2.5 text-right font-mono text-slate-500 border-r border-slate-200 dark:border-slate-800">
+                                {item.currentQty} {item.unit}
+                              </td>
+                              <td className="p-2 text-center border-r border-slate-200 dark:border-slate-800">
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={item.addQty}
+                                  onChange={(e) => handleQtyChange(item.itemId, e.target.value)}
+                                  className="w-20 px-2 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-right font-mono font-bold text-emerald-600 dark:text-emerald-400 focus:ring-1 focus:ring-blue-500 focus:bg-white dark:focus:bg-slate-900"
+                                />
+                              </td>
+                              <td className="p-2.5 text-right font-mono text-teal-600 dark:text-teal-400 font-bold border-r border-slate-200 dark:border-slate-800 whitespace-nowrap">
+                                R {lineTotal.toFixed(2)}
+                              </td>
+                              <td className="p-2.5 text-right font-mono font-bold text-slate-900 dark:text-slate-100 border-r border-slate-200 dark:border-slate-800 whitespace-nowrap">
+                                {item.currentQty + item.addQty} {item.unit}
+                              </td>
+                              <td className="p-2.5 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteItem(item.itemId)}
+                                  className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded transition cursor-pointer"
+                                  title="Remove item from delivery shipment"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

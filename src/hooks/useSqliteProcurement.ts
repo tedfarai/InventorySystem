@@ -597,7 +597,8 @@ export function useSqliteProcurement() {
     addQty: number,
     deliveryNoteRef?: string,
     supplier?: string,
-    unitPrice?: number
+    unitPrice?: number,
+    currency?: CurrencyCode
   ) => {
     const item = stockItems.find((i) => i.ItemID === itemId);
     if (!item) return;
@@ -607,6 +608,7 @@ export function useSqliteProcurement() {
     const dateOnly = nowStr.split(' ')[0];
     const finalSupplier = supplier || item.LastSupplier || undefined;
     const finalUnitPrice = unitPrice && unitPrice > 0 ? unitPrice : item.UnitPrice;
+    const finalCurrency = currency || item.Currency || 'USD';
     const timestampFile = new Date().toISOString().replace(/[-:]/g, '').replace(/T/, '_').substring(0, 15);
     const voucherNumber = deliveryNoteRef || `GRN-${Math.floor(100000 + Math.random() * 900000)}`;
     const pdfFileName = `GRN_Voucher_${voucherNumber}_${timestampFile}.pdf`;
@@ -632,6 +634,8 @@ export function useSqliteProcurement() {
           Unit: item.Unit,
           SupplierName: finalSupplier,
           Supplier: finalSupplier,
+          UnitPrice: finalUnitPrice,
+          Currency: finalCurrency,
         },
       ],
       pdfFileName,
@@ -640,7 +644,7 @@ export function useSqliteProcurement() {
     };
 
     const newLog: MovementLogEntry = {
-      id: `LOG-${Date.now()}`,
+      id: `LOG-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       Timestamp: nowStr,
       Type: 'DELIVERY',
       ItemID: item.ItemID,
@@ -656,6 +660,8 @@ export function useSqliteProcurement() {
       IssueSlipFileName: fullSavedPath,
       DocumentRef: voucherNumber,
       Status: 'Completed',
+      UnitPrice: finalUnitPrice,
+      Currency: finalCurrency,
     };
 
     // Optimistic UI updates
@@ -669,6 +675,7 @@ export function useSqliteProcurement() {
               LastSupplier: finalSupplier || s.SupplierName || s.LastSupplier,
               LastReceivedDate: dateOnly,
               UnitPrice: finalUnitPrice ?? s.UnitPrice,
+              Currency: finalCurrency,
             }
           : s
       )
@@ -678,9 +685,16 @@ export function useSqliteProcurement() {
 
     try {
       await sqliteBridge.updateStockQty(itemId, newQty, finalSupplier, dateOnly);
-      // Persist updated unit price if provided
+      // Persist updated unit price and currency if provided
       if (finalUnitPrice && finalUnitPrice > 0) {
-        const updatedItem = { ...item, Qty: newQty, LastSupplier: finalSupplier, LastReceivedDate: dateOnly, UnitPrice: finalUnitPrice };
+        const updatedItem = {
+          ...item,
+          Qty: newQty,
+          LastSupplier: finalSupplier,
+          LastReceivedDate: dateOnly,
+          UnitPrice: finalUnitPrice,
+          Currency: finalCurrency,
+        };
         await sqliteBridge.updateStockItem(updatedItem);
       }
       await sqliteBridge.addReceivedDoc(newReceivedDoc);
@@ -690,7 +704,7 @@ export function useSqliteProcurement() {
       // Multi-Client Real-time Write
       if (currentUser) {
         await realtimeSyncService.saveDeliveryTransaction({
-          stockUpdates: [{ ...item, Qty: newQty, LastSupplier: finalSupplier, LastReceivedDate: dateOnly }],
+          stockUpdates: [{ ...item, Qty: newQty, LastSupplier: finalSupplier, LastReceivedDate: dateOnly, UnitPrice: finalUnitPrice, Currency: finalCurrency }],
           receivedDoc: newReceivedDoc,
           movementLogs: [newLog],
           issuer: currentUser,
@@ -704,7 +718,7 @@ export function useSqliteProcurement() {
   };
 
   const handleSaveBulkDeliveries = async (
-    deliveries: { itemId: string; addQty: number; supplier?: string }[],
+    deliveries: { itemId: string; addQty: number; supplier?: string; unitPrice?: number; currency?: CurrencyCode }[],
     deliveryNoteRef?: string,
     defaultSupplier?: string
   ): Promise<ReceivedDocument | undefined> => {
@@ -733,6 +747,8 @@ export function useSqliteProcurement() {
       items: deliveries.map((d) => {
         const item = stockItems.find((s) => s.ItemID === d.itemId);
         const itemSupplier = d.supplier || mainSupplier;
+        const itemPrice = d.unitPrice && d.unitPrice > 0 ? d.unitPrice : item?.UnitPrice;
+        const itemCurrency = d.currency || item?.Currency || 'USD';
         return {
           ItemID: d.itemId,
           ItemName: item ? item.ItemName : d.itemId,
@@ -741,6 +757,8 @@ export function useSqliteProcurement() {
           Unit: item ? item.Unit : 'Units',
           SupplierName: itemSupplier,
           Supplier: itemSupplier,
+          UnitPrice: itemPrice,
+          Currency: itemCurrency,
         };
       }),
       pdfFileName,
@@ -751,8 +769,10 @@ export function useSqliteProcurement() {
     const newLogs: MovementLogEntry[] = deliveries.map((d, index) => {
       const item = stockItems.find((i) => i.ItemID === d.itemId);
       const itemSupplier = d.supplier || mainSupplier;
+      const itemPrice = d.unitPrice && d.unitPrice > 0 ? d.unitPrice : item?.UnitPrice;
+      const itemCurrency = d.currency || item?.Currency || 'USD';
       return {
-        id: `LOG-${Date.now()}-${index}`,
+        id: `LOG-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 7)}`,
         Timestamp: nowStr,
         Type: 'DELIVERY',
         ItemID: d.itemId,
@@ -768,6 +788,8 @@ export function useSqliteProcurement() {
         IssueSlipFileName: fullSavedPath,
         DocumentRef: voucherNumber,
         Status: 'Completed',
+        UnitPrice: itemPrice,
+        Currency: itemCurrency,
       };
     });
 
@@ -777,12 +799,16 @@ export function useSqliteProcurement() {
         const d = deliveries.find((del) => del.itemId === s.ItemID);
         if (d && d.addQty > 0) {
           const itemSupplier = d.supplier || mainSupplier;
+          const itemPrice = d.unitPrice && d.unitPrice > 0 ? d.unitPrice : s.UnitPrice;
+          const itemCurrency = d.currency || s.Currency || 'USD';
           return {
             ...s,
             Qty: s.Qty + d.addQty,
             SupplierName: itemSupplier || s.SupplierName || s.LastSupplier,
             LastSupplier: itemSupplier || s.SupplierName || s.LastSupplier,
             LastReceivedDate: dateOnly,
+            UnitPrice: itemPrice,
+            Currency: itemCurrency,
           };
         }
         return s;
@@ -798,7 +824,19 @@ export function useSqliteProcurement() {
         if (match && d.addQty > 0) {
           const updated = match.Qty + d.addQty;
           const itemSupplier = d.supplier || mainSupplier || match.LastSupplier;
+          const itemPrice = d.unitPrice && d.unitPrice > 0 ? d.unitPrice : match.UnitPrice;
+          const itemCurrency = d.currency || match.Currency || 'USD';
           await sqliteBridge.updateStockQty(d.itemId, updated, itemSupplier, dateOnly);
+          if (itemPrice && itemPrice > 0) {
+            await sqliteBridge.updateStockItem({
+              ...match,
+              Qty: updated,
+              LastSupplier: itemSupplier,
+              LastReceivedDate: dateOnly,
+              UnitPrice: itemPrice,
+              Currency: itemCurrency,
+            });
+          }
           stockUpdates.push({ itemId: d.itemId, newQty: updated });
         }
       }
@@ -812,7 +850,16 @@ export function useSqliteProcurement() {
           .map((d) => {
             const match = stockItems.find((s) => s.ItemID === d.itemId);
             const itemSupplier = d.supplier || mainSupplier || match?.LastSupplier;
-            return match ? { ...match, Qty: match.Qty + d.addQty, LastSupplier: itemSupplier, LastReceivedDate: dateOnly } : null;
+            const itemPrice = d.unitPrice && d.unitPrice > 0 ? d.unitPrice : match?.UnitPrice;
+            return match
+              ? {
+                  ...match,
+                  Qty: match.Qty + d.addQty,
+                  LastSupplier: itemSupplier,
+                  LastReceivedDate: dateOnly,
+                  UnitPrice: itemPrice,
+                }
+              : null;
           })
           .filter(Boolean) as StockItem[];
 
@@ -968,7 +1015,7 @@ export function useSqliteProcurement() {
     };
 
     const newLog: MovementLogEntry = {
-      id: `LOG-${Date.now()}`,
+      id: `LOG-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       Timestamp: nowStr,
       Type: 'ADJUSTMENT',
       ItemID: item.ItemID,
@@ -1154,7 +1201,7 @@ export function useSqliteProcurement() {
     };
 
     const newLogs: MovementLogEntry[] = req.items.map((it, idx) => ({
-      id: `LOG-${Date.now()}-${idx}`,
+      id: `LOG-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 7)}`,
       Timestamp: nowStr,
       Type: 'ADJUSTMENT',
       ItemID: it.ItemID,
@@ -1342,7 +1389,7 @@ export function useSqliteProcurement() {
     const fullSavedPath = `${folderPath}${pdfFileName}`;
 
     const newLogs: MovementLogEntry[] = cart.map((c, index) => ({
-      id: `LOG-${Date.now()}-${index}`,
+      id: `LOG-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 7)}`,
       Timestamp: nowStr,
       Type: 'ISSUE',
       ItemID: c.ItemID,

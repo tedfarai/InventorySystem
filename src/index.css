@@ -139,8 +139,361 @@ html {
   }
 }
 
-.stock-table-row { min-height: var(--inventory-row-height); transition: background-color 0.15s ease, border-color 0.15s ease; }
-.stock-table-row td { vertical-align: middle; }
+.stock-table-row {
+  min-height: var(--inventory-row-height);
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  position: relative;
+}
+
+.stock-table-row td {
+  vertical-align: middle;
+  transition: background-color 0.15s ease;
+}
+
+/* 1. Visual hover effect on default row */
+.stock-table-row:hover {
+  background-color: #f1f5f9;
+  box-shadow: inset 0 0 0 1px #cbd5e1, 0 2px 8px -2px rgba(15, 23, 42, 0.12);
+  z-index: 5;
+}
+
+.dark .stock-table-row:hover {
+  background-color: #1e293b;
+  box-shadow: inset 0 0 0 1px #475569, 0 2px 8px -2px rgba(0, 0, 0, 0.4);
+  z-index: 5;
+}
+
+/* 2. Position: sticky with specific background highlight on active/selected row */
+.stock-table-row.is-active,
+.stock-table-row.is-selected,
+.stock-table-row[data-active="true"],
+.stock-table-row[data-selected="true"] {
+  position: sticky !important;
+  top: 2rem;
+  bottom: 0;
+  z-index: 15 !important;
+  transform: none !important;
+  background-color: #ecfdf5 !important;
+  border-left: 4px solid #059669 !important;
+  box-shadow: 0 4px 14px -2px rgba(16, 185, 129, 0.28), inset 0 1px 0 #a7f3d0, inset 0 -1px 0 #a7f3d0 !important;
+}
+
+.stock-table-row.is-active td,
+.stock-table-row.is-selected td,
+.stock-table-row[data-active="true"] td,
+.stock-table-row[data-selected="true"] td {
+  position: sticky;
+  top: 2rem;
+  bottom: 0;
+  background-color: inherit;
+  border-top: 1px solid #a7f3d0 !important;
+  border-bottom: 1px solid #a7f3d0 !important;
+  z-index: 15 !important;
+}
+
+/* Dark mode styling for active/selected sticky row */
+.dark .stock-table-row.is-active,
+.dark .stock-table-row.is-selected,
+.dark .stock-table-row[data-active="true"],
+.dark .stock-table-row[data-selected="true"] {
+  background-color: #064e3b !important;
+  border-left: 4px solid #34d399 !important;
+  box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(52, 211, 153, 0.35), inset 0 -1px 0 rgba(52, 211, 153, 0.35) !important;
+}
+
+.dark .stock-table-row.is-active td,
+.dark .stock-table-row.is-selected td,
+.dark .stock-table-row[data-active="true"] td,
+.dark .stock-table-row[data-selected="true"] td {
+  background-color: inherit;
+  border-top: 1px solid rgba(52, 211, 153, 0.35) !important;
+  border-bottom: 1px solid rgba(52, 211, 153, 0.35) !important;
+}
+
+/* 1. Visual hover effect that persists on the active/selected row */
+.stock-table-row.is-active:hover,
+.stock-table-row.is-selected:hover,
+.stock-table-row[data-active="true"]:hover,
+.stock-table-row[data-selected="true"]:hover {
+  background-color: #d1fae5 !important;
+  box-shadow: 0 6px 18px -2px rgba(16, 185, 129, 0.38), inset 0 1px 0 #6ee7b7, inset 0 -1px 0 #6ee7b7 !important;
+}
+
+.dark .stock-table-row.is-active:hover,
+.dark .stock-table-row.is-selected:hover,
+.dark .stock-table-row[data-active="true"]:hover,
+.dark .stock-table-row[data-selected="true"]:hover {
+  background-color: #065f46 !important;
+  box-shadow: 0 6px 20px -2px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(52, 211, 153, 0.5), inset 0 -1px 0 rgba(52, 211, 153, 0.5) !important;
+}
+
+/* Highly visible glowing keyboard navigation focus outline for .stock-table-row */
+.stock-table-row:focus-visible,
+.stock-table-row:focus {
+  outline: 3px solid #0d9488 !important;
+  outline-offset: -3px !important;
+  box-shadow: 0 0 0 4px rgba(13, 148, 136, 0.45), 0 0 16px rgba(20, 184, 166, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.8) !important;
+  z-index: 25 !important;
+  position: relative;
+  transition: box-shadow 0.15s ease-out, outline 0.15s ease-out;
+}
+
+.dark .stock-table-row:focus-visible,
+.dark .stock-table-row:focus {
+  outline: 3px solid #2dd4bf !important;
+  outline-offset: -3px !important;
+  box-shadow: 0 0 0 4px rgba(45, 212, 191, 0.5), 0 0 20px rgba(45, 212, 191, 0.65), inset 0 0 0 1px rgba(0, 0, 0, 0.7) !important;
+  z-index: 25 !important;
+  position: relative;
+  transition: box-shadow 0.15s ease-out, outline 0.15s ease-out;
+}
+
+/* Hidden Quick Action menu on .stock-table-row that appears on hover or selection */
+.stock-table-row .row-quick-actions,
+.stock-table-row .quick-action-menu,
+.stock-table-row [data-quick-actions],
+.stock-table-row .quick-actions {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(6px) scale(0.92);
+  transform-origin: center right;
+  transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+              visibility 0.22s ease;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+.stock-table-row:hover .row-quick-actions,
+.stock-table-row.is-active .row-quick-actions,
+.stock-table-row.is-selected .row-quick-actions,
+.stock-table-row[data-active="true"] .row-quick-actions,
+.stock-table-row[data-selected="true"] .row-quick-actions,
+.stock-table-row:focus .row-quick-actions,
+.stock-table-row:focus-within .row-quick-actions,
+.stock-table-row:hover .quick-action-menu,
+.stock-table-row.is-active .quick-action-menu,
+.stock-table-row.is-selected .quick-action-menu,
+.stock-table-row[data-active="true"] .quick-action-menu,
+.stock-table-row[data-selected="true"] .quick-action-menu,
+.stock-table-row:focus .quick-action-menu,
+.stock-table-row:focus-within .quick-action-menu,
+.stock-table-row:hover [data-quick-actions],
+.stock-table-row.is-active [data-quick-actions],
+.stock-table-row.is-selected [data-quick-actions],
+.stock-table-row[data-active="true"] [data-quick-actions],
+.stock-table-row[data-selected="true"] [data-quick-actions],
+.stock-table-row:focus [data-quick-actions],
+.stock-table-row:focus-within [data-quick-actions],
+.stock-table-row:hover .quick-actions,
+.stock-table-row.is-active .quick-actions,
+.stock-table-row.is-selected .quick-actions,
+.stock-table-row[data-active="true"] .quick-actions,
+.stock-table-row[data-selected="true"] .quick-actions,
+.stock-table-row:focus .quick-actions,
+.stock-table-row:focus-within .quick-actions {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+/* Subtle staggered scale-in & slide-up transition animation for action buttons inside the quick-action menu */
+.stock-table-row .row-quick-actions button,
+.stock-table-row .quick-action-menu button,
+.stock-table-row .row-quick-actions .quick-action-item,
+.stock-table-row .row-quick-actions .quick-action-btn {
+  opacity: 0;
+  transform: translateY(5px) scale(0.9);
+  transform-origin: center center;
+  transition: opacity 0.16s ease-out,
+              transform 0.16s ease-out,
+              background-color 0.15s ease,
+              border-color 0.15s ease,
+              box-shadow 0.15s ease,
+              color 0.15s ease;
+  will-change: transform, opacity;
+}
+
+.stock-table-row:hover .row-quick-actions button,
+.stock-table-row.is-active .row-quick-actions button,
+.stock-table-row.is-selected .row-quick-actions button,
+.stock-table-row[data-active="true"] .row-quick-actions button,
+.stock-table-row[data-selected="true"] .row-quick-actions button,
+.stock-table-row:focus .row-quick-actions button,
+.stock-table-row:focus-within .row-quick-actions button,
+.stock-table-row:hover .quick-action-menu button,
+.stock-table-row.is-active .quick-action-menu button,
+.stock-table-row.is-selected .quick-action-menu button,
+.stock-table-row[data-active="true"] .quick-action-menu button,
+.stock-table-row[data-selected="true"] .quick-action-menu button,
+.stock-table-row:focus .quick-action-menu button,
+.stock-table-row:focus-within .quick-action-menu button,
+.stock-table-row:hover .row-quick-actions .quick-action-item,
+.stock-table-row.is-active .row-quick-actions .quick-action-item,
+.stock-table-row.is-selected .row-quick-actions .quick-action-item,
+.stock-table-row[data-active="true"] .row-quick-actions .quick-action-item,
+.stock-table-row[data-selected="true"] .row-quick-actions .quick-action-item,
+.stock-table-row:focus .row-quick-actions .quick-action-item,
+.stock-table-row:focus-within .row-quick-actions .quick-action-item,
+.stock-table-row:hover .row-quick-actions .quick-action-btn,
+.stock-table-row.is-active .row-quick-actions .quick-action-btn,
+.stock-table-row.is-selected .row-quick-actions .quick-action-btn,
+.stock-table-row[data-active="true"] .row-quick-actions .quick-action-btn,
+.stock-table-row[data-selected="true"] .row-quick-actions .quick-action-btn,
+.stock-table-row:focus .row-quick-actions .quick-action-btn,
+.stock-table-row:focus-within .row-quick-actions .quick-action-btn {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+              background-color 0.15s ease,
+              border-color 0.15s ease,
+              box-shadow 0.15s ease,
+              color 0.15s ease;
+}
+
+/* Staggered slide-up & scale-in delays for smooth sequencing across buttons */
+.stock-table-row:hover .row-quick-actions button:first-child,
+.stock-table-row.is-active .row-quick-actions button:first-child,
+.stock-table-row.is-selected .row-quick-actions button:first-child,
+.stock-table-row[data-active="true"] .row-quick-actions button:first-child,
+.stock-table-row[data-selected="true"] .row-quick-actions button:first-child,
+.stock-table-row:focus-within .row-quick-actions button:first-child,
+.stock-table-row:hover .quick-action-menu button:first-child,
+.stock-table-row.is-active .quick-action-menu button:first-child,
+.stock-table-row.is-selected .quick-action-menu button:first-child,
+.stock-table-row[data-active="true"] .quick-action-menu button:first-child,
+.stock-table-row[data-selected="true"] .quick-action-menu button:first-child,
+.stock-table-row:focus-within .quick-action-menu button:first-child {
+  transition-delay: 0.02s;
+}
+
+.stock-table-row:hover .row-quick-actions button:nth-child(2),
+.stock-table-row.is-active .row-quick-actions button:nth-child(2),
+.stock-table-row.is-selected .row-quick-actions button:nth-child(2),
+.stock-table-row[data-active="true"] .row-quick-actions button:nth-child(2),
+.stock-table-row[data-selected="true"] .row-quick-actions button:nth-child(2),
+.stock-table-row:focus-within .row-quick-actions button:nth-child(2),
+.stock-table-row:hover .quick-action-menu button:nth-child(2),
+.stock-table-row.is-active .quick-action-menu button:nth-child(2),
+.stock-table-row.is-selected .quick-action-menu button:nth-child(2),
+.stock-table-row[data-active="true"] .quick-action-menu button:nth-child(2),
+.stock-table-row[data-selected="true"] .quick-action-menu button:nth-child(2),
+.stock-table-row:focus-within .quick-action-menu button:nth-child(2) {
+  transition-delay: 0.06s;
+}
+
+.stock-table-row:hover .row-quick-actions button:nth-child(3),
+.stock-table-row.is-active .row-quick-actions button:nth-child(3),
+.stock-table-row.is-selected .row-quick-actions button:nth-child(3),
+.stock-table-row[data-active="true"] .row-quick-actions button:nth-child(3),
+.stock-table-row[data-selected="true"] .row-quick-actions button:nth-child(3),
+.stock-table-row:focus-within .row-quick-actions button:nth-child(3),
+.stock-table-row:hover .quick-action-menu button:nth-child(3),
+.stock-table-row.is-active .quick-action-menu button:nth-child(3),
+.stock-table-row.is-selected .quick-action-menu button:nth-child(3),
+.stock-table-row[data-active="true"] .quick-action-menu button:nth-child(3),
+.stock-table-row[data-selected="true"] .quick-action-menu button:nth-child(3),
+.stock-table-row:focus-within .quick-action-menu button:nth-child(3) {
+  transition-delay: 0.10s;
+}
+
+.stock-table-row:hover .row-quick-actions button:nth-child(n+4),
+.stock-table-row.is-active .row-quick-actions button:nth-child(n+4),
+.stock-table-row.is-selected .row-quick-actions button:nth-child(n+4),
+.stock-table-row[data-active="true"] .row-quick-actions button:nth-child(n+4),
+.stock-table-row[data-selected="true"] .row-quick-actions button:nth-child(n+4),
+.stock-table-row:focus-within .row-quick-actions button:nth-child(n+4),
+.stock-table-row:hover .quick-action-menu button:nth-child(n+4),
+.stock-table-row.is-active .quick-action-menu button:nth-child(n+4),
+.stock-table-row.is-selected .quick-action-menu button:nth-child(n+4),
+.stock-table-row[data-active="true"] .quick-action-menu button:nth-child(n+4),
+.stock-table-row[data-selected="true"] .quick-action-menu button:nth-child(n+4),
+.stock-table-row:focus-within .quick-action-menu button:nth-child(n+4) {
+  transition-delay: 0.14s;
+}
+
+/* Micro-interaction when hovering individual action button inside menu */
+.stock-table-row .row-quick-actions button:hover,
+.stock-table-row .quick-action-menu button:hover,
+.stock-table-row .quick-action-item:hover,
+.stock-table-row .quick-action-btn:hover {
+  transform: translateY(-1.5px) scale(1.05) !important;
+  transition: transform 0.14s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.14s ease,
+              background-color 0.14s ease,
+              border-color 0.14s ease,
+              color 0.14s ease !important;
+  transition-delay: 0s !important;
+  box-shadow: 0 4px 10px -1px rgba(0, 0, 0, 0.16), 0 2px 4px -2px rgba(0, 0, 0, 0.1) !important;
+  z-index: 5;
+}
+
+/* Tactile click press feedback */
+.stock-table-row .row-quick-actions button:active,
+.stock-table-row .quick-action-menu button:active,
+.stock-table-row .quick-action-item:active,
+.stock-table-row .quick-action-btn:active {
+  transform: translateY(0.5px) scale(0.96) !important;
+  transition: transform 0.08s ease !important;
+  transition-delay: 0s !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12) !important;
+}
+
+/* Standalone keyframes for scale-in and slide-up animation effects */
+@keyframes quick-action-slide-up {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.92);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes quick-action-scale-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.quick-action-slide-up,
+.animate-slide-up {
+  animation: quick-action-slide-up 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.quick-action-scale-in,
+.animate-scale-in {
+  animation: quick-action-scale-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Accessibility: Respect prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .stock-table-row .row-quick-actions,
+  .stock-table-row .quick-action-menu,
+  .stock-table-row [data-quick-actions],
+  .stock-table-row .quick-actions,
+  .stock-table-row .row-quick-actions button,
+  .stock-table-row .quick-action-menu button,
+  .stock-table-row .quick-action-item,
+  .stock-table-row .quick-action-btn,
+  .quick-action-slide-up,
+  .quick-action-scale-in,
+  .animate-slide-up,
+  .animate-scale-in {
+    transform: none !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
 .inventory-table-shell .stock-table-row td,
 .inventory-table-shell thead th {
   line-height: 1.2;

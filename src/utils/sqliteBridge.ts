@@ -174,6 +174,16 @@ class SqliteBridge {
     } else {
       // Ensure all arrays are populated even if older cached storage lacked new tables
       if (!Array.isArray(this.fallbackStore.stock)) this.fallbackStore.stock = JSON.parse(JSON.stringify(INITIAL_STOCK));
+      // Ensure existing fallback stock items inherit Zimbabwe prices
+      this.fallbackStore.stock.forEach((item) => {
+        if (!item.UnitPrice) {
+          const match = INITIAL_STOCK.find((i) => i.ItemID === item.ItemID);
+          if (match && match.UnitPrice) {
+            item.UnitPrice = match.UnitPrice;
+            item.Currency = match.Currency || 'USD';
+          }
+        }
+      });
       if (!Array.isArray(this.fallbackStore.movementLogs)) this.fallbackStore.movementLogs = JSON.parse(JSON.stringify(INITIAL_LOGS));
       if (!Array.isArray(this.fallbackStore.admins)) this.fallbackStore.admins = JSON.parse(JSON.stringify(INITIAL_ADMINS));
       if (!Array.isArray(this.fallbackStore.departments)) this.fallbackStore.departments = JSON.parse(JSON.stringify(INITIAL_DEPARTMENTS));
@@ -217,6 +227,8 @@ class SqliteBridge {
         last_supplier TEXT,
         last_received_date TEXT,
         description TEXT,
+        unit_price REAL DEFAULT 0,
+        currency TEXT DEFAULT 'USD',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
@@ -273,7 +285,9 @@ class SqliteBridge {
         status TEXT NOT NULL DEFAULT 'Completed',
         discrepancy_reason TEXT,
         discrepancy_notes TEXT,
-        count_ref TEXT
+        count_ref TEXT,
+        unit_price REAL DEFAULT 0,
+        currency TEXT DEFAULT 'USD'
       );
     `);
 
@@ -411,6 +425,40 @@ class SqliteBridge {
     } catch {
       // Column may already exist
     }
+    try {
+      this.db.run('ALTER TABLE master_stock ADD COLUMN unit_price REAL DEFAULT 0;');
+    } catch {
+      // Column may already exist
+    }
+    try {
+      this.db.run("ALTER TABLE master_stock ADD COLUMN currency TEXT DEFAULT 'USD';");
+    } catch {
+      // Column may already exist
+    }
+    try {
+      this.db.run('ALTER TABLE movement_log ADD COLUMN unit_price REAL DEFAULT 0;');
+    } catch {
+      // Column may already exist
+    }
+    try {
+      this.db.run("ALTER TABLE movement_log ADD COLUMN currency TEXT DEFAULT 'USD';");
+    } catch {
+      // Column may already exist
+    }
+
+    // Populate initial stock prices if currently zero or unassigned
+    for (const initItem of INITIAL_STOCK) {
+      if (initItem.UnitPrice && initItem.UnitPrice > 0) {
+        try {
+          this.db.run(
+            'UPDATE master_stock SET unit_price = ?, currency = ? WHERE item_id = ? AND (unit_price IS NULL OR unit_price = 0);',
+            [initItem.UnitPrice, initItem.Currency || 'USD', initItem.ItemID]
+          );
+        } catch {
+          // ignore
+        }
+      }
+    }
 
     // Seed initial dataset if tables are empty
     await this.seedIfEmpty();
@@ -419,142 +467,172 @@ class SqliteBridge {
   private async seedIfEmpty(): Promise<void> {
     if (!this.db) return;
 
-    const countRes = this.db.exec('SELECT COUNT(*) as count FROM master_stock;');
-    const count = countRes.length > 0 && countRes[0].values[0] ? (countRes[0].values[0][0] as number) : 0;
+    try {
+      // 1. Seed Stock if empty
+      const stockCountRes = this.db.exec('SELECT COUNT(*) as count FROM master_stock;');
+      const stockCount = stockCountRes.length > 0 && stockCountRes[0].values[0] ? (stockCountRes[0].values[0][0] as number) : 0;
 
-    if (count === 0) {
-      // Seed Stock
-      const stockStmt = this.db.prepare(
-        'INSERT INTO master_stock (item_id, item_name, category, qty, reorder_level, unit, SupplierName, last_supplier, last_received_date, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);'
-      );
-      for (const item of INITIAL_STOCK) {
-        const supp = item.SupplierName || item.LastSupplier || null;
-        stockStmt.run([
-          item.ItemID,
-          item.ItemName,
-          item.Category,
-          item.Qty,
-          item.ReorderLevel,
-          item.Unit,
-          supp,
-          supp,
-          item.LastReceivedDate || null,
-          item.Description || null,
-        ]);
+      if (stockCount === 0) {
+        const stockStmt = this.db.prepare(
+          'INSERT OR REPLACE INTO master_stock (item_id, item_name, category, qty, reorder_level, unit, SupplierName, last_supplier, last_received_date, description, unit_price, currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);'
+        );
+        for (const item of INITIAL_STOCK) {
+          const supp = item.SupplierName || item.LastSupplier || null;
+          stockStmt.run([
+            item.ItemID,
+            item.ItemName,
+            item.Category,
+            item.Qty,
+            item.ReorderLevel,
+            item.Unit,
+            supp,
+            supp,
+            item.LastReceivedDate || null,
+            item.Description || null,
+            item.UnitPrice || 0,
+            item.Currency || 'USD',
+          ]);
+        }
+        stockStmt.free();
       }
-      stockStmt.free();
 
-      // Seed Admins
-      const adminStmt = this.db.prepare(
-        'INSERT INTO admin_users (issuer_id, issuer_name, role, secret_password, active) VALUES (?, ?, ?, ?, ?);'
-      );
-      for (const adm of INITIAL_ADMINS) {
-        adminStmt.run([adm.IssuerID, adm.IssuerName, adm.Role, adm.SecretPassword, adm.Active ? 1 : 0]);
+      // 2. Seed Admins if empty
+      const adminCountRes = this.db.exec('SELECT COUNT(*) as count FROM admin_users;');
+      const adminCount = adminCountRes.length > 0 && adminCountRes[0].values[0] ? (adminCountRes[0].values[0][0] as number) : 0;
+      if (adminCount === 0) {
+        const adminStmt = this.db.prepare(
+          'INSERT OR REPLACE INTO admin_users (issuer_id, issuer_name, role, secret_password, active) VALUES (?, ?, ?, ?, ?);'
+        );
+        for (const adm of INITIAL_ADMINS) {
+          adminStmt.run([adm.IssuerID, adm.IssuerName, adm.Role, adm.SecretPassword, adm.Active ? 1 : 0]);
+        }
+        adminStmt.free();
       }
-      adminStmt.free();
 
-      // Seed Departments
-      const deptStmt = this.db.prepare(
-        'INSERT INTO departments (dept_id, dept_name, dept_head_name, dept_head_email) VALUES (?, ?, ?, ?);'
-      );
-      for (const d of INITIAL_DEPARTMENTS) {
-        deptStmt.run([d.DeptID, d.DeptName, d.DeptHeadName, d.DeptHeadEmail]);
+      // 3. Seed Departments if empty
+      const deptCountRes = this.db.exec('SELECT COUNT(*) as count FROM departments;');
+      const deptCount = deptCountRes.length > 0 && deptCountRes[0].values[0] ? (deptCountRes[0].values[0][0] as number) : 0;
+      if (deptCount === 0) {
+        const deptStmt = this.db.prepare(
+          'INSERT OR REPLACE INTO departments (dept_id, dept_name, dept_head_name, dept_head_email) VALUES (?, ?, ?, ?);'
+        );
+        for (const d of INITIAL_DEPARTMENTS) {
+          deptStmt.run([d.DeptID, d.DeptName, d.DeptHeadName, d.DeptHeadEmail]);
+        }
+        deptStmt.free();
       }
-      deptStmt.free();
 
-      // Seed Managers
-      const mgrStmt = this.db.prepare(
-        'INSERT INTO managers (manager_id, manager_name, email) VALUES (?, ?, ?);'
-      );
-      for (const m of INITIAL_MANAGERS) {
-        mgrStmt.run([m.ManagerID, m.ManagerName, m.Email]);
+      // 4. Seed Managers if empty
+      const mgrCountRes = this.db.exec('SELECT COUNT(*) as count FROM managers;');
+      const mgrCount = mgrCountRes.length > 0 && mgrCountRes[0].values[0] ? (mgrCountRes[0].values[0][0] as number) : 0;
+      if (mgrCount === 0) {
+        const mgrStmt = this.db.prepare(
+          'INSERT OR REPLACE INTO managers (manager_id, manager_name, email) VALUES (?, ?, ?);'
+        );
+        for (const m of INITIAL_MANAGERS) {
+          mgrStmt.run([m.ManagerID, m.ManagerName, m.Email]);
+        }
+        mgrStmt.free();
       }
-      mgrStmt.free();
 
-      // Seed Logs
-      const logStmt = this.db.prepare(
-        `INSERT INTO movement_log (
-          id, timestamp, type, item_id, item_name, qty, dept_id, dept_name, dept_head, dept_email,
-          issuer_id, issuer_name, doc_ref, slip_file_name, status, discrepancy_reason, discrepancy_notes, count_ref
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`
-      );
-      for (const l of INITIAL_LOGS) {
-        logStmt.run([
-          l.id,
-          l.Timestamp,
-          l.Type,
-          l.ItemID,
-          l.ItemName,
-          l.Qty,
-          l.DeptID,
-          l.DeptName,
-          l.DeptHead,
-          l.DeptEmail,
-          l.IssuerID,
-          l.IssuerName || 'System',
-          l.DocumentRef || '',
-          l.IssueSlipFileName || '',
-          l.Status,
-          l.DiscrepancyReason || null,
-          l.DiscrepancyNotes || null,
-          l.CountRef || null,
-        ]);
+      // 5. Seed Logs if empty
+      const logCountRes = this.db.exec('SELECT COUNT(*) as count FROM movement_log;');
+      const logCount = logCountRes.length > 0 && logCountRes[0].values[0] ? (logCountRes[0].values[0][0] as number) : 0;
+      if (logCount === 0) {
+        const logStmt = this.db.prepare(
+          `INSERT OR REPLACE INTO movement_log (
+            id, timestamp, type, item_id, item_name, qty, dept_id, dept_name, dept_head, dept_email,
+            issuer_id, issuer_name, doc_ref, slip_file_name, status, discrepancy_reason, discrepancy_notes, count_ref
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`
+        );
+        for (const l of INITIAL_LOGS) {
+          logStmt.run([
+            l.id,
+            l.Timestamp,
+            l.Type,
+            l.ItemID,
+            l.ItemName,
+            l.Qty,
+            l.DeptID,
+            l.DeptName,
+            l.DeptHead,
+            l.DeptEmail,
+            l.IssuerID,
+            l.IssuerName || 'System',
+            l.DocumentRef || '',
+            l.IssueSlipFileName || '',
+            l.Status,
+            l.DiscrepancyReason || null,
+            l.DiscrepancyNotes || null,
+            l.CountRef || null,
+          ]);
+        }
+        logStmt.free();
       }
-      logStmt.free();
 
-      // Seed Adjustment Requests
-      const reqStmt = this.db.prepare(
-        `INSERT INTO adjustment_requests (
-          id, created_at, requester_id, requester_name, requester_role, request_title, status, items_json, superior_admin_notes, reviewed_by, reviewed_at, timed_access_json
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`
-      );
-      for (const req of INITIAL_ADJUSTMENT_REQUESTS) {
-        reqStmt.run([
-          req.id,
-          req.createdAt,
-          req.requesterId,
-          req.requesterName,
-          req.requesterRole,
-          req.requestTitle,
-          req.status,
-          JSON.stringify(req.items),
-          req.superiorAdminNotes || null,
-          req.reviewedBy || null,
-          req.reviewedAt || null,
-          req.timedAccessWindow ? JSON.stringify(req.timedAccessWindow) : null,
-        ]);
+      // 6. Seed Adjustment Requests if empty
+      const reqCountRes = this.db.exec('SELECT COUNT(*) as count FROM adjustment_requests;');
+      const reqCount = reqCountRes.length > 0 && reqCountRes[0].values[0] ? (reqCountRes[0].values[0][0] as number) : 0;
+      if (reqCount === 0) {
+        const reqStmt = this.db.prepare(
+          `INSERT OR REPLACE INTO adjustment_requests (
+            id, created_at, requester_id, requester_name, requester_role, request_title, status, items_json, superior_admin_notes, reviewed_by, reviewed_at, timed_access_json
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`
+        );
+        for (const req of INITIAL_ADJUSTMENT_REQUESTS) {
+          reqStmt.run([
+            req.id,
+            req.createdAt,
+            req.requesterId,
+            req.requesterName,
+            req.requesterRole,
+            req.requestTitle,
+            req.status,
+            JSON.stringify(req.items),
+            req.superiorAdminNotes || null,
+            req.reviewedBy || null,
+            req.reviewedAt || null,
+            req.timedAccessWindow ? JSON.stringify(req.timedAccessWindow) : null,
+          ]);
+        }
+        reqStmt.free();
       }
-      reqStmt.free();
 
-      // Seed Backups
-      const bkpStmt = this.db.prepare(
-        `INSERT INTO backup_snapshots (
-          id, timestamp, type, file_name, file_size_kb, folder_path, checksum,
-          item_count, movement_count, department_count, manager_count, admin_count,
-          description, issuer_id, issuer_name, payload_json
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`
-      );
-      for (const b of INITIAL_BACKUPS) {
-        bkpStmt.run([
-          b.id,
-          b.timestamp,
-          b.type,
-          b.fileName,
-          b.fileSizeKb,
-          b.folderPath,
-          b.checksum,
-          b.itemCount,
-          b.movementCount,
-          b.departmentCount,
-          b.managerCount,
-          b.adminCount,
-          b.description,
-          b.issuerId,
-          b.issuerName,
-          JSON.stringify(b.payload),
-        ]);
+      // 7. Seed Backups if empty
+      const bkpCountRes = this.db.exec('SELECT COUNT(*) as count FROM backup_snapshots;');
+      const bkpCount = bkpCountRes.length > 0 && bkpCountRes[0].values[0] ? (bkpCountRes[0].values[0][0] as number) : 0;
+      if (bkpCount === 0) {
+        const bkpStmt = this.db.prepare(
+          `INSERT OR REPLACE INTO backup_snapshots (
+            id, timestamp, type, file_name, file_size_kb, folder_path, checksum,
+            item_count, movement_count, department_count, manager_count, admin_count,
+            description, issuer_id, issuer_name, payload_json
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`
+        );
+        for (const b of INITIAL_BACKUPS) {
+          bkpStmt.run([
+            b.id,
+            b.timestamp,
+            b.type,
+            b.fileName,
+            b.fileSizeKb,
+            b.folderPath,
+            b.checksum,
+            b.itemCount,
+            b.movementCount,
+            b.departmentCount,
+            b.managerCount,
+            b.adminCount,
+            b.description,
+            b.issuerId,
+            b.issuerName,
+            JSON.stringify(b.payload),
+          ]);
+        }
+        bkpStmt.free();
       }
-      bkpStmt.free();
+    } catch (seedErr) {
+      console.warn('[SQLite Bridge] Non-fatal seed exception:', seedErr);
     }
   }
 
@@ -700,11 +778,13 @@ class SqliteBridge {
     const db = await this.getDb();
     if (db) {
       const res = db.exec(
-        'SELECT item_id, item_name, category, qty, reorder_level, unit, SupplierName, last_supplier, last_received_date, description FROM master_stock ORDER BY category ASC, item_id ASC;'
+        'SELECT item_id, item_name, category, qty, reorder_level, unit, SupplierName, last_supplier, last_received_date, description, unit_price, currency FROM master_stock ORDER BY category ASC, item_id ASC;'
       );
       if (!res.length || !res[0].values) return [];
       return res[0].values.map((row) => {
         const supp = (row[6] as string) || (row[7] as string) || undefined;
+        const rawPrice = Number(row[10]);
+        const rawCurr = (row[11] as string) || 'USD';
         return {
           ItemID: row[0] as string,
           ItemName: row[1] as string,
@@ -716,6 +796,8 @@ class SqliteBridge {
           LastSupplier: supp,
           LastReceivedDate: (row[8] as string) || undefined,
           Description: (row[9] as string) || undefined,
+          UnitPrice: !isNaN(rawPrice) && rawPrice > 0 ? rawPrice : undefined,
+          Currency: (rawCurr === 'ZWG' ? 'ZWG' : 'USD') as CurrencyCode,
         };
       });
     }
@@ -727,9 +809,11 @@ class SqliteBridge {
   public async addStockItem(item: StockItem): Promise<void> {
     const db = await this.getDb();
     const supp = item.SupplierName || item.LastSupplier || null;
+    const price = item.UnitPrice && item.UnitPrice > 0 ? item.UnitPrice : 0;
+    const curr = item.Currency || 'USD';
     if (db) {
       db.run(
-        'INSERT INTO master_stock (item_id, item_name, category, qty, reorder_level, unit, SupplierName, last_supplier, last_received_date, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);',
+        'INSERT INTO master_stock (item_id, item_name, category, qty, reorder_level, unit, SupplierName, last_supplier, last_received_date, description, unit_price, currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);',
         [
           item.ItemID,
           item.ItemName,
@@ -741,6 +825,8 @@ class SqliteBridge {
           supp,
           item.LastReceivedDate || null,
           item.Description || null,
+          price,
+          curr,
         ]
       );
       this.persistDb();
@@ -757,9 +843,11 @@ class SqliteBridge {
   public async updateStockItem(item: StockItem): Promise<void> {
     const db = await this.getDb();
     const supp = item.SupplierName || item.LastSupplier || null;
+    const price = item.UnitPrice && item.UnitPrice > 0 ? item.UnitPrice : 0;
+    const curr = item.Currency || 'USD';
     if (db) {
       db.run(
-        'UPDATE master_stock SET item_name = ?, category = ?, qty = ?, reorder_level = ?, unit = ?, SupplierName = ?, last_supplier = ?, last_received_date = ?, description = ?, updated_at = CURRENT_TIMESTAMP WHERE item_id = ?;',
+        'UPDATE master_stock SET item_name = ?, category = ?, qty = ?, reorder_level = ?, unit = ?, SupplierName = ?, last_supplier = ?, last_received_date = ?, description = ?, unit_price = ?, currency = ?, updated_at = CURRENT_TIMESTAMP WHERE item_id = ?;',
         [
           item.ItemName,
           item.Category,
@@ -770,6 +858,8 @@ class SqliteBridge {
           supp,
           item.LastReceivedDate || null,
           item.Description || null,
+          price,
+          curr,
           item.ItemID,
         ]
       );
@@ -1194,32 +1284,39 @@ class SqliteBridge {
       const res = db.exec(`
         SELECT 
           id, timestamp, type, item_id, item_name, qty, dept_id, dept_name, dept_head, dept_email,
-          issuer_id, issuer_name, SupplierName, doc_ref, slip_file_name, status, discrepancy_reason, discrepancy_notes, count_ref
+          issuer_id, issuer_name, SupplierName, doc_ref, slip_file_name, status, discrepancy_reason, discrepancy_notes, count_ref,
+          unit_price, currency
         FROM movement_log 
         ORDER BY timestamp DESC, id DESC;
       `);
       if (!res.length || !res[0].values) return [];
-      return res[0].values.map((row) => ({
-        id: row[0] as string,
-        Timestamp: row[1] as string,
-        Type: row[2] as any,
-        ItemID: row[3] as string,
-        ItemName: row[4] as string,
-        Qty: Number(row[5]),
-        DeptID: row[6] as string,
-        DeptName: row[7] as string,
-        DeptHead: row[8] as string,
-        DeptEmail: row[9] as string,
-        IssuerID: row[10] as string,
-        IssuerName: row[11] as string,
-        SupplierName: (row[12] as string) || undefined,
-        DocumentRef: row[13] as string,
-        IssueSlipFileName: row[14] as string,
-        Status: row[15] as any,
-        DiscrepancyReason: row[16] as string | undefined,
-        DiscrepancyNotes: row[17] as string | undefined,
-        CountRef: row[18] as string | undefined,
-      }));
+      return res[0].values.map((row) => {
+        const rawPrice = Number(row[19]);
+        const rawCurr = (row[20] as string) || 'USD';
+        return {
+          id: row[0] as string,
+          Timestamp: row[1] as string,
+          Type: row[2] as any,
+          ItemID: row[3] as string,
+          ItemName: row[4] as string,
+          Qty: Number(row[5]),
+          DeptID: row[6] as string,
+          DeptName: row[7] as string,
+          DeptHead: row[8] as string,
+          DeptEmail: row[9] as string,
+          IssuerID: row[10] as string,
+          IssuerName: row[11] as string,
+          SupplierName: (row[12] as string) || undefined,
+          DocumentRef: row[13] as string,
+          IssueSlipFileName: row[14] as string,
+          Status: row[15] as any,
+          DiscrepancyReason: row[16] as string | undefined,
+          DiscrepancyNotes: row[17] as string | undefined,
+          CountRef: row[18] as string | undefined,
+          UnitPrice: !isNaN(rawPrice) && rawPrice > 0 ? rawPrice : undefined,
+          Currency: (rawCurr === 'ZWG' ? 'ZWG' : 'USD') as CurrencyCode,
+        };
+      });
     }
 
     this.initFallbackStore();
@@ -1228,74 +1325,172 @@ class SqliteBridge {
 
   public async addMovementLog(log: MovementLogEntry): Promise<void> {
     const db = await this.getDb();
+    const logId = log.id || `LOG-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    const sanitizedLog = { ...log, id: logId };
+    const price = sanitizedLog.UnitPrice && sanitizedLog.UnitPrice > 0 ? sanitizedLog.UnitPrice : 0;
+    const curr = sanitizedLog.Currency || 'USD';
+
     if (db) {
-      db.run(
-        `INSERT INTO movement_log (
-          id, timestamp, type, item_id, item_name, qty, dept_id, dept_name, dept_head, dept_email,
-          issuer_id, issuer_name, SupplierName, doc_ref, slip_file_name, status, discrepancy_reason, discrepancy_notes, count_ref
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
-        [
-          log.id,
-          log.Timestamp,
-          log.Type,
-          log.ItemID,
-          log.ItemName,
-          log.Qty,
-          log.DeptID,
-          log.DeptName,
-          log.DeptHead,
-          log.DeptEmail,
-          log.IssuerID,
-          log.IssuerName || '',
-          log.SupplierName || null,
-          log.DocumentRef || '',
-          log.IssueSlipFileName || '',
-          log.Status,
-          log.DiscrepancyReason || null,
-          log.DiscrepancyNotes || null,
-          log.CountRef || null,
-        ]
-      );
-      this.persistDb();
-      return;
+      try {
+        db.run(
+          `INSERT OR REPLACE INTO movement_log (
+            id, timestamp, type, item_id, item_name, qty, dept_id, dept_name, dept_head, dept_email,
+            issuer_id, issuer_name, SupplierName, doc_ref, slip_file_name, status, discrepancy_reason, discrepancy_notes, count_ref,
+            unit_price, currency
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+          [
+            sanitizedLog.id,
+            sanitizedLog.Timestamp,
+            sanitizedLog.Type,
+            sanitizedLog.ItemID,
+            sanitizedLog.ItemName,
+            sanitizedLog.Qty,
+            sanitizedLog.DeptID,
+            sanitizedLog.DeptName,
+            sanitizedLog.DeptHead,
+            sanitizedLog.DeptEmail,
+            sanitizedLog.IssuerID,
+            sanitizedLog.IssuerName || '',
+            sanitizedLog.SupplierName || null,
+            sanitizedLog.DocumentRef || '',
+            sanitizedLog.IssueSlipFileName || '',
+            sanitizedLog.Status,
+            sanitizedLog.DiscrepancyReason || null,
+            sanitizedLog.DiscrepancyNotes || null,
+            sanitizedLog.CountRef || null,
+            price,
+            curr,
+          ]
+        );
+        this.persistDb();
+        return;
+      } catch (err) {
+        console.warn('[SQLite Bridge] Retrying addMovementLog with unique fallback key:', err);
+        try {
+          const fallbackId = `LOG-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+          db.run(
+            `INSERT OR REPLACE INTO movement_log (
+              id, timestamp, type, item_id, item_name, qty, dept_id, dept_name, dept_head, dept_email,
+              issuer_id, issuer_name, SupplierName, doc_ref, slip_file_name, status, discrepancy_reason, discrepancy_notes, count_ref,
+              unit_price, currency
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+            [
+              fallbackId,
+              sanitizedLog.Timestamp,
+              sanitizedLog.Type,
+              sanitizedLog.ItemID,
+              sanitizedLog.ItemName,
+              sanitizedLog.Qty,
+              sanitizedLog.DeptID,
+              sanitizedLog.DeptName,
+              sanitizedLog.DeptHead,
+              sanitizedLog.DeptEmail,
+              sanitizedLog.IssuerID,
+              sanitizedLog.IssuerName || '',
+              sanitizedLog.SupplierName || null,
+              sanitizedLog.DocumentRef || '',
+              sanitizedLog.IssueSlipFileName || '',
+              sanitizedLog.Status,
+              sanitizedLog.DiscrepancyReason || null,
+              sanitizedLog.DiscrepancyNotes || null,
+              sanitizedLog.CountRef || null,
+              price,
+              curr,
+            ]
+          );
+          this.persistDb();
+          return;
+        } catch (retryErr) {
+          console.warn('[SQLite Bridge] Non-fatal addMovementLog retry failed:', retryErr);
+        }
+      }
     }
 
     this.initFallbackStore();
-    this.fallbackStore!.movementLogs.unshift(log);
+    const existingIdx = this.fallbackStore!.movementLogs.findIndex((l) => l.id === sanitizedLog.id);
+    if (existingIdx >= 0) {
+      this.fallbackStore!.movementLogs[existingIdx] = sanitizedLog;
+    } else {
+      this.fallbackStore!.movementLogs.unshift(sanitizedLog);
+    }
     this.persistFallback();
   }
 
   public async addBulkMovementLogs(logs: MovementLogEntry[]): Promise<void> {
+    if (!logs || !Array.isArray(logs) || logs.length === 0) return;
+
+    // Deduplicate by ID within the batch to prevent internal batch collision
+    const seenIds = new Set<string>();
+    const preparedLogs: MovementLogEntry[] = [];
+    for (const log of logs) {
+      let logId = log.id;
+      if (!logId || seenIds.has(logId)) {
+        logId = `LOG-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      }
+      seenIds.add(logId);
+      preparedLogs.push({ ...log, id: logId });
+    }
+
     const db = await this.getDb();
     if (db) {
       const stmt = db.prepare(
-        `INSERT INTO movement_log (
+        `INSERT OR REPLACE INTO movement_log (
           id, timestamp, type, item_id, item_name, qty, dept_id, dept_name, dept_head, dept_email,
           issuer_id, issuer_name, SupplierName, doc_ref, slip_file_name, status, discrepancy_reason, discrepancy_notes, count_ref
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`
       );
-      for (const log of logs) {
-        stmt.run([
-          log.id,
-          log.Timestamp,
-          log.Type,
-          log.ItemID,
-          log.ItemName,
-          log.Qty,
-          log.DeptID,
-          log.DeptName,
-          log.DeptHead,
-          log.DeptEmail,
-          log.IssuerID,
-          log.IssuerName || '',
-          log.SupplierName || null,
-          log.DocumentRef || '',
-          log.IssueSlipFileName || '',
-          log.Status,
-          log.DiscrepancyReason || null,
-          log.DiscrepancyNotes || null,
-          log.CountRef || null,
-        ]);
+      for (const log of preparedLogs) {
+        try {
+          stmt.run([
+            log.id,
+            log.Timestamp,
+            log.Type,
+            log.ItemID,
+            log.ItemName,
+            log.Qty,
+            log.DeptID,
+            log.DeptName,
+            log.DeptHead,
+            log.DeptEmail,
+            log.IssuerID,
+            log.IssuerName || '',
+            log.SupplierName || null,
+            log.DocumentRef || '',
+            log.IssueSlipFileName || '',
+            log.Status,
+            log.DiscrepancyReason || null,
+            log.DiscrepancyNotes || null,
+            log.CountRef || null,
+          ]);
+        } catch (runErr) {
+          // If a row fails due to constraint or corruption, attempt fallback unique ID
+          try {
+            const fallbackId = `LOG-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+            stmt.run([
+              fallbackId,
+              log.Timestamp,
+              log.Type,
+              log.ItemID,
+              log.ItemName,
+              log.Qty,
+              log.DeptID,
+              log.DeptName,
+              log.DeptHead,
+              log.DeptEmail,
+              log.IssuerID,
+              log.IssuerName || '',
+              log.SupplierName || null,
+              log.DocumentRef || '',
+              log.IssueSlipFileName || '',
+              log.Status,
+              log.DiscrepancyReason || null,
+              log.DiscrepancyNotes || null,
+              log.CountRef || null,
+            ]);
+          } catch (retryErr) {
+            console.warn('[SQLite Bridge] Non-fatal batch log item insert error:', retryErr);
+          }
+        }
       }
       stmt.free();
       this.persistDb();
@@ -1303,7 +1498,14 @@ class SqliteBridge {
     }
 
     this.initFallbackStore();
-    this.fallbackStore!.movementLogs.unshift(...logs);
+    for (const log of preparedLogs) {
+      const existingIdx = this.fallbackStore!.movementLogs.findIndex((l) => l.id === log.id);
+      if (existingIdx >= 0) {
+        this.fallbackStore!.movementLogs[existingIdx] = log;
+      } else {
+        this.fallbackStore!.movementLogs.unshift(log);
+      }
+    }
     this.persistFallback();
   }
 
@@ -1555,7 +1757,7 @@ class SqliteBridge {
     const db = await this.getDb();
     if (db) {
       db.run(
-        `INSERT INTO issued_documents (
+        `INSERT OR REPLACE INTO issued_documents (
           slip_number, timestamp, dept_id, dept_name, dept_head_name, dept_head_email,
           issuer_id, issuer_name, items_json, pdf_file_name, folder_path, full_saved_path
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
@@ -1579,7 +1781,12 @@ class SqliteBridge {
     }
 
     this.initFallbackStore();
-    this.fallbackStore!.issuedDocs.unshift(doc);
+    const existingIdx = this.fallbackStore!.issuedDocs.findIndex((d) => d.slipNumber === doc.slipNumber);
+    if (existingIdx >= 0) {
+      this.fallbackStore!.issuedDocs[existingIdx] = doc;
+    } else {
+      this.fallbackStore!.issuedDocs.unshift(doc);
+    }
     this.persistFallback();
   }
 
@@ -1629,7 +1836,7 @@ class SqliteBridge {
     const supp = doc.SupplierName || doc.supplier || null;
     if (db) {
       db.run(
-        `INSERT INTO received_documents (
+        `INSERT OR REPLACE INTO received_documents (
           voucher_number, timestamp, delivery_ref, SupplierName, supplier, issuer_id, issuer_name, issuer_role,
           items_json, pdf_file_name, folder_path, full_saved_path
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
@@ -1655,7 +1862,12 @@ class SqliteBridge {
     this.initFallbackStore();
     doc.SupplierName = supp || undefined;
     doc.supplier = supp || undefined;
-    this.fallbackStore!.receivedDocs.unshift(doc);
+    const existingIdx = this.fallbackStore!.receivedDocs.findIndex((d) => d.voucherNumber === doc.voucherNumber);
+    if (existingIdx >= 0) {
+      this.fallbackStore!.receivedDocs[existingIdx] = doc;
+    } else {
+      this.fallbackStore!.receivedDocs.unshift(doc);
+    }
     this.persistFallback();
   }
 
@@ -1704,7 +1916,7 @@ class SqliteBridge {
     const db = await this.getDb();
     if (db) {
       db.run(
-        `INSERT INTO adjustment_documents (
+        `INSERT OR REPLACE INTO adjustment_documents (
           voucher_number, timestamp, count_ref, reason_code, reason_label, notes,
           issuer_id, issuer_name, issuer_role, items_json, pdf_file_name, folder_path, full_saved_path
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
@@ -1729,7 +1941,12 @@ class SqliteBridge {
     }
 
     this.initFallbackStore();
-    this.fallbackStore!.adjustmentDocs.unshift(doc);
+    const existingIdx = this.fallbackStore!.adjustmentDocs.findIndex((d) => d.voucherNumber === doc.voucherNumber);
+    if (existingIdx >= 0) {
+      this.fallbackStore!.adjustmentDocs[existingIdx] = doc;
+    } else {
+      this.fallbackStore!.adjustmentDocs.unshift(doc);
+    }
     this.persistFallback();
   }
 
@@ -1955,7 +2172,7 @@ class SqliteBridge {
         if (payload.stockItems) {
           db.run('DELETE FROM master_stock;');
           const stmt = db.prepare(
-            'INSERT INTO master_stock (item_id, item_name, category, qty, reorder_level, unit) VALUES (?, ?, ?, ?, ?, ?);'
+            'INSERT OR REPLACE INTO master_stock (item_id, item_name, category, qty, reorder_level, unit) VALUES (?, ?, ?, ?, ?, ?);'
           );
           for (const item of payload.stockItems) {
             stmt.run([item.ItemID, item.ItemName, item.Category, item.Qty, item.ReorderLevel, item.Unit]);
@@ -1966,32 +2183,37 @@ class SqliteBridge {
         if (payload.movementLogs) {
           db.run('DELETE FROM movement_log;');
           const stmt = db.prepare(
-            `INSERT INTO movement_log (
+            `INSERT OR REPLACE INTO movement_log (
               id, timestamp, type, item_id, item_name, qty, dept_id, dept_name, dept_head, dept_email,
               issuer_id, issuer_name, doc_ref, slip_file_name, status, discrepancy_reason, discrepancy_notes, count_ref
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`
           );
           for (const l of payload.movementLogs) {
-            stmt.run([
-              l.id,
-              l.Timestamp,
-              l.Type,
-              l.ItemID,
-              l.ItemName,
-              l.Qty,
-              l.DeptID,
-              l.DeptName,
-              l.DeptHead,
-              l.DeptEmail,
-              l.IssuerID,
-              l.IssuerName || '',
-              l.DocumentRef || '',
-              l.IssueSlipFileName || '',
-              l.Status,
-              l.DiscrepancyReason || null,
-              l.DiscrepancyNotes || null,
-              l.CountRef || null,
-            ]);
+            const logId = l.id || `LOG-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+            try {
+              stmt.run([
+                logId,
+                l.Timestamp,
+                l.Type,
+                l.ItemID,
+                l.ItemName,
+                l.Qty,
+                l.DeptID,
+                l.DeptName,
+                l.DeptHead,
+                l.DeptEmail,
+                l.IssuerID,
+                l.IssuerName || '',
+                l.DocumentRef || '',
+                l.IssueSlipFileName || '',
+                l.Status,
+                l.DiscrepancyReason || null,
+                l.DiscrepancyNotes || null,
+                l.CountRef || null,
+              ]);
+            } catch (singleErr) {
+              console.warn('[SQLite Bridge] Non-fatal restore log row skipped:', singleErr);
+            }
           }
           stmt.free();
         }
@@ -1999,7 +2221,7 @@ class SqliteBridge {
         if (payload.admins) {
           db.run('DELETE FROM admin_users;');
           const stmt = db.prepare(
-            'INSERT INTO admin_users (issuer_id, issuer_name, role, secret_password, active) VALUES (?, ?, ?, ?, ?);'
+            'INSERT OR REPLACE INTO admin_users (issuer_id, issuer_name, role, secret_password, active) VALUES (?, ?, ?, ?, ?);'
           );
           for (const adm of payload.admins) {
             stmt.run([adm.IssuerID, adm.IssuerName, adm.Role, adm.SecretPassword, adm.Active ? 1 : 0]);
@@ -2010,7 +2232,7 @@ class SqliteBridge {
         if (payload.departments) {
           db.run('DELETE FROM departments;');
           const stmt = db.prepare(
-            'INSERT INTO departments (dept_id, dept_name, dept_head_name, dept_head_email) VALUES (?, ?, ?, ?);'
+            'INSERT OR REPLACE INTO departments (dept_id, dept_name, dept_head_name, dept_head_email) VALUES (?, ?, ?, ?);'
           );
           for (const d of payload.departments) {
             stmt.run([d.DeptID, d.DeptName, d.DeptHeadName, d.DeptHeadEmail]);
@@ -2021,7 +2243,7 @@ class SqliteBridge {
         if (payload.managers) {
           db.run('DELETE FROM managers;');
           const stmt = db.prepare(
-            'INSERT INTO managers (manager_id, manager_name, email) VALUES (?, ?, ?);'
+            'INSERT OR REPLACE INTO managers (manager_id, manager_name, email) VALUES (?, ?, ?);'
           );
           for (const m of payload.managers) {
             stmt.run([m.ManagerID, m.ManagerName, m.Email]);
@@ -2109,15 +2331,27 @@ class SqliteBridge {
           if (payload.stockUpdates && Array.isArray(payload.stockUpdates)) {
             for (const s of payload.stockUpdates) {
               if (s.ItemID && typeof s.Qty === 'number') {
-                await this.updateStockQty(s.ItemID, s.Qty);
+                try {
+                  await this.updateStockQty(s.ItemID, s.Qty);
+                } catch (sErr) {
+                  console.warn('[SQLite Bridge] Non-fatal stock update in issue replay:', sErr);
+                }
               }
             }
           }
           if (payload.movementLogs && Array.isArray(payload.movementLogs)) {
-            await this.addBulkMovementLogs(payload.movementLogs);
+            try {
+              await this.addBulkMovementLogs(payload.movementLogs);
+            } catch (logErr) {
+              console.warn('[SQLite Bridge] Non-fatal logs in issue replay:', logErr);
+            }
           }
           if (payload.issueDoc) {
-            await this.addIssuedDoc(payload.issueDoc);
+            try {
+              await this.addIssuedDoc(payload.issueDoc);
+            } catch (docErr) {
+              console.warn('[SQLite Bridge] Non-fatal doc in issue replay:', docErr);
+            }
           }
           break;
         }
@@ -2126,15 +2360,28 @@ class SqliteBridge {
           if (payload.stockUpdates && Array.isArray(payload.stockUpdates)) {
             for (const s of payload.stockUpdates) {
               if (s.ItemID && typeof s.Qty === 'number') {
-                await this.updateStockQty(s.ItemID, s.Qty);
+                try {
+                  await this.updateStockQty(s.ItemID, s.Qty);
+                } catch (sErr) {
+                  console.warn('[SQLite Bridge] Non-fatal stock update in delivery replay:', sErr);
+                }
               }
             }
           }
           if (payload.movementLogs && Array.isArray(payload.movementLogs)) {
-            await this.addBulkMovementLogs(payload.movementLogs);
+            try {
+              await this.addBulkMovementLogs(payload.movementLogs);
+            } catch (logErr) {
+              console.warn('[SQLite Bridge] Non-fatal logs in delivery replay:', logErr);
+            }
           }
-          if (payload.recvDoc) {
-            await this.addReceivedDoc(payload.recvDoc);
+          const deliveryDoc = payload.recvDoc || payload.receivedDoc;
+          if (deliveryDoc) {
+            try {
+              await this.addReceivedDoc(deliveryDoc);
+            } catch (docErr) {
+              console.warn('[SQLite Bridge] Non-fatal doc in delivery replay:', docErr);
+            }
           }
           break;
         }
@@ -2143,15 +2390,27 @@ class SqliteBridge {
           if (payload.stockUpdates && Array.isArray(payload.stockUpdates)) {
             for (const s of payload.stockUpdates) {
               if (s.ItemID && typeof s.Qty === 'number') {
-                await this.updateStockQty(s.ItemID, s.Qty);
+                try {
+                  await this.updateStockQty(s.ItemID, s.Qty);
+                } catch (sErr) {
+                  console.warn('[SQLite Bridge] Non-fatal stock update in adjustment replay:', sErr);
+                }
               }
             }
           }
           if (payload.movementLogs && Array.isArray(payload.movementLogs)) {
-            await this.addBulkMovementLogs(payload.movementLogs);
+            try {
+              await this.addBulkMovementLogs(payload.movementLogs);
+            } catch (logErr) {
+              console.warn('[SQLite Bridge] Non-fatal logs in adjustment replay:', logErr);
+            }
           }
           if (payload.adjDoc) {
-            await this.addAdjustmentDoc(payload.adjDoc);
+            try {
+              await this.addAdjustmentDoc(payload.adjDoc);
+            } catch (docErr) {
+              console.warn('[SQLite Bridge] Non-fatal doc in adjustment replay:', docErr);
+            }
           }
           break;
         }

@@ -27,8 +27,8 @@ interface ProcurementOperationsDialogProps {
   onOpenRequestsModal?: () => void;
   onOpenSuperiorManagerModal?: () => void;
   pendingRequestsCount?: number;
-  onSaveDelivery: (itemId: string, addQty: number, deliveryNoteRef?: string, supplier?: string) => Promise<ReceivedDocument | void> | ReceivedDocument | void;
-  onSaveBulkDeliveries?: (deliveries: { itemId: string; addQty: number; supplier?: string }[], deliveryNoteRef?: string, defaultSupplier?: string) => Promise<ReceivedDocument | void> | ReceivedDocument | void;
+  onSaveDelivery: (itemId: string, addQty: number, deliveryNoteRef?: string, supplier?: string, unitPrice?: number) => Promise<ReceivedDocument | void> | ReceivedDocument | void;
+  onSaveBulkDeliveries?: (deliveries: { itemId: string; addQty: number; supplier?: string; unitPrice?: number }[], deliveryNoteRef?: string, defaultSupplier?: string) => Promise<ReceivedDocument | void> | ReceivedDocument | void;
   onTriggerReceivedDocPreview?: (doc: ReceivedDocument) => void;
   onSaveAdjustment?: (adjustmentData: {
     itemId: string;

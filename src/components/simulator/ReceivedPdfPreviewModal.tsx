@@ -122,24 +122,30 @@ export const ReceivedPdfPreviewModal: React.FC<ReceivedPdfPreviewModalProps> = (
     pdf.rect(12, y, 186, 9, 'S');
 
     pdf.setFont('helvetica', 'bold');
-    pdf.setFontSize(9.5);
-    pdf.text('Item ID', 16, y + 6);
-    pdf.text('Item Description', 50, y + 6);
-    pdf.text('Category', 130, y + 6);
-    pdf.text('Qty Received', 170, y + 6);
+    pdf.setFontSize(8.5);
+    pdf.text('Item ID', 15, y + 6);
+    pdf.text('Item Description', 45, y + 6);
+    pdf.text('Category', 108, y + 6);
+    pdf.text('Unit Price', 136, y + 6);
+    pdf.text('Qty Rec', 160, y + 6);
+    pdf.text('Total (R)', 180, y + 6);
 
     // Items List
     pdf.setFont('helvetica', 'normal');
-    pdf.setFontSize(9);
+    pdf.setFontSize(8);
     y += 9;
 
     const docItems = Array.isArray(doc?.items) ? doc.items : [];
     docItems.forEach((item) => {
+      const price = item?.UnitPrice || (item as any)?.unitPrice || 0;
+      const total = (item?.Qty || 0) * price;
       pdf.rect(12, y, 186, 8, 'S');
-      pdf.text(item?.ItemID || '', 16, y + 5.5);
-      pdf.text(item?.ItemName || '', 50, y + 5.5);
-      pdf.text(item?.Category || '', 130, y + 5.5);
-      pdf.text(`${item?.Qty || 0} ${item?.Unit || 'Units'}`, 170, y + 5.5);
+      pdf.text(item?.ItemID || '', 15, y + 5.5);
+      pdf.text((item?.ItemName || '').substring(0, 30), 45, y + 5.5);
+      pdf.text(item?.Category || '', 108, y + 5.5);
+      pdf.text(price > 0 ? `R ${price.toFixed(2)}` : '—', 136, y + 5.5);
+      pdf.text(`${item?.Qty || 0} ${item?.Unit || 'Units'}`, 160, y + 5.5);
+      pdf.text(total > 0 ? `R ${total.toFixed(2)}` : '—', 180, y + 5.5);
       y += 8;
     });
 
@@ -352,18 +358,32 @@ export const ReceivedPdfPreviewModal: React.FC<ReceivedPdfPreviewModalProps> = (
                     <th className="p-2 border-r border-slate-400">Item ID</th>
                     <th className="p-2 border-r border-slate-400">Item Description</th>
                     <th className="p-2 border-r border-slate-400">Category</th>
-                    <th className="p-2 text-right">Qty Received</th>
+                    <th className="p-2 text-right border-r border-slate-400">Unit Price</th>
+                    <th className="p-2 text-right border-r border-slate-400">Qty Received</th>
+                    <th className="p-2 text-right">Line Total</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-300">
-                  {safeDocItems.map((item) => (
-                    <tr key={item?.ItemID || Math.random()}>
-                      <td className="p-2 font-mono font-bold text-slate-900 border-r border-slate-300">{item?.ItemID}</td>
-                      <td className="p-2 font-medium border-r border-slate-300">{item?.ItemName}</td>
-                      <td className="p-2 text-slate-700 border-r border-slate-300">{item?.Category}</td>
-                      <td className="p-2 text-right font-mono font-bold text-blue-700">+{item?.Qty} {item?.Unit || 'Units'}</td>
-                    </tr>
-                  ))}
+                  {safeDocItems.map((item) => {
+                    const price = item?.UnitPrice || (item as any)?.unitPrice || 0;
+                    const lineTotal = (item?.Qty || 0) * price;
+                    return (
+                      <tr key={item?.ItemID || Math.random()}>
+                        <td className="p-2 font-mono font-bold text-slate-900 border-r border-slate-300">{item?.ItemID}</td>
+                        <td className="p-2 font-medium border-r border-slate-300">{item?.ItemName}</td>
+                        <td className="p-2 text-slate-700 border-r border-slate-300">{item?.Category}</td>
+                        <td className="p-2 text-right font-mono text-slate-800 border-r border-slate-300">
+                          {price > 0 ? `R ${price.toFixed(2)}` : '—'}
+                        </td>
+                        <td className="p-2 text-right font-mono font-bold text-blue-700 border-r border-slate-300">
+                          +{item?.Qty} {item?.Unit || 'Units'}
+                        </td>
+                        <td className="p-2 text-right font-mono font-bold text-teal-700">
+                          {lineTotal > 0 ? `R ${lineTotal.toFixed(2)}` : '—'}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
