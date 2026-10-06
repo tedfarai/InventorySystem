@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { PackagePlus, ArrowLeft, CheckCircle, Truck } from 'lucide-react';
-import { StockItem } from '../../types';
+import { PackagePlus, ArrowLeft, CheckCircle, Truck, Coins } from 'lucide-react';
+import { StockItem, CurrencyCode } from '../../types';
 import { StockItemDropUpSelect } from '../common/StockItemDropUpSelect';
 import { DraggableResizableModal } from '../common/DraggableResizableModal';
+import { formatCurrency, convertCurrency, getExchangeRate } from '../../utils/currencyUtils';
 
 interface StockDeliveryDialogProps {
   stockItems: StockItem[];
-  onSaveDelivery: (itemId: string, addQty: number, supplier?: string, unitPrice?: number) => void;
+  onSaveDelivery: (itemId: string, addQty: number, supplier?: string, unitPrice?: number, currency?: CurrencyCode) => void;
   onBack: () => void;
 }
 
@@ -20,6 +21,7 @@ export const StockDeliveryDialog: React.FC<StockDeliveryDialogProps> = ({
   const selectedItem = stockItems.find((i) => i.ItemID === selectedItemId);
   const [supplier, setSupplier] = useState(selectedItem?.LastSupplier || '');
   const [unitPrice, setUnitPrice] = useState<number | ''>(selectedItem?.UnitPrice !== undefined ? selectedItem.UnitPrice : '');
+  const [currency, setCurrency] = useState<CurrencyCode>(selectedItem?.Currency || 'USD');
   const [errorMsg, setErrorMsg] = useState('');
 
   const handleSelectItem = (item: StockItem) => {
@@ -29,6 +31,9 @@ export const StockDeliveryDialog: React.FC<StockDeliveryDialogProps> = ({
     }
     if (item.UnitPrice !== undefined) {
       setUnitPrice(item.UnitPrice);
+    }
+    if (item.Currency) {
+      setCurrency(item.Currency);
     }
   };
 
@@ -47,7 +52,7 @@ export const StockDeliveryDialog: React.FC<StockDeliveryDialogProps> = ({
     }
 
     const priceNum = unitPrice !== '' && Number(unitPrice) > 0 ? Number(unitPrice) : (selectedItem?.UnitPrice || undefined);
-    onSaveDelivery(selectedItemId, Number(addQty), supplier.trim() || undefined, priceNum);
+    onSaveDelivery(selectedItemId, Number(addQty), supplier.trim() || undefined, priceNum, currency);
   };
 
   return (
@@ -150,21 +155,66 @@ export const StockDeliveryDialog: React.FC<StockDeliveryDialogProps> = ({
               </div>
             </div>
 
-            {/* Unit Price & Quantity Row */}
+            {/* Unit Price, Zimbabwe Currency & Quantity Row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Unit Price (R)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={unitPrice}
-                  onChange={(e) => setUnitPrice(e.target.value === '' ? '' : Number(e.target.value))}
-                  className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500"
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    Unit Price &amp; Currency (Zimbabwe)
+                  </label>
+                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-300 dark:border-slate-700 text-[10px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setCurrency('USD')}
+                      className={`px-1.5 py-0.5 rounded transition ${
+                        currency === 'USD'
+                          ? 'bg-emerald-600 text-white shadow-2xs'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                      }`}
+                    >
+                      $ USD
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCurrency('ZWG')}
+                      className={`px-1.5 py-0.5 rounded transition ${
+                        currency === 'ZWG'
+                          ? 'bg-purple-600 text-white shadow-2xs'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                      }`}
+                    >
+                      ZiG ZWG
+                    </button>
+                  </div>
+                </div>
+
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={unitPrice}
+                    onChange={(e) => setUnitPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 font-bold"
+                  />
+                  <span className="absolute right-3 top-2 text-[10px] font-mono font-bold text-slate-400">
+                    {currency}
+                  </span>
+                </div>
+
+                {unitPrice !== '' && Number(unitPrice) > 0 && (
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 flex items-center justify-between">
+                    <span>
+                      ≈ {formatCurrency(
+                        convertCurrency(Number(unitPrice), currency, currency === 'USD' ? 'ZWG' : 'USD'),
+                        currency === 'USD' ? 'ZWG' : 'USD',
+                        { showCode: true }
+                      )}
+                    </span>
+                    <span className="text-slate-400 font-mono">(1 USD = {getExchangeRate()} ZWG)</span>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -178,6 +228,12 @@ export const StockDeliveryDialog: React.FC<StockDeliveryDialogProps> = ({
                   onChange={(e) => setAddQty(e.target.value === '' ? '' : Number(e.target.value))}
                   className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 font-mono"
                 />
+
+                {unitPrice !== '' && Number(unitPrice) > 0 && addQty !== '' && Number(addQty) > 0 && (
+                  <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1 text-right font-mono">
+                    Total Value: {formatCurrency(Number(addQty) * Number(unitPrice), currency, { showCode: true })}
+                  </div>
+                )}
               </div>
             </div>
 

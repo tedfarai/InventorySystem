@@ -540,6 +540,7 @@ function AppContent() {
               departments={departments}
               adjustmentRequests={adjustmentRequests}
               currentUser={currentUser}
+              receivedDocs={receivedDocs}
               backups={backups}
               onNavigateTab={(tab) => {
                 setActiveTab(tab as AppTab);

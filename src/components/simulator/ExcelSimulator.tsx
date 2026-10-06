@@ -44,6 +44,7 @@ import {
   Calendar,
   Truck,
   Trash2,
+  Coins,
 } from 'lucide-react';
 import {
   StockItem,
@@ -88,6 +89,7 @@ import { useToast } from '../../context/ToastContext';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import { useWriteGuard } from '../../hooks/useWriteGuard';
 import { SearchHighlightText } from '../common/SearchHighlightText';
+import { formatCurrency, convertCurrency, getExchangeRate } from '../../utils/currencyUtils';
 
 interface ExcelSimulatorProps {
   masterFolderPath: string;
@@ -1394,6 +1396,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                     Available Qty (Col D)
                   </th>
                   <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 p-2 border-r border-slate-300 dark:border-slate-700 text-right font-bold shadow-xs">Reorder Level (Col E)</th>
+                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 p-2 border-r border-slate-300 dark:border-slate-700 text-right font-bold shadow-xs whitespace-nowrap">Price / Unit (Col F)</th>
                   <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 p-2 text-center font-bold shadow-xs">Stock Status</th>
                   <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 p-2 border-l border-slate-300 dark:border-slate-700 text-center font-bold shadow-xs whitespace-nowrap">
                     Actions {!currentUser && <span className="text-[9px] text-amber-600 dark:text-amber-400 font-normal font-sans">(Read-Only)</span>}
@@ -1403,7 +1406,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-800 dark:text-slate-200">
                 {filteredStock.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="p-8 text-center bg-slate-50/50 dark:bg-slate-900/50">
+                    <td colSpan={10} className="p-8 text-center bg-slate-50/50 dark:bg-slate-900/50">
                       <div className="flex flex-col items-center justify-center space-y-2 text-slate-500 dark:text-slate-400">
                         <Search className="w-8 h-8 text-slate-300 dark:text-slate-600" />
                         <p className="text-xs font-semibold">
@@ -1457,7 +1460,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                             aria-label={`Stock row ${item.ItemID} - ${item.ItemName}`}
                             data-active={isCurrentActive ? 'true' : undefined}
                             data-selected={isSelected ? 'true' : undefined}
-                            className={`stock-table-row cursor-pointer transition-all duration-150 group border-b border-slate-300 dark:border-slate-700 relative origin-center overflow-visible focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-inset ${
+                            className={`stock-table-row cursor-pointer transition-all duration-150 group border-b border-slate-300 dark:border-slate-700 relative origin-center overflow-visible ${
                               isRowActiveOrSelected ? 'is-active is-selected' : ''
                             } ${
                               isSelected
@@ -1553,6 +1556,15 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                               <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal ml-1">
                                 <SearchHighlightText text={item.Unit} query={searchQuery} />
                               </span>
+                            </td>
+                            <td className="py-1.5 px-2.5 text-right font-mono border-r border-slate-300 dark:border-slate-700 whitespace-nowrap">
+                              {item.UnitPrice && item.UnitPrice > 0 ? (
+                                <span className="font-bold text-[10.5px] text-emerald-700 dark:text-emerald-400">
+                                  {formatCurrency(item.UnitPrice, item.Currency || 'USD', { showCode: true })}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-slate-400 italic">—</span>
+                              )}
                             </td>
                             <td className="py-1.5 px-2 text-center whitespace-nowrap">
                               {hasPendingReplenishment ? (
@@ -1724,10 +1736,10 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                           {/* Expandable Secondary Details Row */}
                           {isExpanded && (
                             <tr className="bg-slate-50/95 dark:bg-slate-950/90 border-b-2 border-slate-300 dark:border-slate-700">
-                              <td colSpan={9} className="p-4 pl-12 pr-6">
+                              <td colSpan={10} className="p-4 pl-12 pr-6">
                                 <div className="space-y-3.5 text-xs">
-                                  {/* Secondary Details 3-Card Grid */}
-                                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                  {/* Secondary Details 4-Card Grid */}
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                                     <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-300 dark:border-slate-700 shadow-2xs">
                                       <div className="flex items-center space-x-2 text-slate-500 dark:text-slate-400 mb-1">
                                         <Truck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
@@ -1774,6 +1786,34 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                                           ? 'Below minimum safety reorder threshold'
                                           : 'Inventory levels optimal'}
                                       </p>
+                                    </div>
+
+                                    <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-300 dark:border-slate-700 shadow-2xs">
+                                      <div className="flex items-center space-x-2 text-slate-500 dark:text-slate-400 mb-1">
+                                        <Coins className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                                        <span className="font-semibold text-[10.5px] uppercase tracking-wider">Unit Cost & Valuation (ZW)</span>
+                                      </div>
+                                      <div className="flex items-baseline space-x-2">
+                                        <span className="text-sm font-extrabold font-mono text-emerald-600 dark:text-emerald-400">
+                                          {item.UnitPrice && item.UnitPrice > 0
+                                            ? formatCurrency(item.UnitPrice, item.Currency || 'USD', { showCode: true })
+                                            : 'No price set'}
+                                        </span>
+                                      </div>
+                                      {item.UnitPrice && item.UnitPrice > 0 && (
+                                        <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 space-y-0.5">
+                                          <div>
+                                            ≈ {formatCurrency(
+                                              convertCurrency(item.UnitPrice, item.Currency || 'USD', item.Currency === 'ZWG' ? 'USD' : 'ZWG'),
+                                              item.Currency === 'ZWG' ? 'USD' : 'ZWG',
+                                              { showCode: true }
+                                            )}
+                                          </div>
+                                          <div className="font-bold text-slate-800 dark:text-slate-200 pt-0.5 border-t border-slate-200 dark:border-slate-700/60">
+                                            Holding Value: {formatCurrency(item.Qty * item.UnitPrice, item.Currency || 'USD', { showCode: true })}
+                                          </div>
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
 

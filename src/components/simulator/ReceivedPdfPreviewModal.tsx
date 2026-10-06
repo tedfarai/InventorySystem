@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { FileText, Download, CheckCircle2, ShieldCheck, Printer, PackagePlus, FolderCheck, Check, Sparkles, FileDown } from 'lucide-react';
-import { ReceivedDocument } from '../../types';
+import { ReceivedDocument, CurrencyCode } from '../../types';
 import { getPexGreenLogoDataUrl, PEX_GREEN_LOGO_PUBLIC_PATH } from '../brand/brandLogoData';
 import { DraggableResizableModal } from '../common/DraggableResizableModal';
+import { formatCurrency, getExchangeRate } from '../../utils/currencyUtils';
 import jsPDF from 'jspdf';
 
 interface ReceivedPdfPreviewModalProps {
@@ -126,9 +127,9 @@ export const ReceivedPdfPreviewModal: React.FC<ReceivedPdfPreviewModalProps> = (
     pdf.text('Item ID', 15, y + 6);
     pdf.text('Item Description', 45, y + 6);
     pdf.text('Category', 108, y + 6);
-    pdf.text('Unit Price', 136, y + 6);
-    pdf.text('Qty Rec', 160, y + 6);
-    pdf.text('Total (R)', 180, y + 6);
+    pdf.text('Unit Price', 134, y + 6);
+    pdf.text('Qty Rec', 158, y + 6);
+    pdf.text('Line Total', 176, y + 6);
 
     // Items List
     pdf.setFont('helvetica', 'normal');
@@ -138,14 +139,17 @@ export const ReceivedPdfPreviewModal: React.FC<ReceivedPdfPreviewModalProps> = (
     const docItems = Array.isArray(doc?.items) ? doc.items : [];
     docItems.forEach((item) => {
       const price = item?.UnitPrice || (item as any)?.unitPrice || 0;
+      const curr: CurrencyCode = item?.Currency || (item as any)?.currency || 'USD';
       const total = (item?.Qty || 0) * price;
+      const formattedPrice = price > 0 ? (curr === 'USD' ? `$${price.toFixed(2)}` : `ZiG ${price.toFixed(2)}`) : '—';
+      const formattedTotal = total > 0 ? (curr === 'USD' ? `$${total.toFixed(2)}` : `ZiG ${total.toFixed(2)}`) : '—';
       pdf.rect(12, y, 186, 8, 'S');
       pdf.text(item?.ItemID || '', 15, y + 5.5);
       pdf.text((item?.ItemName || '').substring(0, 30), 45, y + 5.5);
       pdf.text(item?.Category || '', 108, y + 5.5);
-      pdf.text(price > 0 ? `R ${price.toFixed(2)}` : '—', 136, y + 5.5);
-      pdf.text(`${item?.Qty || 0} ${item?.Unit || 'Units'}`, 160, y + 5.5);
-      pdf.text(total > 0 ? `R ${total.toFixed(2)}` : '—', 180, y + 5.5);
+      pdf.text(formattedPrice, 134, y + 5.5);
+      pdf.text(`${item?.Qty || 0} ${item?.Unit || 'Units'}`, 158, y + 5.5);
+      pdf.text(formattedTotal, 176, y + 5.5);
       y += 8;
     });
 
@@ -366,20 +370,21 @@ export const ReceivedPdfPreviewModal: React.FC<ReceivedPdfPreviewModalProps> = (
                 <tbody className="divide-y divide-slate-300">
                   {safeDocItems.map((item) => {
                     const price = item?.UnitPrice || (item as any)?.unitPrice || 0;
+                    const curr: CurrencyCode = item?.Currency || (item as any)?.currency || 'USD';
                     const lineTotal = (item?.Qty || 0) * price;
                     return (
                       <tr key={item?.ItemID || Math.random()}>
                         <td className="p-2 font-mono font-bold text-slate-900 border-r border-slate-300">{item?.ItemID}</td>
                         <td className="p-2 font-medium border-r border-slate-300">{item?.ItemName}</td>
                         <td className="p-2 text-slate-700 border-r border-slate-300">{item?.Category}</td>
-                        <td className="p-2 text-right font-mono text-slate-800 border-r border-slate-300">
-                          {price > 0 ? `R ${price.toFixed(2)}` : '—'}
+                        <td className="p-2 text-right font-mono text-slate-800 border-r border-slate-300 whitespace-nowrap">
+                          {price > 0 ? formatCurrency(price, curr, { showCode: true }) : '—'}
                         </td>
                         <td className="p-2 text-right font-mono font-bold text-blue-700 border-r border-slate-300">
                           +{item?.Qty} {item?.Unit || 'Units'}
                         </td>
-                        <td className="p-2 text-right font-mono font-bold text-teal-700">
-                          {lineTotal > 0 ? `R ${lineTotal.toFixed(2)}` : '—'}
+                        <td className="p-2 text-right font-mono font-bold text-teal-700 whitespace-nowrap">
+                          {lineTotal > 0 ? formatCurrency(lineTotal, curr, { showCode: true }) : '—'}
                         </td>
                       </tr>
                     );

@@ -1,4 +1,5 @@
-import { StockItem, MovementLogEntry, ItemCategory } from '../types';
+import { StockItem, MovementLogEntry, ItemCategory, CurrencyCode } from '../types';
+import { getExchangeRate, convertCurrency, collateDualCurrencyValuation, CollationSummary } from './currencyUtils';
 
 export interface MonthlyCategoryConsumption {
   month: string; // e.g. 'Apr 2026'
@@ -99,6 +100,16 @@ export interface ItemPrediction {
   reorderUrgency: 'CRITICAL' | 'WARNING' | 'OPTIMAL' | 'OVERSTOCKED';
   urgencyScore: number; // For sorting (higher = more urgent)
   recommendationReason: string;
+
+  // Zimbabwe Dual-Currency (USD & ZWG) financial predictive metrics
+  unitPrice: number;
+  currency: CurrencyCode;
+  inventoryValueUsd: number;
+  inventoryValueZwg: number;
+  estimatedReorderCostUsd: number;
+  estimatedReorderCostZwg: number;
+  monthlyBurnCostUsd: number;
+  monthlyBurnCostZwg: number;
 }
 
 export interface ExecutiveAnalyticsSummary {
@@ -110,6 +121,16 @@ export interface ExecutiveAnalyticsSummary {
   topConsumedItems: { name: string; category: string; qty: number; unit: string }[];
   totalProjected6MonthDemand: number;
   categoryDistribution: { name: string; value: number; count: number }[];
+
+  // Financial & Collation Analytics (Zimbabwe Dual Currency)
+  totalInventoryValueUsd: number;
+  totalInventoryValueZwg: number;
+  totalProjectedRestockCostUsd: number;
+  totalProjectedRestockCostZwg: number;
+  historicalProcurementSpendUsd: number;
+  historicalProcurementSpendZwg: number;
+  currencyCollation: CollationSummary;
+  exchangeRate: number;
 }
 
 /**
@@ -819,6 +840,21 @@ export function calculateAllStockPredictions(
     // Normalize suggested reorder to integer
     suggestedReorderQty = Math.ceil(suggestedReorderQty);
 
+    const unitPrice = Number(item.UnitPrice) > 0 ? Number(item.UnitPrice) : 0;
+    const currency: CurrencyCode = item.Currency || 'USD';
+    const rate = getExchangeRate();
+
+    const inventoryValueUsd = currency === 'USD' ? currentQty * unitPrice : (rate > 0 ? (currentQty * unitPrice) / rate : 0);
+    const inventoryValueZwg = currency === 'ZWG' ? currentQty * unitPrice : (currentQty * unitPrice * rate);
+
+    const reorderCostRaw = suggestedReorderQty * unitPrice;
+    const estimatedReorderCostUsd = currency === 'USD' ? reorderCostRaw : (rate > 0 ? reorderCostRaw / rate : 0);
+    const estimatedReorderCostZwg = currency === 'ZWG' ? reorderCostRaw : reorderCostRaw * rate;
+
+    const monthlyBurnCostRaw = monthlyPredictedConsumption * unitPrice;
+    const monthlyBurnCostUsd = currency === 'USD' ? monthlyBurnCostRaw : (rate > 0 ? monthlyBurnCostRaw / rate : 0);
+    const monthlyBurnCostZwg = currency === 'ZWG' ? monthlyBurnCostRaw : monthlyBurnCostRaw * rate;
+
     return {
       item,
       itemID: item.ItemID,
@@ -840,6 +876,16 @@ export function calculateAllStockPredictions(
       reorderUrgency,
       urgencyScore,
       recommendationReason,
+
+      // Zimbabwe Dual-Currency financial metrics
+      unitPrice,
+      currency,
+      inventoryValueUsd: Math.round(inventoryValueUsd * 100) / 100,
+      inventoryValueZwg: Math.round(inventoryValueZwg * 100) / 100,
+      estimatedReorderCostUsd: Math.round(estimatedReorderCostUsd * 100) / 100,
+      estimatedReorderCostZwg: Math.round(estimatedReorderCostZwg * 100) / 100,
+      monthlyBurnCostUsd: Math.round(monthlyBurnCostUsd * 100) / 100,
+      monthlyBurnCostZwg: Math.round(monthlyBurnCostZwg * 100) / 100,
     };
   });
 
@@ -907,6 +953,45 @@ export function getExecutiveAnalytics(
     { name: 'General', value: catMap.General, count: catCount.General },
   ];
 
+  // Financial & Collation Analytics (Zimbabwe Dual Currency)
+  const rate = getExchangeRate();
+  const currencyCollation = collateDualCurrencyValuation(safeStock, rate);
+
+  const totalInventoryValueUsd = currencyCollation.totalUsdValuation;
+  const totalInventoryValueZwg = currencyCollation.totalZwgValuation;
+
+  const totalProjectedRestockCostUsd = itemPredictions.reduce(
+    (acc, p) => acc + p.estimatedReorderCostUsd,
+    0
+  );
+  const totalProjectedRestockCostZwg = itemPredictions.reduce(
+    (acc, p) => acc + p.estimatedReorderCostZwg,
+    0
+  );
+
+  // Historical procurement spend from DELIVERY movement logs
+  let historicalProcurementSpendUsd = 0;
+  let historicalProcurementSpendZwg = 0;
+
+  safeLogs.forEach((log) => {
+    if (log.Type === 'DELIVERY') {
+      const q = Math.abs(Number(log.Qty) || 0);
+      const stock = safeStock.find((s) => s.ItemID === log.ItemID);
+      const price = Number(log.UnitPrice || stock?.UnitPrice || 0);
+      const curr: CurrencyCode = log.Currency || stock?.Currency || 'USD';
+      if (price > 0 && q > 0) {
+        const lineTotal = q * price;
+        if (curr === 'USD') {
+          historicalProcurementSpendUsd += lineTotal;
+          historicalProcurementSpendZwg += lineTotal * rate;
+        } else {
+          historicalProcurementSpendZwg += lineTotal;
+          historicalProcurementSpendUsd += rate > 0 ? lineTotal / rate : 0;
+        }
+      }
+    }
+  });
+
   return {
     monthlyTrend,
     itemPredictions,
@@ -916,5 +1001,14 @@ export function getExecutiveAnalytics(
     topConsumedItems,
     totalProjected6MonthDemand,
     categoryDistribution,
+
+    totalInventoryValueUsd: Math.round(totalInventoryValueUsd * 100) / 100,
+    totalInventoryValueZwg: Math.round(totalInventoryValueZwg * 100) / 100,
+    totalProjectedRestockCostUsd: Math.round(totalProjectedRestockCostUsd * 100) / 100,
+    totalProjectedRestockCostZwg: Math.round(totalProjectedRestockCostZwg * 100) / 100,
+    historicalProcurementSpendUsd: Math.round(historicalProcurementSpendUsd * 100) / 100,
+    historicalProcurementSpendZwg: Math.round(historicalProcurementSpendZwg * 100) / 100,
+    currencyCollation,
+    exchangeRate: rate,
   };
 }

@@ -78,7 +78,8 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
   const safeItemsList = Array.isArray(itemsList) ? itemsList : [];
   const totalItemsCount = safeItemsList.length;
   const totalUnits = safeItemsList.reduce((sum, item) => sum + (item?.addQty || 0), 0);
-  const totalBatchValue = safeItemsList.reduce((sum, item) => sum + ((item?.addQty || 0) * (item?.unitPrice || 0)), 0);
+  const dualValuation = collateDualCurrencyValuation(safeItemsList);
+  const totalBatchValue = dualValuation.totalUsdValuation;
   const stationeryCount = safeItemsList.filter((i) => i?.category === 'Stationery').length;
   const cleaningCount = safeItemsList.filter((i) => i?.category === 'Cleaning').length;
 
@@ -99,6 +100,13 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
     const newPrice = isNaN(num) || num < 0 ? undefined : num;
     setItemsList((prev) =>
       prev.map((item) => (item.itemId === itemId ? { ...item, unitPrice: newPrice } : item))
+    );
+  };
+
+  // Handle currency selection change in Step 1
+  const handleCurrencyChange = (itemId: string, newCurr: CurrencyCode) => {
+    setItemsList((prev) =>
+      prev.map((item) => (item.itemId === itemId ? { ...item, currency: newCurr } : item))
     );
   };
 
@@ -243,16 +251,19 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
                 </div>
 
                 <div className="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
-                  <div className="text-[10px] font-semibold text-slate-500 uppercase">Total Cost (Est)</div>
-                  <div className="text-lg font-extrabold text-teal-600 dark:text-teal-400 font-mono mt-0.5 truncate" title={`R ${totalBatchValue.toFixed(2)}`}>
-                    R {totalBatchValue.toFixed(2)}
+                  <div className="text-[10px] font-semibold text-slate-500 uppercase">Total Valuation (Zimbabwe)</div>
+                  <div className="text-sm font-extrabold text-teal-600 dark:text-teal-400 font-mono mt-0.5 truncate" title={`USD $${dualValuation.totalUsdValuation.toFixed(2)} | ZWG ZiG ${dualValuation.totalZwgValuation.toFixed(2)}`}>
+                    ${dualValuation.totalUsdValuation.toFixed(2)} <span className="text-[10px] text-slate-400 font-normal">USD</span>
+                  </div>
+                  <div className="text-[10px] text-purple-600 dark:text-purple-400 font-mono font-bold">
+                    ≈ ZiG {dualValuation.totalZwgValuation.toFixed(2)} ZWG
                   </div>
                 </div>
 
                 <div className="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
-                  <div className="text-[10px] font-semibold text-slate-500 uppercase">Categories</div>
-                  <div className="text-xs font-bold text-slate-700 dark:text-slate-300 mt-1 truncate">
-                    Stat: {stationeryCount} | Clean: {cleaningCount}
+                  <div className="text-[10px] font-semibold text-slate-500 uppercase">Categories &amp; Currency</div>
+                  <div className="text-[11px] font-bold text-slate-700 dark:text-slate-300 mt-1 truncate">
+                    USD: {dualValuation.usdItemCount} | ZWG: {dualValuation.zwgItemCount}
                   </div>
                 </div>
               </div>
@@ -262,7 +273,7 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                     <ListPlus className="w-4 h-4 text-blue-500" />
-                    Delivery Shipment Manifest (Adjust Quantities, Unit Prices, or Delete Items)
+                    Delivery Shipment Manifest (Adjust Quantities, Unit Prices, Pick Currency, or Delete)
                   </h4>
                   <span className="text-[11px] text-slate-500 font-mono">
                     Target Table: Master_Stock
@@ -287,15 +298,15 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
                           <th className="p-2.5 border-r border-slate-200 dark:border-slate-700">Code</th>
                           <th className="p-2.5 border-r border-slate-200 dark:border-slate-700">Description</th>
                           <th className="p-2.5 border-r border-slate-200 dark:border-slate-700">Supplier</th>
-                          <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-right w-24">
-                            Unit Price (R)
+                          <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-center w-36">
+                            Price &amp; Currency (USD / ZWG)
                           </th>
                           <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-right">Current</th>
                           <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-center text-emerald-600 dark:text-emerald-400 font-bold w-24">
                             Incoming (+)
                           </th>
-                          <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-right font-bold w-24">
-                            Line Total (R)
+                          <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-right font-bold w-28">
+                            Line Total
                           </th>
                           <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-right font-bold">New Total</th>
                           <th className="p-2.5 text-center w-14">Delete</th>
@@ -305,6 +316,7 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
                         {itemsList.map((item) => {
                           const unitPriceVal = item.unitPrice !== undefined ? item.unitPrice : 0;
                           const lineTotal = (item.addQty || 0) * unitPriceVal;
+                          const curr: CurrencyCode = item.currency || 'USD';
                           return (
                             <tr key={item.itemId} className="hover:bg-slate-50 dark:hover:bg-slate-800/60">
                               <td className="p-2.5 font-mono font-bold text-blue-600 dark:text-blue-400 border-r border-slate-200 dark:border-slate-800">
@@ -324,15 +336,26 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
                                 />
                               </td>
                               <td className="p-2 border-r border-slate-200 dark:border-slate-800 text-right">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  placeholder="0.00"
-                                  value={item.unitPrice !== undefined ? item.unitPrice : ''}
-                                  onChange={(e) => handleUnitPriceChange(item.itemId, e.target.value)}
-                                  className="w-20 px-1.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-right font-mono text-xs text-slate-900 dark:text-slate-100 focus:ring-1 focus:ring-blue-500"
-                                />
+                                <div className="flex items-center gap-1 justify-end">
+                                  <select
+                                    value={curr}
+                                    onChange={(e) => handleCurrencyChange(item.itemId, e.target.value as CurrencyCode)}
+                                    className="px-1 py-1 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-[10px] font-bold text-slate-800 dark:text-slate-200 focus:ring-1 focus:ring-teal-500 cursor-pointer"
+                                    title="Pick currency for this item (USD or ZWG)"
+                                  >
+                                    <option value="USD">$ USD</option>
+                                    <option value="ZWG">ZiG ZWG</option>
+                                  </select>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    placeholder="0.00"
+                                    value={item.unitPrice !== undefined ? item.unitPrice : ''}
+                                    onChange={(e) => handleUnitPriceChange(item.itemId, e.target.value)}
+                                    className="w-16 px-1.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-right font-mono text-xs text-slate-900 dark:text-slate-100 focus:ring-1 focus:ring-blue-500"
+                                  />
+                                </div>
                               </td>
                               <td className="p-2.5 text-right font-mono text-slate-500 border-r border-slate-200 dark:border-slate-800">
                                 {item.currentQty} {item.unit}
@@ -347,7 +370,7 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
                                 />
                               </td>
                               <td className="p-2.5 text-right font-mono text-teal-600 dark:text-teal-400 font-bold border-r border-slate-200 dark:border-slate-800 whitespace-nowrap">
-                                R {lineTotal.toFixed(2)}
+                                {formatCurrency(lineTotal, curr, { showCode: true })}
                               </td>
                               <td className="p-2.5 text-right font-mono font-bold text-slate-900 dark:text-slate-100 border-r border-slate-200 dark:border-slate-800 whitespace-nowrap">
                                 {item.currentQty + item.addQty} {item.unit}

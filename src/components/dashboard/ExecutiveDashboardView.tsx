@@ -28,6 +28,9 @@ import {
   FolderOpen,
   BarChart3,
   Brain,
+  DollarSign,
+  Coins,
+  Repeat,
 } from 'lucide-react';
 import {
   StockItem,
@@ -36,12 +39,22 @@ import {
   StockAdjustmentRequest,
   AdminUser,
   BackupSnapshot,
+  ReceivedDocument,
 } from '../../types';
 import { DraggableResizableModal } from '../common/DraggableResizableModal';
 import { getExecutiveAnalytics } from '../../utils/predictiveAnalytics';
 import { ExecutiveChartsView } from './ExecutiveChartsView';
 import { ExecutiveAiInsightsPanel } from './ExecutiveAiInsightsPanel';
 import { ExecutiveDemandForecastingView } from './ExecutiveDemandForecastingView';
+import { SupplierPriceCostPanel } from './SupplierPriceCostPanel';
+import {
+  formatCurrency,
+  formatDualCurrency,
+  getExchangeRate,
+  getDashboardCurrencyMode,
+  setDashboardCurrencyMode,
+  DashboardCurrencyMode,
+} from '../../utils/currencyUtils';
 
 interface ExecutiveDashboardViewProps {
   stockItems: StockItem[];
@@ -49,6 +62,7 @@ interface ExecutiveDashboardViewProps {
   departments?: Department[];
   adjustmentRequests?: StockAdjustmentRequest[];
   currentUser: AdminUser | null;
+  receivedDocs?: ReceivedDocument[];
   backups?: BackupSnapshot[];
   initialViewMode?: 'overview' | 'forecasting';
   onNavigateTab?: (tab: 'simulator' | 'audit' | 'export') => void;
@@ -59,6 +73,8 @@ interface ExecutiveDashboardViewProps {
 }
 
 export interface DashboardWidgetConfig {
+  financialCollation: boolean;
+  supplierCostAnalytics: boolean;
   consumptionCharts: boolean;
   aiInsights: boolean;
   lowStock: boolean;
@@ -71,6 +87,8 @@ export interface DashboardWidgetConfig {
 }
 
 const DEFAULT_WIDGETS: DashboardWidgetConfig = {
+  financialCollation: true,
+  supplierCostAnalytics: true,
   consumptionCharts: true,
   aiInsights: true,
   lowStock: true,
@@ -107,6 +125,7 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
   departments = [],
   adjustmentRequests = [],
   currentUser,
+  receivedDocs = [],
   backups = [],
   initialViewMode = 'overview',
   onNavigateTab,
@@ -118,6 +137,14 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
   const [dashboardViewMode, setDashboardViewMode] = useState<'overview' | 'forecasting'>(
     initialViewMode
   );
+  const [currencyMode, setCurrencyMode] = useState<DashboardCurrencyMode>(() => {
+    return getDashboardCurrencyMode();
+  });
+
+  const handleCurrencyModeChange = (mode: DashboardCurrencyMode) => {
+    setCurrencyMode(mode);
+    setDashboardCurrencyMode(mode);
+  };
   const [widgets, setWidgets] = useState<DashboardWidgetConfig>(() => {
     try {
       const saved = localStorage.getItem('paramount_dashboard_widgets');
@@ -305,7 +332,7 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
         />
       ) : (
         <>
-      {/* KPI Metric Cards */}
+      {/* KPI Metric Cards with Zimbabwe Dual Currency Holding Valuation & Restock Budget */}
       <motion.div
         className="grid grid-cols-2 lg:grid-cols-4 gap-3"
         variants={kpiContainerVariants}
@@ -330,7 +357,7 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
           </div>
         </motion.div>
 
-        {/* Metric 2: Total Units */}
+        {/* Metric 2: Total Units On Hand */}
         <motion.div variants={kpiCardVariants} className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
@@ -348,58 +375,133 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
           </div>
         </motion.div>
 
-        {/* Metric 3: Low Stock Alerts */}
-        <motion.div
-          variants={kpiCardVariants}
-          onClick={() => onOpenQuickAction('reorderReport')}
-          className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-rose-400 dark:hover:border-rose-600 rounded-2xl shadow-2xs cursor-pointer transition"
-        >
+        {/* Metric 3: Total Holding Inventory Valuation (Zimbabwe Dual Currency) */}
+        <motion.div variants={kpiCardVariants} className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Below Safety Threshold
+              Inventory Valuation
             </span>
-            <div className="w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 flex items-center justify-center">
-              <TrendingDown className="w-4 h-4" />
+            <div className="w-8 h-8 rounded-xl bg-teal-50 dark:bg-teal-950/80 text-teal-600 dark:text-teal-400 flex items-center justify-center">
+              <DollarSign className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-extrabold text-rose-600 dark:text-rose-400 mt-1 flex items-center gap-2">
-            <span>{lowStockItems.length}</span>
-            {outOfStockItems.length > 0 && (
-              <span className="text-xs font-normal text-slate-500">
-                ({outOfStockItems.length} out of stock)
-              </span>
-            )}
+          <div className="text-xl sm:text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1 truncate">
+            {currencyMode === 'ZWG'
+              ? formatCurrency(analyticsSummary.totalInventoryValueZwg, 'ZWG', { showCode: true })
+              : formatCurrency(analyticsSummary.totalInventoryValueUsd, 'USD', { showCode: true })}
           </div>
-          <div
-            onClick={() => handleQuickAction('reorderReport')}
-            className="text-[11px] text-rose-600 dark:text-rose-400 mt-1 flex items-center gap-1 font-semibold cursor-pointer"
-          >
-            <span>Click to view re-order report &rarr;</span>
+          <div className="text-[10px] font-bold text-purple-600 dark:text-purple-400 mt-1 truncate">
+            {currencyMode === 'ZWG'
+              ? `≈ ${formatCurrency(analyticsSummary.totalInventoryValueUsd, 'USD', { showCode: true })}`
+              : `≈ ${formatCurrency(analyticsSummary.totalInventoryValueZwg, 'ZWG', { showCode: true })}`}
           </div>
         </motion.div>
 
-        {/* Metric 4: Pending Adjustments */}
+        {/* Metric 4: Projected Restock Cost (Zimbabwe Dual Currency) */}
         <motion.div
           variants={kpiCardVariants}
-          onClick={() => handleQuickAction('adjustment')}
-          className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-400 dark:hover:border-amber-600 rounded-2xl shadow-2xs cursor-pointer transition"
+          onClick={() => handleQuickAction('reorderReport')}
+          className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-600 rounded-2xl shadow-2xs cursor-pointer transition"
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Pending Adjustments
+              Projected Restock Budget
             </span>
-            <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 flex items-center justify-center">
-              <ShieldAlert className="w-4 h-4" />
+            <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+              <Coins className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-extrabold text-amber-600 dark:text-amber-400 mt-1">
-            {pendingRequests.length}
+          <div className="text-xl sm:text-2xl font-extrabold text-blue-600 dark:text-blue-400 mt-1 truncate">
+            {currencyMode === 'ZWG'
+              ? formatCurrency(analyticsSummary.totalProjectedRestockCostZwg, 'ZWG', { showCode: true })
+              : formatCurrency(analyticsSummary.totalProjectedRestockCostUsd, 'USD', { showCode: true })}
           </div>
-          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1">
-            <span>Awaiting supervisor authorization</span>
+          <div className="text-[10px] font-bold text-purple-600 dark:text-purple-400 mt-1 truncate">
+            {currencyMode === 'ZWG'
+              ? `≈ ${formatCurrency(analyticsSummary.totalProjectedRestockCostUsd, 'USD', { showCode: true })}`
+              : `≈ ${formatCurrency(analyticsSummary.totalProjectedRestockCostZwg, 'ZWG', { showCode: true })}`}
           </div>
         </motion.div>
       </motion.div>
+
+      {/* Secondary Quick Status & Zimbabwe Currency Collation Strip */}
+      {widgets.financialCollation && (
+        <div className="p-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xs flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Low stock pill */}
+            <div
+              onClick={() => handleQuickAction('reorderReport')}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 font-bold border border-rose-200 dark:border-rose-800 cursor-pointer hover:bg-rose-100 transition"
+            >
+              <TrendingDown className="w-3.5 h-3.5" />
+              <span>Below Safety Threshold: {lowStockItems.length} items</span>
+              {outOfStockItems.length > 0 && <span className="text-[10px] opacity-80">({outOfStockItems.length} OOS)</span>}
+            </div>
+
+            {/* Pending adjustments pill */}
+            <div
+              onClick={() => handleQuickAction('adjustment')}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-bold border border-amber-200 dark:border-amber-800 cursor-pointer hover:bg-amber-100 transition"
+            >
+              <ShieldAlert className="w-3.5 h-3.5" />
+              <span>Pending Adjustments: {pendingRequests.length}</span>
+            </div>
+
+            {/* Historical Spend */}
+            <div className="hidden md:flex items-center gap-1.5 text-slate-600 dark:text-slate-300 font-medium">
+              <span>Historical Spend:</span>
+              <strong className="text-emerald-600 dark:text-emerald-400 font-mono">
+                ${analyticsSummary.historicalProcurementSpendUsd.toLocaleString()} USD
+              </strong>
+              <span className="text-[10px] text-purple-600 dark:text-purple-400 font-mono">
+                (≈ ZiG {analyticsSummary.historicalProcurementSpendZwg.toLocaleString()})
+              </span>
+            </div>
+          </div>
+
+          {/* Currency Toggle & Benchmark Rate */}
+          <div className="flex items-center gap-2 ml-auto">
+            <span className="text-[11px] text-slate-500 dark:text-slate-400 hidden sm:inline">
+              1 USD = <strong>{analyticsSummary.exchangeRate} ZWG</strong>
+            </span>
+            <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-300 dark:border-slate-700 text-[10px] font-bold">
+              <button
+                type="button"
+                onClick={() => handleCurrencyModeChange('DUAL')}
+                className={`px-2 py-0.5 rounded-lg transition cursor-pointer ${
+                  currencyMode === 'DUAL'
+                    ? 'bg-teal-600 text-white font-bold'
+                    : 'text-slate-600 dark:text-slate-400'
+                }`}
+              >
+                Dual
+              </button>
+              <button
+                type="button"
+                onClick={() => handleCurrencyModeChange('USD')}
+                className={`px-2 py-0.5 rounded-lg transition cursor-pointer ${
+                  currencyMode === 'USD'
+                    ? 'bg-emerald-600 text-white font-bold'
+                    : 'text-slate-600 dark:text-slate-400'
+                }`}
+              >
+                USD
+              </button>
+              <button
+                type="button"
+                onClick={() => handleCurrencyModeChange('ZWG')}
+                className={`px-2 py-0.5 rounded-lg transition cursor-pointer ${
+                  currencyMode === 'ZWG'
+                    ? 'bg-purple-600 text-white font-bold'
+                    : 'text-slate-600 dark:text-slate-400'
+                }`}
+              >
+                ZWG
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Widget 7: Quick Procurement Launchpad (if enabled) */}
       {widgets.quickLaunchpad && (

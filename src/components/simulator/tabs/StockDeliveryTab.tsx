@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { PackagePlus, CheckCircle, Search, Layers, ListPlus, Table, Trash2, Sparkles, FileText, Upload, RefreshCw } from 'lucide-react';
-import { StockItem, ReceivedDocument } from '../../../types';
+import { PackagePlus, CheckCircle, Search, Layers, ListPlus, Table, Trash2, Sparkles, FileText, Upload, RefreshCw, DollarSign } from 'lucide-react';
+import { StockItem, ReceivedDocument, CurrencyCode } from '../../../types';
+import { formatCurrency, convertCurrency, getExchangeRate } from '../../../utils/currencyUtils';
 import { searchStockItems } from '../../../utils/searchEngine';
 import { StockSearchBar } from '../StockSearchBar';
 import { StockItemDropUpSelect } from '../../common/StockItemDropUpSelect';
@@ -13,8 +14,8 @@ interface StockDeliveryTabProps {
   initialMode?: 'single' | 'bulkQueue' | 'bulkGrid';
   initialItemId?: string;
   initialSelectedIds?: string[];
-  onSaveDelivery?: (itemId: string, addQty: number, deliveryNoteRef?: string, supplier?: string, unitPrice?: number) => Promise<ReceivedDocument | void> | ReceivedDocument | void;
-  onSaveBulkDeliveries?: (deliveries: { itemId: string; addQty: number; supplier?: string; unitPrice?: number }[], deliveryNoteRef?: string, defaultSupplier?: string) => Promise<ReceivedDocument | void> | ReceivedDocument | void;
+  onSaveDelivery?: (itemId: string, addQty: number, deliveryNoteRef?: string, supplier?: string, unitPrice?: number, currency?: CurrencyCode) => Promise<ReceivedDocument | void> | ReceivedDocument | void;
+  onSaveBulkDeliveries?: (deliveries: { itemId: string; addQty: number; supplier?: string; unitPrice?: number; currency?: CurrencyCode }[], deliveryNoteRef?: string, defaultSupplier?: string) => Promise<ReceivedDocument | void> | ReceivedDocument | void;
   onDeliverySuccess?: (doc: ReceivedDocument) => void;
 }
 
@@ -27,6 +28,7 @@ interface DeliveryQueueItem {
   unit: string;
   supplier?: string;
   unitPrice?: number;
+  currency?: CurrencyCode;
 }
 
 const COMMON_SUPPLIERS = [
@@ -58,6 +60,7 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
   const [singleAddQty, setSingleAddQty] = useState<number | ''>(10);
   const [singleSupplier, setSingleSupplier] = useState(initialSingle?.LastSupplier || '');
   const [singleUnitPrice, setSingleUnitPrice] = useState<number | ''>(initialSingle?.UnitPrice !== undefined ? initialSingle.UnitPrice : '');
+  const [singleCurrency, setSingleCurrency] = useState<CurrencyCode>(initialSingle?.Currency || 'USD');
   const [categoryFilter, setCategoryFilter] = useState<'All' | 'Stationery' | 'Cleaning' | 'General'>('All');
   const [searchFilter, setSearchFilter] = useState('');
 
@@ -67,11 +70,14 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
   const [queueAddQty, setQueueAddQty] = useState<number | ''>(20);
   const [queueSupplier, setQueueSupplier] = useState('');
   const [queueUnitPrice, setQueueUnitPrice] = useState<number | ''>('');
+  const [queueCurrency, setQueueCurrency] = useState<CurrencyCode>('USD');
 
   // Bulk Grid Delivery State (Dictionary mapping ItemID -> addQty and ItemID -> supplier override & unitPrice)
   const [gridSupplier, setGridSupplier] = useState('');
   const [gridUnitPrice, setGridUnitPrice] = useState<number | ''>('');
+  const [gridCurrency, setGridCurrency] = useState<CurrencyCode>('USD');
   const [gridItemSuppliers, setGridItemSuppliers] = useState<Record<string, string>>({});
+  const [gridItemCurrencies, setGridItemCurrencies] = useState<Record<string, CurrencyCode>>({});
   const [gridItemUnitPrices, setGridItemUnitPrices] = useState<Record<string, number | ''>>(() => {
     if (initialSelectedIds && initialSelectedIds.length > 0) {
       const initMap: Record<string, number | ''> = {};
@@ -138,6 +144,7 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
         unit: selectedSingleItem.Unit,
         supplier: singleSupplier.trim(),
         unitPrice: singleUnitPrice !== '' && Number(singleUnitPrice) > 0 ? Number(singleUnitPrice) : undefined,
+        currency: singleCurrency,
       };
       setPendingBulkItems([reviewItem]);
       setShowConfirmationModal(true);
@@ -167,13 +174,14 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
     const qtyNum = Number(queueAddQty);
     const itemSupplier = queueSupplier.trim();
     const itemUnitPrice = queueUnitPrice !== '' && Number(queueUnitPrice) > 0 ? Number(queueUnitPrice) : undefined;
+    const itemCurrency = queueCurrency;
 
     const existingIndex = queue.findIndex((q) => q.itemId === queueItemId);
     if (existingIndex >= 0) {
       setQueue((prev) =>
         prev.map((q, idx) =>
           idx === existingIndex
-            ? { ...q, addQty: q.addQty + qtyNum, supplier: itemSupplier, unitPrice: itemUnitPrice ?? q.unitPrice }
+            ? { ...q, addQty: q.addQty + qtyNum, supplier: itemSupplier, unitPrice: itemUnitPrice ?? q.unitPrice, currency: itemCurrency }
             : q
         )
       );
@@ -189,6 +197,7 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
           unit: selectedQueueItem.Unit,
           supplier: itemSupplier,
           unitPrice: itemUnitPrice,
+          currency: itemCurrency,
         },
       ]);
     }
@@ -304,6 +313,8 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
           ? Number(gridUnitPrice)
           : stock?.UnitPrice || undefined;
 
+      const rowCurrency = gridItemCurrencies[itemId] || gridCurrency || stock?.Currency || 'USD';
+
       return {
         itemId,
         itemName: stock ? stock.ItemName : itemId,
@@ -313,6 +324,7 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
         unit: stock ? stock.Unit : 'Units',
         supplier: rowSupplier || gridSupplier.trim(),
         unitPrice: rowPrice,
+        currency: rowCurrency,
       };
     });
 
@@ -334,6 +346,7 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
       addQty: item.addQty,
       supplier: item.supplier || batchSupplier,
       unitPrice: item.unitPrice,
+      currency: item.currency || 'USD',
     }));
 
     let generatedDoc: ReceivedDocument | undefined = undefined;
@@ -344,11 +357,11 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
         if (res) generatedDoc = res;
       } else if (onSaveDelivery) {
         if (deliveries.length === 1) {
-          const res = await onSaveDelivery(deliveries[0].itemId, deliveries[0].addQty, deliveryNoteRef, deliveries[0].supplier, deliveries[0].unitPrice);
+          const res = await onSaveDelivery(deliveries[0].itemId, deliveries[0].addQty, deliveryNoteRef, deliveries[0].supplier, deliveries[0].unitPrice, deliveries[0].currency);
           if (res) generatedDoc = res;
         } else {
           for (const d of deliveries) {
-            const res = await onSaveDelivery(d.itemId, d.addQty, deliveryNoteRef, d.supplier, d.unitPrice);
+            const res = await onSaveDelivery(d.itemId, d.addQty, deliveryNoteRef, d.supplier, d.unitPrice, d.currency);
             if (res) generatedDoc = res;
           }
         }
@@ -554,18 +567,49 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Unit Price (R)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={queueUnitPrice}
-                  onChange={(e) => setQueueUnitPrice(e.target.value === '' ? '' : Number(e.target.value))}
-                  placeholder="0.00"
-                  className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono text-slate-900 dark:text-slate-100"
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+                    Unit Price &amp; Currency
+                  </label>
+                  <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-slate-800 p-0.5 rounded border border-slate-300 dark:border-slate-700 text-[9px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setQueueCurrency('USD')}
+                      className={`px-1.5 py-0.5 rounded transition cursor-pointer ${
+                        queueCurrency === 'USD'
+                          ? 'bg-emerald-600 text-white font-bold'
+                          : 'text-slate-600 dark:text-slate-300'
+                      }`}
+                    >
+                      $ USD
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setQueueCurrency('ZWG')}
+                      className={`px-1.5 py-0.5 rounded transition cursor-pointer ${
+                        queueCurrency === 'ZWG'
+                          ? 'bg-purple-600 text-white font-bold'
+                          : 'text-slate-600 dark:text-slate-300'
+                      }`}
+                    >
+                      ZiG
+                    </button>
+                  </div>
+                </div>
+                <div className="relative">
+                  <span className="absolute left-2.5 top-2 font-mono text-[11px] font-bold text-slate-400">
+                    {queueCurrency === 'USD' ? '$' : 'ZiG'}
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={queueUnitPrice}
+                    onChange={(e) => setQueueUnitPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                    placeholder="0.00"
+                    className="w-full pl-9 pr-2.5 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono text-slate-900 dark:text-slate-100"
+                  />
+                </div>
               </div>
 
               <div>
@@ -625,13 +669,13 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
                       <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 w-44">
                         Supplier (Provenance) <span className="text-rose-500 font-bold">*</span>
                       </th>
-                      <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-right w-24">
-                        Unit Price (R)
+                      <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-right w-28">
+                        Unit Price &amp; Curr
                       </th>
                       <th className="p-2.5 border-r border-slate-200 dark:border-slate-700">Category</th>
                       <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-right">Current Stock</th>
                       <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-right text-emerald-600 dark:text-emerald-400">Incoming Delivery</th>
-                      <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-right font-bold w-24">Line Total (R)</th>
+                      <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-right font-bold w-28">Line Total</th>
                       <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-right font-bold">New Total</th>
                       <th className="p-2.5 text-center">Remove</th>
                     </tr>
@@ -639,6 +683,7 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
                   <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-800 dark:text-slate-200">
                     {queue.map((item) => {
                       const itemPrice = item.unitPrice !== undefined ? item.unitPrice : 0;
+                      const itemCurrency = item.currency || 'USD';
                       const lineTotal = item.addQty * itemPrice;
                       return (
                         <tr key={item.itemId} className="hover:bg-slate-50 dark:hover:bg-slate-800/60">
@@ -663,18 +708,35 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
                             />
                           </td>
                           <td className="p-1.5 border-r border-slate-200 dark:border-slate-800 text-right">
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              placeholder="0.00"
-                              value={item.unitPrice !== undefined ? item.unitPrice : ''}
-                              onChange={(e) => {
-                                const val = e.target.value === '' ? undefined : Number(e.target.value);
-                                setQueue((prev) => prev.map((q) => (q.itemId === item.itemId ? { ...q, unitPrice: val } : q)));
-                              }}
-                              className="w-20 px-1.5 py-1 text-right rounded border font-mono text-xs bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:ring-1 focus:ring-blue-500"
-                            />
+                            <div className="flex items-center gap-1 justify-end">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                placeholder="0.00"
+                                value={item.unitPrice !== undefined ? item.unitPrice : ''}
+                                onChange={(e) => {
+                                  const val = e.target.value === '' ? undefined : Number(e.target.value);
+                                  setQueue((prev) => prev.map((q) => (q.itemId === item.itemId ? { ...q, unitPrice: val } : q)));
+                                }}
+                                className="w-16 px-1.5 py-1 text-right rounded border font-mono text-xs bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:ring-1 focus:ring-blue-500"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const nextCurr: CurrencyCode = itemCurrency === 'USD' ? 'ZWG' : 'USD';
+                                  setQueue((prev) => prev.map((q) => (q.itemId === item.itemId ? { ...q, currency: nextCurr } : q)));
+                                }}
+                                title="Click to toggle between USD and ZWG currency"
+                                className={`text-[10px] font-mono font-bold px-1 py-0.5 rounded cursor-pointer transition ${
+                                  itemCurrency === 'USD'
+                                    ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300'
+                                    : 'bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300'
+                                }`}
+                              >
+                                {itemCurrency}
+                              </button>
+                            </div>
                           </td>
                           <td className="p-2.5 border-r border-slate-200 dark:border-slate-800">
                             <span className="px-2 py-0.5 rounded text-[10px] bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
@@ -688,7 +750,7 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
                             +{item.addQty} {item.unit}
                           </td>
                           <td className="p-2.5 text-right font-mono text-teal-600 dark:text-teal-400 font-bold border-r border-slate-200 dark:border-slate-800 whitespace-nowrap">
-                            R {lineTotal.toFixed(2)}
+                            {itemPrice > 0 ? formatCurrency(lineTotal, itemCurrency, { showCode: true }) : '—'}
                           </td>
                           <td className="p-2.5 text-right font-mono font-bold text-slate-900 dark:text-slate-100 border-r border-slate-200 dark:border-slate-800">
                             {item.currentQty + item.addQty} {item.unit}
@@ -756,18 +818,49 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
               />
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Batch Default Unit Price (R)
-              </label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="e.g. 25.00 (optional default for modified rows)"
-                value={gridUnitPrice}
-                onChange={(e) => setGridUnitPrice(e.target.value === '' ? '' : Number(e.target.value))}
-                className="w-full px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono font-semibold text-slate-900 dark:text-slate-100"
-              />
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+                  Batch Default Price &amp; Currency (Zimbabwe)
+                </label>
+                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-300 dark:border-slate-700 text-[10px] font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setGridCurrency('USD')}
+                    className={`px-2 py-0.5 rounded transition cursor-pointer ${
+                      gridCurrency === 'USD'
+                        ? 'bg-emerald-600 text-white font-bold'
+                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
+                    }`}
+                  >
+                    $ USD
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setGridCurrency('ZWG')}
+                    className={`px-2 py-0.5 rounded transition cursor-pointer ${
+                      gridCurrency === 'ZWG'
+                        ? 'bg-purple-600 text-white font-bold'
+                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
+                    }`}
+                  >
+                    ZiG ZWG
+                  </button>
+                </div>
+              </div>
+              <div className="relative">
+                <span className="absolute left-3 top-2 font-mono text-xs font-bold text-slate-400">
+                  {gridCurrency === 'USD' ? '$' : 'ZiG'}
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="e.g. 25.00 (optional default for modified rows)"
+                  value={gridUnitPrice}
+                  onChange={(e) => setGridUnitPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                  className="w-full pl-11 pr-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono font-semibold text-slate-900 dark:text-slate-100"
+                />
+              </div>
             </div>
           </div>
 
@@ -789,6 +882,7 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
                   setGridQuantities({});
                   setGridItemSuppliers({});
                   setGridItemUnitPrices({});
+                  setGridItemCurrencies({});
                 }}
                 className="px-3 py-1.5 bg-rose-950/80 hover:bg-rose-900 border border-rose-800 text-rose-300 rounded-xl text-xs font-semibold transition cursor-pointer"
               >
@@ -807,12 +901,12 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
                   <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 w-36">
                     Supplier (Provenance) <span className="text-rose-500 font-bold">*</span>
                   </th>
-                  <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-right w-24">
-                    Unit Price (R)
+                  <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-right w-28">
+                    Unit Price &amp; Curr
                   </th>
                   <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-right">Current Stock</th>
                   <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-center w-28">Delivered Qty (+)</th>
-                  <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-right font-bold w-24">Line Cost (R)</th>
+                  <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-right font-bold w-28">Line Cost</th>
                   <th className="p-2.5 text-right font-bold">Projected Total</th>
                 </tr>
               </thead>
@@ -828,6 +922,8 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
                       : gridUnitPrice !== ''
                       ? Number(gridUnitPrice)
                       : item.UnitPrice || 0;
+                  const rowCurrency: CurrencyCode =
+                    gridItemCurrencies[item.ItemID] || gridCurrency || item.Currency || 'USD';
                   const lineCost = enteredQty * effectiveUnitPrice;
 
                   return (
@@ -864,18 +960,35 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
                         />
                       </td>
                       <td className="p-1.5 border-r border-slate-200 dark:border-slate-800 text-right">
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          placeholder={item.UnitPrice ? item.UnitPrice.toFixed(2) : (gridUnitPrice !== '' ? Number(gridUnitPrice).toFixed(2) : '0.00')}
-                          value={itemSpecificPrice !== undefined ? itemSpecificPrice : ''}
-                          onChange={(e) => {
-                            const val = e.target.value === '' ? '' : Number(e.target.value);
-                            setGridItemUnitPrices((prev) => ({ ...prev, [item.ItemID]: val }));
-                          }}
-                          className="w-20 px-1.5 py-1 text-right rounded border font-mono text-xs bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:ring-1 focus:ring-blue-500"
-                        />
+                        <div className="flex items-center gap-1 justify-end">
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder={item.UnitPrice ? item.UnitPrice.toFixed(2) : (gridUnitPrice !== '' ? Number(gridUnitPrice).toFixed(2) : '0.00')}
+                            value={itemSpecificPrice !== undefined ? itemSpecificPrice : ''}
+                            onChange={(e) => {
+                              const val = e.target.value === '' ? '' : Number(e.target.value);
+                              setGridItemUnitPrices((prev) => ({ ...prev, [item.ItemID]: val }));
+                            }}
+                            className="w-16 px-1.5 py-1 text-right rounded border font-mono text-xs bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:ring-1 focus:ring-blue-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next: CurrencyCode = rowCurrency === 'USD' ? 'ZWG' : 'USD';
+                              setGridItemCurrencies((prev) => ({ ...prev, [item.ItemID]: next }));
+                            }}
+                            title="Click to toggle item currency between USD and ZWG"
+                            className={`text-[9px] font-mono font-bold px-1 py-0.5 rounded cursor-pointer transition ${
+                              rowCurrency === 'USD'
+                                ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300'
+                                : 'bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300'
+                            }`}
+                          >
+                            {rowCurrency}
+                          </button>
+                        </div>
                       </td>
                       <td className="p-2.5 text-right font-mono text-slate-500 border-r border-slate-200 dark:border-slate-800">
                         {item.Qty} {item.Unit}
@@ -895,7 +1008,7 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
                         />
                       </td>
                       <td className="p-2.5 text-right font-mono font-bold text-teal-600 dark:text-teal-400 border-r border-slate-200 dark:border-slate-800 whitespace-nowrap">
-                        {isModified ? `R ${lineCost.toFixed(2)}` : '—'}
+                        {isModified && effectiveUnitPrice > 0 ? formatCurrency(lineCost, rowCurrency, { showCode: true }) : '—'}
                       </td>
                       <td className="p-2.5 text-right font-mono font-bold text-slate-900 dark:text-slate-100">
                         {item.Qty + enteredQty} {item.Unit}
@@ -907,13 +1020,9 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
             </table>
           </div>
 
-          <div className="flex items-center justify-between pt-2">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
             <div className="text-xs font-mono text-slate-600 dark:text-slate-400">
-              Bulk Grid Status: <strong className="text-emerald-500">{activeGridEntries.length} items modified</strong> ({totalGridUnits} total incoming units | Est. Total: <strong className="text-teal-600 dark:text-teal-400">R {activeGridEntries.reduce((sum, [id, qty]) => {
-                const itemSpecificPrice = gridItemUnitPrices[id];
-                const p = itemSpecificPrice !== undefined && itemSpecificPrice !== '' ? Number(itemSpecificPrice) : (gridUnitPrice !== '' ? Number(gridUnitPrice) : (stockItems.find((s) => s.ItemID === id)?.UnitPrice || 0));
-                return sum + (Number(qty) * p);
-              }, 0).toFixed(2)}</strong>)
+              Bulk Grid Status: <strong className="text-emerald-500">{activeGridEntries.length} items modified</strong> ({totalGridUnits} total incoming units)
             </div>
 
             <button
@@ -1004,18 +1113,62 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Unit Price (R)
-              </label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={singleUnitPrice}
-                onChange={(e) => setSingleUnitPrice(e.target.value === '' ? '' : Number(e.target.value))}
-                placeholder="0.00"
-                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono text-slate-900 dark:text-slate-100"
-              />
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Unit Price &amp; Currency (Zimbabwe)
+                </label>
+                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-300 dark:border-slate-700 text-[10px] font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setSingleCurrency('USD')}
+                    className={`px-2 py-0.5 rounded transition cursor-pointer ${
+                      singleCurrency === 'USD'
+                        ? 'bg-emerald-600 text-white shadow-2xs font-bold'
+                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
+                    }`}
+                  >
+                    $ USD
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSingleCurrency('ZWG')}
+                    className={`px-2 py-0.5 rounded transition cursor-pointer ${
+                      singleCurrency === 'ZWG'
+                        ? 'bg-purple-600 text-white shadow-2xs font-bold'
+                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
+                    }`}
+                  >
+                    ZiG ZWG
+                  </button>
+                </div>
+              </div>
+              <div className="relative">
+                <span className="absolute left-3 top-2.5 font-bold text-xs text-slate-500 font-mono">
+                  {singleCurrency === 'USD' ? '$' : 'ZiG'}
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={singleUnitPrice}
+                  onChange={(e) => setSingleUnitPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                  placeholder="0.00"
+                  className="w-full pl-12 pr-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono font-semibold text-slate-900 dark:text-slate-100"
+                />
+              </div>
+              {singleUnitPrice !== '' && Number(singleUnitPrice) > 0 && (
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 flex items-center justify-between font-mono">
+                  <span>
+                    Converted:{' '}
+                    <strong className="text-slate-800 dark:text-slate-200">
+                      {singleCurrency === 'USD'
+                        ? `ZiG ${(Number(singleUnitPrice) * getExchangeRate()).toFixed(2)} ZWG`
+                        : `$${(Number(singleUnitPrice) / getExchangeRate()).toFixed(2)} USD`}
+                    </strong>
+                  </span>
+                  <span className="text-[9px] text-teal-600 dark:text-teal-400">@ 1 USD = {getExchangeRate()} ZWG</span>
+                </div>
+              )}
             </div>
 
             <div>

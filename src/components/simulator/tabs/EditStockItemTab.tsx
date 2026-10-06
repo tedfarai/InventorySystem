@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Edit3, CheckCircle2, AlertCircle, Package, Search, Trash2, Save, ShieldAlert } from 'lucide-react';
-import { StockItem, ItemCategory } from '../../../types';
+import { StockItem, ItemCategory, CurrencyCode } from '../../../types';
 import { searchStockItems } from '../../../utils/searchEngine';
+import { getExchangeRate, formatCurrency } from '../../../utils/currencyUtils';
 import { StockItemDropUpSelect } from '../../common/StockItemDropUpSelect';
 
 interface EditStockItemTabProps {
@@ -252,6 +253,71 @@ export const EditStockItemTab: React.FC<EditStockItemTabProps> = ({
               className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-amber-500"
             />
           </div>
+        </div>
+
+        {/* Unit Price & Zimbabwe Currency Field */}
+        <div className="p-3 bg-slate-50 dark:bg-slate-850 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+              Unit Price &amp; Currency (Zimbabwe)
+            </label>
+            <div className="flex items-center gap-1 bg-slate-200 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-300 dark:border-slate-700 text-[10px] font-bold">
+              <button
+                type="button"
+                onClick={() => setEditForm({ ...editForm, Currency: 'USD' })}
+                className={`px-2 py-0.5 rounded transition cursor-pointer ${
+                  (editForm.Currency || 'USD') === 'USD'
+                    ? 'bg-emerald-600 text-white font-bold'
+                    : 'text-slate-600 dark:text-slate-300'
+                }`}
+              >
+                $ USD
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditForm({ ...editForm, Currency: 'ZWG' })}
+                className={`px-2 py-0.5 rounded transition cursor-pointer ${
+                  editForm.Currency === 'ZWG'
+                    ? 'bg-purple-600 text-white font-bold'
+                    : 'text-slate-600 dark:text-slate-300'
+                }`}
+              >
+                ZiG ZWG
+              </button>
+            </div>
+          </div>
+          <div className="relative">
+            <span className="absolute left-3 top-2.5 font-bold text-xs text-slate-500 font-mono">
+              {(editForm.Currency || 'USD') === 'USD' ? '$' : 'ZiG'}
+            </span>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={editForm.UnitPrice !== undefined ? editForm.UnitPrice : ''}
+              onChange={(e) =>
+                setEditForm({
+                  ...editForm,
+                  UnitPrice: e.target.value === '' ? undefined : Number(e.target.value),
+                })
+              }
+              placeholder="0.00 (unit purchase cost)"
+              className="w-full pl-12 pr-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono font-semibold text-slate-900 dark:text-slate-100"
+            />
+          </div>
+          {editForm.UnitPrice !== undefined && editForm.UnitPrice > 0 && (
+            <div className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center justify-between font-mono">
+              <span>
+                Equiv:{' '}
+                <strong className="text-slate-800 dark:text-slate-200">
+                  {(editForm.Currency || 'USD') === 'USD'
+                    ? `ZiG ${(editForm.UnitPrice * getExchangeRate()).toFixed(2)} ZWG`
+                    : `$${(editForm.UnitPrice / getExchangeRate()).toFixed(2)} USD`}
+                </strong>
+              </span>
+              <span className="text-[9px] text-teal-600 dark:text-teal-400">@ 1 USD = {getExchangeRate()} ZWG</span>
+            </div>
+          )}
         </div>
 
         <div>

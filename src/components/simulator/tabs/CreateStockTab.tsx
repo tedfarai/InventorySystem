@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { PackagePlus, Sparkles, CheckCircle2, ShieldCheck, Tag } from 'lucide-react';
-import { StockItem, ItemCategory } from '../../../types';
+import { StockItem, ItemCategory, CurrencyCode } from '../../../types';
+import { getExchangeRate } from '../../../utils/currencyUtils';
 
 interface CreateStockTabProps {
   stockItems: StockItem[];
@@ -17,6 +18,8 @@ export const CreateStockTab: React.FC<CreateStockTabProps> = ({
   const [reorderLevel, setReorderLevel] = useState<number | ''>(10);
   const [unit, setUnit] = useState('Boxes');
   const [customUnit, setCustomUnit] = useState('');
+  const [unitPrice, setUnitPrice] = useState<number | ''>('');
+  const [currency, setCurrency] = useState<CurrencyCode>('USD');
 
   const [assignedCode, setAssignedCode] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -95,6 +98,8 @@ export const CreateStockTab: React.FC<CreateStockTabProps> = ({
       Qty: Number(initialQty),
       ReorderLevel: reorderLevel !== '' ? Number(reorderLevel) : 10,
       Unit: finalUnit,
+      UnitPrice: unitPrice !== '' && Number(unitPrice) > 0 ? Number(unitPrice) : undefined,
+      Currency: currency,
     };
 
     onAddNewStockItem(newStockItem);
@@ -107,6 +112,7 @@ export const CreateStockTab: React.FC<CreateStockTabProps> = ({
     setItemName('');
     setInitialQty(25);
     setReorderLevel(10);
+    setUnitPrice('');
   };
 
   return (
@@ -302,6 +308,66 @@ export const CreateStockTab: React.FC<CreateStockTabProps> = ({
               />
             </div>
           )}
+
+          {/* Optional Baseline Unit Price & Zimbabwe Currency */}
+          <div className="p-3 bg-slate-100 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Baseline Unit Purchase Price &amp; Currency (Zimbabwe)
+              </label>
+              <div className="flex items-center gap-1 bg-slate-200 dark:bg-slate-900 p-0.5 rounded-lg border border-slate-300 dark:border-slate-700 text-[10px] font-bold">
+                <button
+                  type="button"
+                  onClick={() => setCurrency('USD')}
+                  className={`px-2 py-0.5 rounded transition cursor-pointer ${
+                    currency === 'USD'
+                      ? 'bg-emerald-600 text-white font-bold'
+                      : 'text-slate-600 dark:text-slate-300'
+                  }`}
+                >
+                  $ USD
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCurrency('ZWG')}
+                  className={`px-2 py-0.5 rounded transition cursor-pointer ${
+                    currency === 'ZWG'
+                      ? 'bg-purple-600 text-white font-bold'
+                      : 'text-slate-600 dark:text-slate-300'
+                  }`}
+                >
+                  ZiG ZWG
+                </button>
+              </div>
+            </div>
+            <div className="relative">
+              <span className="absolute left-3 top-2.5 font-bold text-xs text-slate-500 font-mono">
+                {currency === 'USD' ? '$' : 'ZiG'}
+              </span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={unitPrice}
+                onChange={(e) => setUnitPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                placeholder="0.00 (optional standard cost per unit)"
+                className="w-full pl-12 pr-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono font-semibold text-slate-900 dark:text-slate-100"
+              />
+            </div>
+            {unitPrice !== '' && Number(unitPrice) > 0 && (
+              <div className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center justify-between font-mono">
+                <span>
+                  Equiv:{' '}
+                  <strong className="text-slate-800 dark:text-slate-200">
+                    {currency === 'USD'
+                      ? `ZiG ${(Number(unitPrice) * getExchangeRate()).toFixed(2)} ZWG`
+                      : `$${(Number(unitPrice) / getExchangeRate()).toFixed(2)} USD`}
+                  </strong>
+                </span>
+                <span className="text-[9px] text-teal-600 dark:text-teal-400">@ 1 USD = {getExchangeRate()} ZWG</span>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Live Preview Card */}

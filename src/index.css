@@ -231,9 +231,9 @@ html {
 .stock-table-row:focus-visible,
 .stock-table-row:focus {
   outline: 3px solid #0d9488 !important;
-  outline-offset: -3px !important;
-  box-shadow: 0 0 0 4px rgba(13, 148, 136, 0.45), 0 0 16px rgba(20, 184, 166, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.8) !important;
-  z-index: 25 !important;
+  outline-offset: -2px !important;
+  box-shadow: 0 0 0 4px rgba(13, 148, 136, 0.55), 0 0 20px 4px rgba(20, 184, 166, 0.7), inset 0 0 0 2px rgba(255, 255, 255, 0.9) !important;
+  z-index: 30 !important;
   position: relative;
   transition: box-shadow 0.15s ease-out, outline 0.15s ease-out;
 }
@@ -241,112 +241,35 @@ html {
 .dark .stock-table-row:focus-visible,
 .dark .stock-table-row:focus {
   outline: 3px solid #2dd4bf !important;
-  outline-offset: -3px !important;
-  box-shadow: 0 0 0 4px rgba(45, 212, 191, 0.5), 0 0 20px rgba(45, 212, 191, 0.65), inset 0 0 0 1px rgba(0, 0, 0, 0.7) !important;
-  z-index: 25 !important;
+  outline-offset: -2px !important;
+  box-shadow: 0 0 0 4px rgba(45, 212, 191, 0.6), 0 0 22px 6px rgba(45, 212, 191, 0.75), inset 0 0 0 2px rgba(15, 23, 42, 0.9) !important;
+  z-index: 30 !important;
   position: relative;
   transition: box-shadow 0.15s ease-out, outline 0.15s ease-out;
 }
 
-/* Hidden Quick Action menu on .stock-table-row that appears on hover or selection */
+/* Quick Action column & buttons are ALWAYS visible so the column is never empty */
 .stock-table-row .row-quick-actions,
 .stock-table-row .quick-action-menu,
 .stock-table-row [data-quick-actions],
 .stock-table-row .quick-actions {
-  opacity: 0;
-  visibility: hidden;
-  transform: translateY(6px) scale(0.92);
-  transform-origin: center right;
-  transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1),
-              transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
-              visibility 0.22s ease;
-  pointer-events: none;
-  will-change: transform, opacity;
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: translateY(0) scale(1) !important;
+  pointer-events: auto !important;
 }
 
-.stock-table-row:hover .row-quick-actions,
-.stock-table-row.is-active .row-quick-actions,
-.stock-table-row.is-selected .row-quick-actions,
-.stock-table-row[data-active="true"] .row-quick-actions,
-.stock-table-row[data-selected="true"] .row-quick-actions,
-.stock-table-row:focus .row-quick-actions,
-.stock-table-row:focus-within .row-quick-actions,
-.stock-table-row:hover .quick-action-menu,
-.stock-table-row.is-active .quick-action-menu,
-.stock-table-row.is-selected .quick-action-menu,
-.stock-table-row[data-active="true"] .quick-action-menu,
-.stock-table-row[data-selected="true"] .quick-action-menu,
-.stock-table-row:focus .quick-action-menu,
-.stock-table-row:focus-within .quick-action-menu,
-.stock-table-row:hover [data-quick-actions],
-.stock-table-row.is-active [data-quick-actions],
-.stock-table-row.is-selected [data-quick-actions],
-.stock-table-row[data-active="true"] [data-quick-actions],
-.stock-table-row[data-selected="true"] [data-quick-actions],
-.stock-table-row:focus [data-quick-actions],
-.stock-table-row:focus-within [data-quick-actions],
-.stock-table-row:hover .quick-actions,
-.stock-table-row.is-active .quick-actions,
-.stock-table-row.is-selected .quick-actions,
-.stock-table-row[data-active="true"] .quick-actions,
-.stock-table-row[data-selected="true"] .quick-actions,
-.stock-table-row:focus .quick-actions,
-.stock-table-row:focus-within .quick-actions {
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(0) scale(1);
-  pointer-events: auto;
-}
-
-/* Subtle staggered scale-in & slide-up transition animation for action buttons inside the quick-action menu */
 .stock-table-row .row-quick-actions button,
 .stock-table-row .quick-action-menu button,
 .stock-table-row .row-quick-actions .quick-action-item,
-.stock-table-row .row-quick-actions .quick-action-btn {
-  opacity: 0;
-  transform: translateY(5px) scale(0.9);
-  transform-origin: center center;
+.stock-table-row .row-quick-actions .quick-action-btn,
+.stock-table-row .workflow-preview-btn {
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: translateY(0) scale(1) !important;
+  pointer-events: auto !important;
   transition: opacity 0.16s ease-out,
               transform 0.16s ease-out,
-              background-color 0.15s ease,
-              border-color 0.15s ease,
-              box-shadow 0.15s ease,
-              color 0.15s ease;
-  will-change: transform, opacity;
-}
-
-.stock-table-row:hover .row-quick-actions button,
-.stock-table-row.is-active .row-quick-actions button,
-.stock-table-row.is-selected .row-quick-actions button,
-.stock-table-row[data-active="true"] .row-quick-actions button,
-.stock-table-row[data-selected="true"] .row-quick-actions button,
-.stock-table-row:focus .row-quick-actions button,
-.stock-table-row:focus-within .row-quick-actions button,
-.stock-table-row:hover .quick-action-menu button,
-.stock-table-row.is-active .quick-action-menu button,
-.stock-table-row.is-selected .quick-action-menu button,
-.stock-table-row[data-active="true"] .quick-action-menu button,
-.stock-table-row[data-selected="true"] .quick-action-menu button,
-.stock-table-row:focus .quick-action-menu button,
-.stock-table-row:focus-within .quick-action-menu button,
-.stock-table-row:hover .row-quick-actions .quick-action-item,
-.stock-table-row.is-active .row-quick-actions .quick-action-item,
-.stock-table-row.is-selected .row-quick-actions .quick-action-item,
-.stock-table-row[data-active="true"] .row-quick-actions .quick-action-item,
-.stock-table-row[data-selected="true"] .row-quick-actions .quick-action-item,
-.stock-table-row:focus .row-quick-actions .quick-action-item,
-.stock-table-row:focus-within .row-quick-actions .quick-action-item,
-.stock-table-row:hover .row-quick-actions .quick-action-btn,
-.stock-table-row.is-active .row-quick-actions .quick-action-btn,
-.stock-table-row.is-selected .row-quick-actions .quick-action-btn,
-.stock-table-row[data-active="true"] .row-quick-actions .quick-action-btn,
-.stock-table-row[data-selected="true"] .row-quick-actions .quick-action-btn,
-.stock-table-row:focus .row-quick-actions .quick-action-btn,
-.stock-table-row:focus-within .row-quick-actions .quick-action-btn {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-  transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1),
-              transform 0.24s cubic-bezier(0.16, 1, 0.3, 1),
               background-color 0.15s ease,
               border-color 0.15s ease,
               box-shadow 0.15s ease,
