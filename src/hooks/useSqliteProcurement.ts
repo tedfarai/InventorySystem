@@ -26,9 +26,11 @@ import {
   CollaborativeEvent,
   CloudSyncStatus,
   OfflineMutation,
+  CurrencyCode,
 } from '../types';
 import { DEFAULT_BACKUP_POLICY } from '../data/initialData';
 import { realtimeSyncService } from '../db/realtimeSyncService';
+import { getExchangeRate, normalizePriceAndValue } from '../utils/currencyUtils';
 
 export function useSqliteProcurement() {
   const [isDbReady, setIsDbReady] = useState(false);
@@ -888,7 +890,9 @@ export function useSqliteProcurement() {
     countRef: string;
     notes: string;
     requestId?: string;
-  }): Promise<{ success: boolean; allAdjusted?: boolean; voucherNumber?: string; error?: string }> => {
+    unitPrice?: number;
+    currency?: CurrencyCode;
+  }): Promise<{ success: boolean; allAdjusted?: boolean; voucherNumber?: string; error?: string; doc?: AdjustmentDocument }> => {
     const isSuperAdmin = currentUser?.IssuerID === 'ADM001';
 
     // Find if this adjustment is associated with an active request or active timed access window
@@ -987,6 +991,13 @@ export function useSqliteProcurement() {
     const folderPath = `${masterFolderPath}\\Adjustments\\`;
     const fullSavedPath = `${folderPath}${pdfFileName}`;
 
+    const rate = getExchangeRate();
+    const itemPrice = adjData.unitPrice !== undefined && Number(adjData.unitPrice) > 0
+      ? Number(adjData.unitPrice)
+      : (Number(item.UnitPrice) > 0 ? Number(item.UnitPrice) : 0);
+    const itemCurrency: CurrencyCode = adjData.currency || item.Currency || 'USD';
+    const pricing = normalizePriceAndValue(itemPrice, Math.abs(varianceQty), itemCurrency, 'USD', rate);
+
     const newAdjustmentDoc: AdjustmentDocument = {
       docType: 'ADJUSTMENT',
       voucherNumber,
@@ -1007,6 +1018,12 @@ export function useSqliteProcurement() {
           PhysicalQty: adjData.physicalQty,
           VarianceQty: varianceQty,
           Unit: item.Unit,
+          UnitPrice: itemPrice > 0 ? itemPrice : undefined,
+          Currency: itemCurrency,
+          BaseCurrency: 'USD',
+          NormalizedUnitPrice: pricing.normalizedUnitPrice,
+          VarianceCost: pricing.totalValue,
+          NormalizedVarianceCost: pricing.normalizedTotalValue,
         },
       ],
       pdfFileName,
@@ -1033,6 +1050,12 @@ export function useSqliteProcurement() {
       DiscrepancyReason: adjData.reasonLabel,
       DiscrepancyNotes: adjData.notes,
       CountRef: adjData.countRef,
+      UnitPrice: itemPrice > 0 ? itemPrice : undefined,
+      Currency: itemCurrency,
+      BaseCurrency: 'USD',
+      NormalizedUnitPrice: pricing.normalizedUnitPrice,
+      TotalValue: pricing.totalValue,
+      NormalizedTotalValue: pricing.normalizedTotalValue,
     };
 
     let isAllAdjusted = false;
@@ -1130,6 +1153,7 @@ export function useSqliteProcurement() {
       success: true,
       allAdjusted: isAllAdjusted,
       voucherNumber,
+      doc: newAdjustmentDoc,
     };
   };
 
@@ -1175,6 +1199,8 @@ export function useSqliteProcurement() {
     const folderPath = `${masterFolderPath}\\Adjustments\\`;
     const fullSavedPath = `${folderPath}${pdfFileName}`;
 
+    const rate = getExchangeRate();
+
     const newAdjustmentDoc: AdjustmentDocument = {
       docType: 'ADJUSTMENT',
       voucherNumber,
@@ -1186,40 +1212,64 @@ export function useSqliteProcurement() {
       issuerID: currentUser ? currentUser.IssuerID : 'ADM001',
       issuerName: currentUser ? currentUser.IssuerName : 'Rachel Pickard',
       issuerRole: 'Procurement Manager (Superior Admin Direct Sign-Off)',
-      items: req.items.map((it) => ({
-        ItemID: it.ItemID,
-        ItemName: it.ItemName,
-        Category: it.Category,
-        SystemQty: it.CurrentSystemQty,
-        PhysicalQty: it.ProposedPhysicalQty,
-        VarianceQty: it.VarianceQty,
-        Unit: it.Unit,
-      })),
+      items: req.items.map((it) => {
+        const stockItem = stockItems.find((s) => s.ItemID === it.ItemID);
+        const itemPrice = it.UnitPrice !== undefined ? it.UnitPrice : (stockItem?.UnitPrice || 0);
+        const itemCurrency: CurrencyCode = it.Currency || stockItem?.Currency || 'USD';
+        const pricing = normalizePriceAndValue(itemPrice, Math.abs(it.VarianceQty), itemCurrency, 'USD', rate);
+        return {
+          ItemID: it.ItemID,
+          ItemName: it.ItemName,
+          Category: it.Category,
+          SystemQty: it.CurrentSystemQty,
+          PhysicalQty: it.ProposedPhysicalQty,
+          VarianceQty: it.VarianceQty,
+          Unit: it.Unit,
+          UnitPrice: itemPrice > 0 ? itemPrice : undefined,
+          Currency: itemCurrency,
+          BaseCurrency: 'USD' as CurrencyCode,
+          NormalizedUnitPrice: pricing.normalizedUnitPrice,
+          VarianceCost: pricing.totalValue,
+          NormalizedVarianceCost: pricing.normalizedTotalValue,
+        };
+      }),
       pdfFileName,
       folderPath,
       fullSavedPath,
     };
 
-    const newLogs: MovementLogEntry[] = req.items.map((it, idx) => ({
-      id: `LOG-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 7)}`,
-      Timestamp: nowStr,
-      Type: 'ADJUSTMENT',
-      ItemID: it.ItemID,
-      ItemName: it.ItemName,
-      Qty: it.VarianceQty,
-      DeptID: 'N/A',
-      DeptName: `Batch Adjustment [${req.id}] (${it.ReasonCode})`,
-      DeptHead: 'N/A',
-      DeptEmail: 'N/A',
-      IssuerID: currentUser ? currentUser.IssuerID : 'ADM001',
-      IssuerName: currentUser ? currentUser.IssuerName : 'Rachel Pickard',
-      IssueSlipFileName: fullSavedPath,
-      DocumentRef: voucherNumber,
-      Status: 'Adjusted',
-      DiscrepancyReason: it.ReasonCode,
-      DiscrepancyNotes: it.Notes || adminNotes,
-      CountRef: it.CountRef || req.id,
-    }));
+    const newLogs: MovementLogEntry[] = req.items.map((it, idx) => {
+      const stockItem = stockItems.find((s) => s.ItemID === it.ItemID);
+      const itemPrice = it.UnitPrice !== undefined ? it.UnitPrice : (stockItem?.UnitPrice || 0);
+      const itemCurrency: CurrencyCode = it.Currency || stockItem?.Currency || 'USD';
+      const pricing = normalizePriceAndValue(itemPrice, Math.abs(it.VarianceQty), itemCurrency, 'USD', rate);
+      return {
+        id: `LOG-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 7)}`,
+        Timestamp: nowStr,
+        Type: 'ADJUSTMENT',
+        ItemID: it.ItemID,
+        ItemName: it.ItemName,
+        Qty: it.VarianceQty,
+        DeptID: 'N/A',
+        DeptName: `Batch Adjustment [${req.id}] (${it.ReasonCode})`,
+        DeptHead: 'N/A',
+        DeptEmail: 'N/A',
+        IssuerID: currentUser ? currentUser.IssuerID : 'ADM001',
+        IssuerName: currentUser ? currentUser.IssuerName : 'Rachel Pickard',
+        IssueSlipFileName: fullSavedPath,
+        DocumentRef: voucherNumber,
+        Status: 'Adjusted',
+        DiscrepancyReason: it.ReasonCode,
+        DiscrepancyNotes: it.Notes || adminNotes,
+        CountRef: it.CountRef || req.id,
+        UnitPrice: itemPrice > 0 ? itemPrice : undefined,
+        Currency: itemCurrency,
+        BaseCurrency: 'USD' as CurrencyCode,
+        NormalizedUnitPrice: pricing.normalizedUnitPrice,
+        TotalValue: pricing.totalValue,
+        NormalizedTotalValue: pricing.normalizedTotalValue,
+      };
+    });
 
     const updatedReq: StockAdjustmentRequest = {
       ...req,
@@ -1281,6 +1331,7 @@ export function useSqliteProcurement() {
       console.error('[useSqliteProcurement] Approve and execute error:', err);
       await refreshAllFromSqlite();
     }
+    return newAdjustmentDoc;
   };
 
   const handleGrantTimedAccess = async (requestId: string, durationMinutes: number, adminNotes: string) => {

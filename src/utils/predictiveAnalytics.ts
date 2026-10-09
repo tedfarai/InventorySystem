@@ -1,5 +1,5 @@
 import { StockItem, MovementLogEntry, ItemCategory, CurrencyCode } from '../types';
-import { getExchangeRate, convertCurrency, collateDualCurrencyValuation, CollationSummary } from './currencyUtils';
+import { getExchangeRate, convertCurrency, normalizeToBaseCurrency, collateDualCurrencyValuation, CollationSummary } from './currencyUtils';
 
 export interface MonthlyCategoryConsumption {
   month: string; // e.g. 'Apr 2026'
@@ -104,6 +104,10 @@ export interface ItemPrediction {
   // Zimbabwe Dual-Currency (USD & ZWG) financial predictive metrics
   unitPrice: number;
   currency: CurrencyCode;
+  baseCurrency: CurrencyCode;
+  normalizedInventoryValue: number;
+  normalizedReorderCost: number;
+  normalizedMonthlyBurnCost: number;
   inventoryValueUsd: number;
   inventoryValueZwg: number;
   estimatedReorderCostUsd: number;
@@ -123,6 +127,10 @@ export interface ExecutiveAnalyticsSummary {
   categoryDistribution: { name: string; value: number; count: number }[];
 
   // Financial & Collation Analytics (Zimbabwe Dual Currency)
+  baseCurrency: CurrencyCode;
+  totalNormalizedInventoryValue: number;
+  totalNormalizedProjectedRestockCost: number;
+  totalNormalizedHistoricalSpend: number;
   totalInventoryValueUsd: number;
   totalInventoryValueZwg: number;
   totalProjectedRestockCostUsd: number;
@@ -721,7 +729,8 @@ export function calculateFlexibleConsumptionTrend(
  */
 export function calculateAllStockPredictions(
   stockItems: StockItem[],
-  movementLogs: MovementLogEntry[]
+  movementLogs: MovementLogEntry[],
+  baseCurrency: CurrencyCode = 'USD'
 ): ItemPrediction[] {
   // Aggregate issues by ItemID over the last 6 months
   const itemIssueStats = new Map<
@@ -880,6 +889,10 @@ export function calculateAllStockPredictions(
       // Zimbabwe Dual-Currency financial metrics
       unitPrice,
       currency,
+      baseCurrency,
+      normalizedInventoryValue: Math.round((baseCurrency === 'USD' ? inventoryValueUsd : inventoryValueZwg) * 100) / 100,
+      normalizedReorderCost: Math.round((baseCurrency === 'USD' ? estimatedReorderCostUsd : estimatedReorderCostZwg) * 100) / 100,
+      normalizedMonthlyBurnCost: Math.round((baseCurrency === 'USD' ? monthlyBurnCostUsd : monthlyBurnCostZwg) * 100) / 100,
       inventoryValueUsd: Math.round(inventoryValueUsd * 100) / 100,
       inventoryValueZwg: Math.round(inventoryValueZwg * 100) / 100,
       estimatedReorderCostUsd: Math.round(estimatedReorderCostUsd * 100) / 100,
@@ -898,13 +911,14 @@ export function calculateAllStockPredictions(
  */
 export function getExecutiveAnalytics(
   stockItems: StockItem[],
-  movementLogs: MovementLogEntry[]
+  movementLogs: MovementLogEntry[],
+  baseCurrency: CurrencyCode = 'USD'
 ): ExecutiveAnalyticsSummary {
   const safeStock = Array.isArray(stockItems) ? stockItems : [];
   const safeLogs = Array.isArray(movementLogs) ? movementLogs : [];
 
   const monthlyTrend = calculateSixMonthConsumption(safeStock, safeLogs);
-  const itemPredictions = calculateAllStockPredictions(safeStock, safeLogs);
+  const itemPredictions = calculateAllStockPredictions(safeStock, safeLogs, baseCurrency);
 
   const criticalItemsCount = itemPredictions.filter((p) => p.reorderUrgency === 'CRITICAL').length;
   const warningItemsCount = itemPredictions.filter((p) => p.reorderUrgency === 'WARNING').length;
@@ -992,6 +1006,10 @@ export function getExecutiveAnalytics(
     }
   });
 
+  const totalNormalizedInventoryValue = baseCurrency === 'USD' ? totalInventoryValueUsd : totalInventoryValueZwg;
+  const totalNormalizedProjectedRestockCost = baseCurrency === 'USD' ? totalProjectedRestockCostUsd : totalProjectedRestockCostZwg;
+  const totalNormalizedHistoricalSpend = baseCurrency === 'USD' ? historicalProcurementSpendUsd : historicalProcurementSpendZwg;
+
   return {
     monthlyTrend,
     itemPredictions,
@@ -1002,6 +1020,10 @@ export function getExecutiveAnalytics(
     totalProjected6MonthDemand,
     categoryDistribution,
 
+    baseCurrency,
+    totalNormalizedInventoryValue: Math.round(totalNormalizedInventoryValue * 100) / 100,
+    totalNormalizedProjectedRestockCost: Math.round(totalNormalizedProjectedRestockCost * 100) / 100,
+    totalNormalizedHistoricalSpend: Math.round(totalNormalizedHistoricalSpend * 100) / 100,
     totalInventoryValueUsd: Math.round(totalInventoryValueUsd * 100) / 100,
     totalInventoryValueZwg: Math.round(totalInventoryValueZwg * 100) / 100,
     totalProjectedRestockCostUsd: Math.round(totalProjectedRestockCostUsd * 100) / 100,

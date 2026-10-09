@@ -14,6 +14,9 @@ import {
   TrendingDown,
   TrendingUp,
   FileDown,
+  ExternalLink,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react';
 import { IssuedDocument, ReceivedDocument, AdjustmentDocument } from '../../types';
 import { getPexGreenLogoDataUrl, PEX_GREEN_LOGO_PUBLIC_PATH } from '../brand/brandLogoData';
@@ -37,6 +40,7 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
   const isDelivery = docObj.type === 'DELIVERY';
   const isAdjustment = docObj.type === 'ADJUSTMENT';
   const isIssue = docObj.type === 'ISSUE';
+  const isIssueManager = isIssue && String((docObj.data as IssuedDocument)?.deptID || '').startsWith('MGR-');
   const [isPrintFriendly, setIsPrintFriendly] = useState(false);
   const [hasAutoSaved, setHasAutoSaved] = useState(false);
   const [autoSaveToast, setAutoSaveToast] = useState<string | null>(null);
@@ -57,7 +61,11 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
     }, 150);
   };
 
-  const handleDownloadPdf = () => {
+  const [activeTab, setActiveTab] = useState<'visual' | 'livePdf'>('livePdf');
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [isPdfGenerating, setIsPdfGenerating] = useState(true);
+
+  const buildJsPdf = (): jsPDF => {
     const pdf = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
@@ -212,16 +220,16 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
       pdf.setFont('helvetica', 'normal');
       pdf.text(issueDoc.timestamp, 62, 60);
 
-      const isManager = issueDoc.deptID?.startsWith('MGR-');
+      const isManager = String(issueDoc.deptID || '').startsWith('MGR-');
       pdf.setFont('helvetica', 'bold');
       pdf.text(isManager ? 'Requesting Entity:' : 'Target Department:', 16, 66);
       pdf.setFont('helvetica', 'normal');
-      pdf.text(`${issueDoc.deptID} - ${issueDoc.deptName}`, 62, 66);
+      pdf.text(`${issueDoc.deptID || 'DEP'} - ${issueDoc.deptName || 'Department'}`, 62, 66);
 
       pdf.setFont('helvetica', 'bold');
       pdf.text(isManager ? 'Authorized Manager:' : 'Department Head:', 16, 72);
       pdf.setFont('helvetica', 'normal');
-      pdf.text(`${issueDoc.deptHeadName} (${issueDoc.deptHeadEmail})`, 62, 72);
+      pdf.text(`${issueDoc.deptHeadName || 'Manager'} (${issueDoc.deptHeadEmail || 'stores@paramount.co.zw'})`, 62, 72);
 
       pdf.setFont('helvetica', 'bold');
       pdf.text('Authorized Issuer:', 16, 78);
@@ -333,7 +341,7 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
         ? 'Warehouse Master Verification'
         : isAdjustment
         ? 'Procurement Manager Signoff (ADM001)'
-        : (docObj.data as IssuedDocument).deptID?.startsWith('MGR-')
+        : isIssueManager
         ? 'Authorized Manager Signature'
         : 'Department Head Signature',
       114,
@@ -351,8 +359,32 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
       ? `Approved: Rachel Pickard (Procurement Manager)`
       : `Recipient: ${(docObj.data as IssuedDocument).deptHeadName}`;
     pdf.text(signName, 114, y + 27);
+    return pdf;
+  };
 
-    // Save File Name
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    try {
+      setIsPdfGenerating(true);
+      const pdf = buildJsPdf();
+      const blob = pdf.output('blob');
+      objectUrl = URL.createObjectURL(blob);
+      setPdfBlobUrl(objectUrl);
+    } catch (err) {
+      console.error('[DocumentViewerModal] Error generating PDF blob:', err);
+    } finally {
+      setIsPdfGenerating(false);
+    }
+
+    return () => {
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [docObj]);
+
+  const handleDownloadPdf = () => {
+    const pdf = buildJsPdf();
     const fileName = isDelivery
       ? `Stationery_&_Cleaning_GRN_Voucher_${(docObj.data as ReceivedDocument).voucherNumber}.pdf`
       : isAdjustment
@@ -368,24 +400,32 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
     }, 6000);
   };
 
+  const handleOpenPdfNewTab = () => {
+    if (pdfBlobUrl) {
+      window.open(pdfBlobUrl, '_blank');
+    } else {
+      handleDownloadPdf();
+    }
+  };
+
   const digitalSignatureStamp = `${docObj.data.timestamp}-${docObj.data.issuerID}`;
 
   return (
     <DraggableResizableModal
       onClose={onClose}
       modalId="document-viewer-modal"
-      className={`bg-slate-100 dark:bg-slate-800 rounded-xl shadow-2xl border-2 ${
+      className={`bg-slate-100 dark:bg-slate-900 rounded-xl shadow-2xl border-2 ${
         isDelivery
           ? 'border-blue-600/80'
           : isAdjustment
           ? 'border-amber-600/80'
           : 'border-emerald-600/80'
-      } w-full max-w-2xl overflow-hidden printable-document my-auto`}
+      } w-full max-w-4xl overflow-hidden printable-document my-auto flex flex-col`}
     >
       {/* Header Bar */}
       <div
         data-drag-handle="true"
-        className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between border-b border-slate-700 no-print cursor-grab active:cursor-grabbing select-none"
+        className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between border-b border-slate-700 no-print cursor-grab active:cursor-grabbing select-none shrink-0"
       >
         <div className="flex items-center space-x-2">
           {isDelivery ? (
@@ -397,46 +437,92 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
           )}
           <span className="font-mono text-xs font-bold text-slate-100">
             {isDelivery
-              ? 'Goods / Items Received Voucher (GRN) Document Viewer'
+              ? 'Goods / Items Received Voucher (GRN) — Authentic PDF Viewer'
               : isAdjustment
-              ? 'Stock Adjustment & Count Discrepancy Voucher Viewer'
-              : 'Stationery & Cleaning Item Issue Slip Viewer'}
+              ? 'Stock Adjustment & Physical Count Voucher — Authentic PDF Viewer'
+              : 'Stationery & Cleaning Item Issue Slip — Authentic PDF Viewer'}
           </span>
         </div>
 
         <div className="flex items-center space-x-2">
+          {/* View Tab Switcher */}
+          <div className="flex bg-slate-800 p-0.5 rounded-lg border border-slate-700 text-xs">
             <button
               type="button"
-              onClick={handleNativeSaveAsPdf}
-              className="px-2.5 py-1 text-xs font-bold rounded flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white shadow transition"
-              title="Save as PDF using browser print dialog"
-            >
-              <FileDown className="w-3.5 h-3.5" />
-              <span>Save as PDF</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsPrintFriendly(!isPrintFriendly)}
-              className={`px-2.5 py-1 text-xs font-bold rounded flex items-center gap-1 transition ${
-                isPrintFriendly
-                  ? 'bg-amber-500 text-slate-950'
-                  : 'bg-slate-800 text-slate-300 hover:text-white'
+              onClick={() => setActiveTab('livePdf')}
+              className={`px-3 py-1 rounded-md font-semibold transition ${
+                activeTab === 'livePdf'
+                  ? isDelivery
+                    ? 'bg-blue-600 text-white shadow'
+                    : isAdjustment
+                    ? 'bg-amber-600 text-slate-950 font-bold shadow'
+                    : 'bg-emerald-600 text-white shadow'
+                  : 'text-slate-300 hover:text-white'
               }`}
-              title="Toggle Print-Friendly High Contrast Mode"
             >
-              <Printer className="w-3.5 h-3.5" />
-              <span>{isPrintFriendly ? 'Print Mode: ON' : 'Print Mode'}</span>
+              Live PDF Preview
             </button>
-
-            <button onClick={onClose} className="text-slate-400 hover:text-white text-xs font-bold px-2 py-0.5">
-              ✕
+            <button
+              type="button"
+              onClick={() => setActiveTab('visual')}
+              className={`px-3 py-1 rounded-md font-semibold transition ${
+                activeTab === 'visual'
+                  ? isDelivery
+                    ? 'bg-blue-600 text-white shadow'
+                    : isAdjustment
+                    ? 'bg-amber-600 text-slate-950 font-bold shadow'
+                    : 'bg-emerald-600 text-white shadow'
+                  : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              Document Voucher View
             </button>
           </div>
-        </div>
 
-        {/* Modal Body */}
-        <div className="p-6 space-y-5 flex-1 min-h-0 overflow-y-auto">
+          <button
+            type="button"
+            onClick={handleDownloadPdf}
+            className={`px-2.5 py-1 text-xs font-bold rounded flex items-center gap-1.5 ${
+              isDelivery
+                ? 'bg-blue-600 hover:bg-blue-500'
+                : isAdjustment
+                ? 'bg-amber-500 hover:bg-amber-400 text-slate-950'
+                : 'bg-emerald-600 hover:bg-emerald-500'
+            } text-white shadow transition cursor-pointer`}
+            title="Download authentic PDF file"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Download PDF</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleOpenPdfNewTab}
+            className="px-2.5 py-1 text-xs font-bold rounded flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white shadow transition cursor-pointer"
+            title="Open PDF in new window"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Open in Tab</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handlePrintNow}
+            className="px-2.5 py-1 text-xs font-bold rounded flex items-center gap-1 transition bg-slate-800 text-slate-300 hover:text-white border border-slate-700 cursor-pointer"
+            title="Print voucher document"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Print</span>
+          </button>
+
+          <button onClick={onClose} className="text-slate-400 hover:text-white text-xs font-bold px-2 py-0.5 rounded hover:bg-slate-800 cursor-pointer">
+            ✕
+          </button>
+        </div>
+      </div>
+
+      {/* Modal Body */}
+      <div className="p-5 space-y-4 flex-1 min-h-0 overflow-y-auto">
           {/* Toast / Auto-Save Alert Banner */}
           {autoSaveToast && (
             <div className="bg-emerald-600 text-white px-4 py-2.5 rounded-xl shadow-lg flex items-center justify-between text-xs font-mono animate-in fade-in slide-in-from-top-2 no-print">
@@ -487,7 +573,45 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
             </div>
           </div>
 
-          {/* Document Canvas Preview (Formatted for Print & Screen) */}
+        {/* TAB 1: Live Generated PDF Viewer */}
+        {activeTab === 'livePdf' && (
+          <div className="bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl overflow-hidden shadow-inner flex flex-col items-center justify-center min-h-[500px]">
+            {isPdfGenerating ? (
+              <div className="p-12 text-center space-y-3">
+                <Loader2 className={`w-8 h-8 ${isDelivery ? 'text-blue-500' : isAdjustment ? 'text-amber-500' : 'text-emerald-500'} animate-spin mx-auto`} />
+                <p className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                  Compiling Authentic PDF Document...
+                </p>
+                <p className="text-xs text-slate-500">
+                  Attaching official organization branding, itemized tables, and digital verification signatures.
+                </p>
+              </div>
+            ) : pdfBlobUrl ? (
+              <iframe
+                src={`${pdfBlobUrl}#toolbar=1&navpanes=0`}
+                className="w-full h-[580px] border-0 rounded-xl bg-white"
+                title={`PDF Voucher Preview - ${isDelivery ? (docObj.data as ReceivedDocument).voucherNumber : isAdjustment ? (docObj.data as AdjustmentDocument).voucherNumber : (docObj.data as IssuedDocument).slipNumber}`}
+              />
+            ) : (
+              <div className="p-8 text-center space-y-3">
+                <AlertCircle className="w-8 h-8 text-amber-500 mx-auto" />
+                <p className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                  Preview render completed
+                </p>
+                <button
+                  type="button"
+                  onClick={handleDownloadPdf}
+                  className={`px-4 py-2 ${isDelivery ? 'bg-blue-600' : isAdjustment ? 'bg-amber-600' : 'bg-emerald-600'} text-white rounded-lg text-xs font-bold`}
+                >
+                  Download PDF File
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 2: Document Canvas Preview (Formatted for Print & Screen) */}
+        {activeTab === 'visual' && (
           <div
             className={`stationery-sheet bg-white text-slate-900 p-6 rounded-lg shadow-inner border-2 border-slate-900 space-y-4 font-sans ${
               isPrintFriendly ? 'ring-4 ring-amber-400/50' : ''
@@ -603,18 +727,18 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                   </div>
                   <div className="p-2 flex">
                     <span className="font-bold w-48 text-slate-900">
-                      {(docObj.data as IssuedDocument).deptID?.startsWith('MGR-') ? 'Requesting Entity:' : 'Department ID & Name:'}
+                      {isIssueManager ? 'Requesting Entity:' : 'Department ID & Name:'}
                     </span>
                     <span className="font-bold text-slate-900">
-                      {(docObj.data as IssuedDocument).deptID} - {(docObj.data as IssuedDocument).deptName}
+                      {(docObj.data as IssuedDocument).deptID || 'DEP'} - {(docObj.data as IssuedDocument).deptName || 'Department'}
                     </span>
                   </div>
                   <div className="p-2 flex">
                     <span className="font-bold w-48 text-slate-900">
-                      {(docObj.data as IssuedDocument).deptID?.startsWith('MGR-') ? 'Authorized Manager:' : 'Department Head:'}
+                      {isIssueManager ? 'Authorized Manager:' : 'Department Head:'}
                     </span>
                     <span className="text-slate-900 font-medium">
-                      {(docObj.data as IssuedDocument).deptHeadName} ({(docObj.data as IssuedDocument).deptHeadEmail})
+                      {(docObj.data as IssuedDocument).deptHeadName || 'Manager'} ({(docObj.data as IssuedDocument).deptHeadEmail || 'stores@paramount.co.zw'})
                     </span>
                   </div>
                   <div className="p-2 flex">
@@ -732,7 +856,7 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                     ? 'Warehouse Master Verification'
                     : isAdjustment
                     ? 'Inventory Controller Approval'
-                    : (docObj.data as IssuedDocument).deptID?.startsWith('MGR-')
+                    : isIssueManager
                     ? 'Authorized Manager Signature'
                     : 'Department Head Signature'}
                 </div>
@@ -755,6 +879,7 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
               *** Paramount Stationery & Cleaning Official Voucher — Formatted for Printing, Emailing and Archiving ***
             </div>
           </div>
+        )}
 
           {/* Modal Actions */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-700 no-print">

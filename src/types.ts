@@ -11,6 +11,10 @@ export interface StockItem {
   Unit: string;
   UnitPrice?: number;
   Currency?: CurrencyCode;
+  BaseCurrency?: CurrencyCode;
+  NormalizedUnitPrice?: number;
+  TotalValue?: number;
+  NormalizedTotalValue?: number;
   Location?: string;
   UpdatedAt?: string;
   Version?: number;
@@ -60,6 +64,10 @@ export interface MovementLogEntry {
   ClientId?: string;
   UnitPrice?: number;
   Currency?: CurrencyCode;
+  BaseCurrency?: CurrencyCode;
+  NormalizedUnitPrice?: number;
+  TotalValue?: number;
+  NormalizedTotalValue?: number;
 }
 
 export interface AdminUser {
@@ -166,6 +174,12 @@ export interface AdjustmentDocument {
     PhysicalQty: number;
     VarianceQty: number;
     Unit?: string;
+    UnitPrice?: number;
+    Currency?: CurrencyCode;
+    BaseCurrency?: CurrencyCode;
+    NormalizedUnitPrice?: number;
+    VarianceCost?: number;
+    NormalizedVarianceCost?: number;
   }[];
   pdfFileName: string;
   folderPath: string;
@@ -233,6 +247,12 @@ export interface StockAdjustmentRequestItem {
   ProposedPhysicalQty: number;
   VarianceQty: number;
   Unit: string;
+  UnitPrice?: number;
+  Currency?: CurrencyCode;
+  BaseCurrency?: CurrencyCode;
+  NormalizedUnitPrice?: number;
+  TotalVarianceCost?: number;
+  NormalizedVarianceCost?: number;
   ReasonCode: AdjustmentReasonCode;
   ReasonLabel: string;
   CountRef: string;

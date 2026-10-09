@@ -20,7 +20,7 @@ interface PreviewConfirmationModalProps {
   cart: IssueCartItem[];
   issuerId: string;
   issuerName: string;
-  onConfirmExecute: (finalCart: IssueCartItem[]) => void | Promise<void>;
+  onConfirmExecute: (finalCart: IssueCartItem[], targetDept?: Department) => void | Promise<void>;
   onCancel: () => void;
 }
 
@@ -37,10 +37,12 @@ export const PreviewConfirmationModal: React.FC<PreviewConfirmationModalProps> =
   const [stepStatus, setStepStatus] = useState<string>('Ready to execute automated VBA sequence');
   const [progressPercent, setProgressPercent] = useState(0);
   const [isCompleted, setIsCompleted] = useState(false);
+  const [executionError, setExecutionError] = useState<string | null>(null);
 
   const nowStr = new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '');
   const timestampFile = new Date().toISOString().replace(/[-:]/g, '').replace(/T/, '_').substring(0, 15);
-  const pdfFileName = `Issued_Items/IssueSlip_${dept.DeptID.replace('-', '')}_${timestampFile}.pdf`;
+  const deptIdSafe = (dept?.DeptID || (dept as any)?.deptID || 'DEP01').replace(/[^a-zA-Z0-9]/g, '');
+  const pdfFileName = `Issued_Items/IssueSlip_${deptIdSafe}_${timestampFile}.pdf`;
 
   const handleDeleteItem = (itemId: string) => {
     setActiveCart((prev) => prev.filter((item) => item.ItemID !== itemId));
@@ -49,27 +51,30 @@ export const PreviewConfirmationModal: React.FC<PreviewConfirmationModalProps> =
   const handleExecute = async () => {
     if (activeCart.length === 0 || isProcessing) return;
     setIsProcessing(true);
+    setExecutionError(null);
     setProgressPercent(25);
     setStepStatus('1/4 Validating stock levels in Master_Stock...');
-    await new Promise((r) => setTimeout(r, 180));
+    await new Promise((r) => setTimeout(r, 120));
 
     setProgressPercent(50);
     setStepStatus('2/4 Deducting quantities & appending Movement_Log...');
-    await new Promise((r) => setTimeout(r, 180));
+    await new Promise((r) => setTimeout(r, 120));
 
     setProgressPercent(75);
     setStepStatus('3/4 Generating PDF Issue Slip...');
-    await new Promise((r) => setTimeout(r, 180));
+    await new Promise((r) => setTimeout(r, 120));
 
     setProgressPercent(100);
     setIsCompleted(true);
     setStepStatus('4/4 Opening PDF Issue Slip Preview...');
-    await new Promise((r) => setTimeout(r, 150));
+    await new Promise((r) => setTimeout(r, 100));
 
     try {
-      await onConfirmExecute(activeCart);
-    } catch (err) {
+      await onConfirmExecute(activeCart, dept);
+    } catch (err: any) {
       console.error('Error during issue confirmation:', err);
+      setExecutionError(err?.message || 'Error occurred while finalizing issue slip preview. Please retry.');
+      setIsProcessing(false);
     }
   };
 
@@ -232,6 +237,22 @@ export const PreviewConfirmationModal: React.FC<PreviewConfirmationModalProps> =
                   <span>Issue Request Batch Processed & Saved Successfully!</span>
                 </div>
               )}
+            </div>
+          )}
+
+          {executionError && (
+            <div className="bg-rose-500/10 border border-rose-500/30 p-3.5 rounded-lg flex items-center justify-between text-xs text-rose-700 dark:text-rose-300">
+              <div className="flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                <span>{executionError}</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleExecute}
+                className="px-2.5 py-1 text-xs font-bold bg-rose-600 text-white rounded hover:bg-rose-500 transition cursor-pointer shrink-0 ml-2"
+              >
+                Retry
+              </button>
             </div>
           )}
 

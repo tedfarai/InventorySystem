@@ -22,8 +22,10 @@ import {
   TimedAccessWindow,
   AdjustmentReasonCode,
   ItemCategory,
+  CurrencyCode,
 } from '../types';
 import { analyzeSearchQuery, stemWord } from './stemmer';
+import { normalizePriceAndValue, getExchangeRate } from './currencyUtils';
 import {
   INITIAL_STOCK,
   INITIAL_ADMINS,
@@ -229,6 +231,10 @@ class SqliteBridge {
         description TEXT,
         unit_price REAL DEFAULT 0,
         currency TEXT DEFAULT 'USD',
+        base_currency TEXT DEFAULT 'USD',
+        normalized_unit_price REAL DEFAULT 0,
+        total_value REAL DEFAULT 0,
+        normalized_total_value REAL DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
@@ -287,7 +293,11 @@ class SqliteBridge {
         discrepancy_notes TEXT,
         count_ref TEXT,
         unit_price REAL DEFAULT 0,
-        currency TEXT DEFAULT 'USD'
+        currency TEXT DEFAULT 'USD',
+        base_currency TEXT DEFAULT 'USD',
+        normalized_unit_price REAL DEFAULT 0,
+        total_value REAL DEFAULT 0,
+        normalized_total_value REAL DEFAULT 0
       );
     `);
 
@@ -436,12 +446,52 @@ class SqliteBridge {
       // Column may already exist
     }
     try {
+      this.db.run("ALTER TABLE master_stock ADD COLUMN base_currency TEXT DEFAULT 'USD';");
+    } catch {
+      // Column may already exist
+    }
+    try {
+      this.db.run('ALTER TABLE master_stock ADD COLUMN normalized_unit_price REAL DEFAULT 0;');
+    } catch {
+      // Column may already exist
+    }
+    try {
+      this.db.run('ALTER TABLE master_stock ADD COLUMN total_value REAL DEFAULT 0;');
+    } catch {
+      // Column may already exist
+    }
+    try {
+      this.db.run('ALTER TABLE master_stock ADD COLUMN normalized_total_value REAL DEFAULT 0;');
+    } catch {
+      // Column may already exist
+    }
+    try {
       this.db.run('ALTER TABLE movement_log ADD COLUMN unit_price REAL DEFAULT 0;');
     } catch {
       // Column may already exist
     }
     try {
       this.db.run("ALTER TABLE movement_log ADD COLUMN currency TEXT DEFAULT 'USD';");
+    } catch {
+      // Column may already exist
+    }
+    try {
+      this.db.run("ALTER TABLE movement_log ADD COLUMN base_currency TEXT DEFAULT 'USD';");
+    } catch {
+      // Column may already exist
+    }
+    try {
+      this.db.run('ALTER TABLE movement_log ADD COLUMN normalized_unit_price REAL DEFAULT 0;');
+    } catch {
+      // Column may already exist
+    }
+    try {
+      this.db.run('ALTER TABLE movement_log ADD COLUMN total_value REAL DEFAULT 0;');
+    } catch {
+      // Column may already exist
+    }
+    try {
+      this.db.run('ALTER TABLE movement_log ADD COLUMN normalized_total_value REAL DEFAULT 0;');
     } catch {
       // Column may already exist
     }
@@ -776,34 +826,55 @@ class SqliteBridge {
   // 2. MASTER STOCK CRUD
   public async getAllStock(): Promise<StockItem[]> {
     const db = await this.getDb();
+    const rate = getExchangeRate();
     if (db) {
       const res = db.exec(
-        'SELECT item_id, item_name, category, qty, reorder_level, unit, SupplierName, last_supplier, last_received_date, description, unit_price, currency FROM master_stock ORDER BY category ASC, item_id ASC;'
+        'SELECT item_id, item_name, category, qty, reorder_level, unit, SupplierName, last_supplier, last_received_date, description, unit_price, currency, base_currency, normalized_unit_price, total_value, normalized_total_value FROM master_stock ORDER BY category ASC, item_id ASC;'
       );
       if (!res.length || !res[0].values) return [];
       return res[0].values.map((row) => {
         const supp = (row[6] as string) || (row[7] as string) || undefined;
+        const qty = Number(row[3]);
         const rawPrice = Number(row[10]);
         const rawCurr = (row[11] as string) || 'USD';
+        const curr = (rawCurr === 'ZWG' ? 'ZWG' : 'USD') as CurrencyCode;
+        const baseCurr = ((row[12] as string) || 'USD') as CurrencyCode;
+        const price = !isNaN(rawPrice) && rawPrice > 0 ? rawPrice : undefined;
+
+        const pricing = normalizePriceAndValue(price || 0, qty, curr, baseCurr, rate);
+
         return {
           ItemID: row[0] as string,
           ItemName: row[1] as string,
           Category: row[2] as ItemCategory,
-          Qty: Number(row[3]),
+          Qty: qty,
           ReorderLevel: Number(row[4]),
           Unit: row[5] as string,
           SupplierName: supp,
           LastSupplier: supp,
           LastReceivedDate: (row[8] as string) || undefined,
           Description: (row[9] as string) || undefined,
-          UnitPrice: !isNaN(rawPrice) && rawPrice > 0 ? rawPrice : undefined,
-          Currency: (rawCurr === 'ZWG' ? 'ZWG' : 'USD') as CurrencyCode,
+          UnitPrice: price,
+          Currency: curr,
+          BaseCurrency: baseCurr,
+          NormalizedUnitPrice: pricing.normalizedUnitPrice,
+          TotalValue: pricing.totalValue,
+          NormalizedTotalValue: pricing.normalizedTotalValue,
         };
       });
     }
 
     this.initFallbackStore();
-    return this.fallbackStore!.stock;
+    return this.fallbackStore!.stock.map((s) => {
+      const pricing = normalizePriceAndValue(s.UnitPrice || 0, s.Qty, s.Currency || 'USD', 'USD', rate);
+      return {
+        ...s,
+        BaseCurrency: 'USD',
+        NormalizedUnitPrice: pricing.normalizedUnitPrice,
+        TotalValue: pricing.totalValue,
+        NormalizedTotalValue: pricing.normalizedTotalValue,
+      };
+    });
   }
 
   public async addStockItem(item: StockItem): Promise<void> {
@@ -811,9 +882,13 @@ class SqliteBridge {
     const supp = item.SupplierName || item.LastSupplier || null;
     const price = item.UnitPrice && item.UnitPrice > 0 ? item.UnitPrice : 0;
     const curr = item.Currency || 'USD';
+    const baseCurr = item.BaseCurrency || 'USD';
+    const rate = getExchangeRate();
+    const pricing = normalizePriceAndValue(price, item.Qty, curr, baseCurr, rate);
+
     if (db) {
       db.run(
-        'INSERT INTO master_stock (item_id, item_name, category, qty, reorder_level, unit, SupplierName, last_supplier, last_received_date, description, unit_price, currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);',
+        'INSERT INTO master_stock (item_id, item_name, category, qty, reorder_level, unit, SupplierName, last_supplier, last_received_date, description, unit_price, currency, base_currency, normalized_unit_price, total_value, normalized_total_value) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);',
         [
           item.ItemID,
           item.ItemName,
@@ -827,6 +902,10 @@ class SqliteBridge {
           item.Description || null,
           price,
           curr,
+          baseCurr,
+          pricing.normalizedUnitPrice,
+          pricing.totalValue,
+          pricing.normalizedTotalValue,
         ]
       );
       this.persistDb();
@@ -836,6 +915,10 @@ class SqliteBridge {
     this.initFallbackStore();
     item.SupplierName = item.SupplierName || item.LastSupplier;
     item.LastSupplier = item.SupplierName || item.LastSupplier;
+    item.BaseCurrency = baseCurr;
+    item.NormalizedUnitPrice = pricing.normalizedUnitPrice;
+    item.TotalValue = pricing.totalValue;
+    item.NormalizedTotalValue = pricing.normalizedTotalValue;
     this.fallbackStore!.stock.push(item);
     this.persistFallback();
   }
@@ -845,9 +928,13 @@ class SqliteBridge {
     const supp = item.SupplierName || item.LastSupplier || null;
     const price = item.UnitPrice && item.UnitPrice > 0 ? item.UnitPrice : 0;
     const curr = item.Currency || 'USD';
+    const baseCurr = item.BaseCurrency || 'USD';
+    const rate = getExchangeRate();
+    const pricing = normalizePriceAndValue(price, item.Qty, curr, baseCurr, rate);
+
     if (db) {
       db.run(
-        'UPDATE master_stock SET item_name = ?, category = ?, qty = ?, reorder_level = ?, unit = ?, SupplierName = ?, last_supplier = ?, last_received_date = ?, description = ?, unit_price = ?, currency = ?, updated_at = CURRENT_TIMESTAMP WHERE item_id = ?;',
+        'UPDATE master_stock SET item_name = ?, category = ?, qty = ?, reorder_level = ?, unit = ?, SupplierName = ?, last_supplier = ?, last_received_date = ?, description = ?, unit_price = ?, currency = ?, base_currency = ?, normalized_unit_price = ?, total_value = ?, normalized_total_value = ?, updated_at = CURRENT_TIMESTAMP WHERE item_id = ?;',
         [
           item.ItemName,
           item.Category,
@@ -860,6 +947,10 @@ class SqliteBridge {
           item.Description || null,
           price,
           curr,
+          baseCurr,
+          pricing.normalizedUnitPrice,
+          pricing.totalValue,
+          pricing.normalizedTotalValue,
           item.ItemID,
         ]
       );
@@ -872,6 +963,10 @@ class SqliteBridge {
     if (idx !== -1) {
       item.SupplierName = supp || undefined;
       item.LastSupplier = supp || undefined;
+      item.BaseCurrency = baseCurr;
+      item.NormalizedUnitPrice = pricing.normalizedUnitPrice;
+      item.TotalValue = pricing.totalValue;
+      item.NormalizedTotalValue = pricing.normalizedTotalValue;
       this.fallbackStore!.stock[idx] = item;
       this.persistFallback();
     }
@@ -1280,26 +1375,34 @@ class SqliteBridge {
   // 3. MOVEMENT AUDIT LOGS CRUD
   public async getAllMovementLogs(): Promise<MovementLogEntry[]> {
     const db = await this.getDb();
+    const rate = getExchangeRate();
     if (db) {
       const res = db.exec(`
         SELECT 
           id, timestamp, type, item_id, item_name, qty, dept_id, dept_name, dept_head, dept_email,
           issuer_id, issuer_name, SupplierName, doc_ref, slip_file_name, status, discrepancy_reason, discrepancy_notes, count_ref,
-          unit_price, currency
+          unit_price, currency, base_currency, normalized_unit_price, total_value, normalized_total_value
         FROM movement_log 
         ORDER BY timestamp DESC, id DESC;
       `);
       if (!res.length || !res[0].values) return [];
       return res[0].values.map((row) => {
+        const qty = Number(row[5]);
         const rawPrice = Number(row[19]);
         const rawCurr = (row[20] as string) || 'USD';
+        const curr = (rawCurr === 'ZWG' ? 'ZWG' : 'USD') as CurrencyCode;
+        const baseCurr = ((row[21] as string) || 'USD') as CurrencyCode;
+        const price = !isNaN(rawPrice) && rawPrice > 0 ? rawPrice : undefined;
+
+        const pricing = normalizePriceAndValue(price || 0, Math.abs(qty), curr, baseCurr, rate);
+
         return {
           id: row[0] as string,
           Timestamp: row[1] as string,
           Type: row[2] as any,
           ItemID: row[3] as string,
           ItemName: row[4] as string,
-          Qty: Number(row[5]),
+          Qty: qty,
           DeptID: row[6] as string,
           DeptName: row[7] as string,
           DeptHead: row[8] as string,
@@ -1313,14 +1416,27 @@ class SqliteBridge {
           DiscrepancyReason: row[16] as string | undefined,
           DiscrepancyNotes: row[17] as string | undefined,
           CountRef: row[18] as string | undefined,
-          UnitPrice: !isNaN(rawPrice) && rawPrice > 0 ? rawPrice : undefined,
-          Currency: (rawCurr === 'ZWG' ? 'ZWG' : 'USD') as CurrencyCode,
+          UnitPrice: price,
+          Currency: curr,
+          BaseCurrency: baseCurr,
+          NormalizedUnitPrice: pricing.normalizedUnitPrice,
+          TotalValue: pricing.totalValue,
+          NormalizedTotalValue: pricing.normalizedTotalValue,
         };
       });
     }
 
     this.initFallbackStore();
-    return this.fallbackStore!.movementLogs;
+    return this.fallbackStore!.movementLogs.map((l) => {
+      const pricing = normalizePriceAndValue(l.UnitPrice || 0, Math.abs(l.Qty), l.Currency || 'USD', 'USD', rate);
+      return {
+        ...l,
+        BaseCurrency: 'USD',
+        NormalizedUnitPrice: pricing.normalizedUnitPrice,
+        TotalValue: pricing.totalValue,
+        NormalizedTotalValue: pricing.normalizedTotalValue,
+      };
+    });
   }
 
   public async addMovementLog(log: MovementLogEntry): Promise<void> {
@@ -1329,6 +1445,14 @@ class SqliteBridge {
     const sanitizedLog = { ...log, id: logId };
     const price = sanitizedLog.UnitPrice && sanitizedLog.UnitPrice > 0 ? sanitizedLog.UnitPrice : 0;
     const curr = sanitizedLog.Currency || 'USD';
+    const baseCurr = sanitizedLog.BaseCurrency || 'USD';
+    const rate = getExchangeRate();
+    const pricing = normalizePriceAndValue(price, Math.abs(sanitizedLog.Qty), curr, baseCurr, rate);
+
+    sanitizedLog.BaseCurrency = baseCurr;
+    sanitizedLog.NormalizedUnitPrice = pricing.normalizedUnitPrice;
+    sanitizedLog.TotalValue = pricing.totalValue;
+    sanitizedLog.NormalizedTotalValue = pricing.normalizedTotalValue;
 
     if (db) {
       try {
@@ -1336,8 +1460,8 @@ class SqliteBridge {
           `INSERT OR REPLACE INTO movement_log (
             id, timestamp, type, item_id, item_name, qty, dept_id, dept_name, dept_head, dept_email,
             issuer_id, issuer_name, SupplierName, doc_ref, slip_file_name, status, discrepancy_reason, discrepancy_notes, count_ref,
-            unit_price, currency
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+            unit_price, currency, base_currency, normalized_unit_price, total_value, normalized_total_value
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
           [
             sanitizedLog.id,
             sanitizedLog.Timestamp,
@@ -1360,6 +1484,10 @@ class SqliteBridge {
             sanitizedLog.CountRef || null,
             price,
             curr,
+            baseCurr,
+            pricing.normalizedUnitPrice,
+            pricing.totalValue,
+            pricing.normalizedTotalValue,
           ]
         );
         this.persistDb();
@@ -1372,8 +1500,8 @@ class SqliteBridge {
             `INSERT OR REPLACE INTO movement_log (
               id, timestamp, type, item_id, item_name, qty, dept_id, dept_name, dept_head, dept_email,
               issuer_id, issuer_name, SupplierName, doc_ref, slip_file_name, status, discrepancy_reason, discrepancy_notes, count_ref,
-              unit_price, currency
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+              unit_price, currency, base_currency, normalized_unit_price, total_value, normalized_total_value
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
             [
               fallbackId,
               sanitizedLog.Timestamp,
@@ -1396,6 +1524,10 @@ class SqliteBridge {
               sanitizedLog.CountRef || null,
               price,
               curr,
+              baseCurr,
+              pricing.normalizedUnitPrice,
+              pricing.totalValue,
+              pricing.normalizedTotalValue,
             ]
           );
           this.persistDb();
@@ -1432,14 +1564,25 @@ class SqliteBridge {
     }
 
     const db = await this.getDb();
+    const rate = getExchangeRate();
     if (db) {
       const stmt = db.prepare(
         `INSERT OR REPLACE INTO movement_log (
           id, timestamp, type, item_id, item_name, qty, dept_id, dept_name, dept_head, dept_email,
-          issuer_id, issuer_name, SupplierName, doc_ref, slip_file_name, status, discrepancy_reason, discrepancy_notes, count_ref
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`
+          issuer_id, issuer_name, SupplierName, doc_ref, slip_file_name, status, discrepancy_reason, discrepancy_notes, count_ref,
+          unit_price, currency, base_currency, normalized_unit_price, total_value, normalized_total_value
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`
       );
       for (const log of preparedLogs) {
+        const price = log.UnitPrice && log.UnitPrice > 0 ? log.UnitPrice : 0;
+        const curr = log.Currency || 'USD';
+        const baseCurr = log.BaseCurrency || 'USD';
+        const pricing = normalizePriceAndValue(price, Math.abs(log.Qty), curr, baseCurr, rate);
+        log.BaseCurrency = baseCurr;
+        log.NormalizedUnitPrice = pricing.normalizedUnitPrice;
+        log.TotalValue = pricing.totalValue;
+        log.NormalizedTotalValue = pricing.normalizedTotalValue;
+
         try {
           stmt.run([
             log.id,
@@ -1461,6 +1604,12 @@ class SqliteBridge {
             log.DiscrepancyReason || null,
             log.DiscrepancyNotes || null,
             log.CountRef || null,
+            price,
+            curr,
+            baseCurr,
+            pricing.normalizedUnitPrice,
+            pricing.totalValue,
+            pricing.normalizedTotalValue,
           ]);
         } catch (runErr) {
           // If a row fails due to constraint or corruption, attempt fallback unique ID
@@ -1486,6 +1635,12 @@ class SqliteBridge {
               log.DiscrepancyReason || null,
               log.DiscrepancyNotes || null,
               log.CountRef || null,
+              price,
+              curr,
+              baseCurr,
+              pricing.normalizedUnitPrice,
+              pricing.totalValue,
+              pricing.normalizedTotalValue,
             ]);
           } catch (retryErr) {
             console.warn('[SQLite Bridge] Non-fatal batch log item insert error:', retryErr);
@@ -1499,6 +1654,15 @@ class SqliteBridge {
 
     this.initFallbackStore();
     for (const log of preparedLogs) {
+      const price = log.UnitPrice && log.UnitPrice > 0 ? log.UnitPrice : 0;
+      const curr = log.Currency || 'USD';
+      const baseCurr = log.BaseCurrency || 'USD';
+      const pricing = normalizePriceAndValue(price, Math.abs(log.Qty), curr, baseCurr, rate);
+      log.BaseCurrency = baseCurr;
+      log.NormalizedUnitPrice = pricing.normalizedUnitPrice;
+      log.TotalValue = pricing.totalValue;
+      log.NormalizedTotalValue = pricing.normalizedTotalValue;
+
       const existingIdx = this.fallbackStore!.movementLogs.findIndex((l) => l.id === log.id);
       if (existingIdx >= 0) {
         this.fallbackStore!.movementLogs[existingIdx] = log;

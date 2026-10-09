@@ -27,6 +27,8 @@ import {
   Eye,
   Package,
   Layers,
+  Coins,
+  DollarSign,
 } from 'lucide-react';
 import {
   StockItem,
@@ -36,11 +38,13 @@ import {
   AdjustmentReasonCode,
   TimedAccessWindow,
   ItemCategory,
+  CurrencyCode,
 } from '../../types';
 import { searchStockItems } from '../../utils/searchEngine';
 import { StockItemDropUpSelect } from '../common/StockItemDropUpSelect';
 import { VisualCountdownTimer } from './VisualCountdownTimer';
 import { DraggableResizableModal } from '../common/DraggableResizableModal';
+import { formatCurrency, convertCurrency, getExchangeRate, normalizePriceAndValue } from '../../utils/currencyUtils';
 
 interface StockAdjustmentRequestModalProps {
   isOpen: boolean;
@@ -111,6 +115,8 @@ export const StockAdjustmentRequestModal: React.FC<StockAdjustmentRequestModalPr
   const [reasonCode, setReasonCode] = useState<AdjustmentReasonCode>('COUNT_DISCREPANCY');
   const [countRefInput, setCountRefInput] = useState<string>(`COUNT-${new Date().getFullYear()}-0${Math.floor(10 + Math.random() * 90)}`);
   const [auditNotes, setAuditNotes] = useState<string>('');
+  const [itemUnitPrice, setItemUnitPrice] = useState<number | ''>('');
+  const [itemCurrency, setItemCurrency] = useState<CurrencyCode>('USD');
 
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -122,10 +128,25 @@ export const StockAdjustmentRequestModal: React.FC<StockAdjustmentRequestModalPr
     [stockItems, selectedItemId]
   );
 
+  // Sync unit price and currency when selected stock item changes
+  useEffect(() => {
+    if (selectedItem) {
+      if (selectedItem.UnitPrice !== undefined && Number(selectedItem.UnitPrice) > 0) {
+        setItemUnitPrice(selectedItem.UnitPrice);
+      } else {
+        setItemUnitPrice('');
+      }
+      setItemCurrency(selectedItem.Currency || 'USD');
+    }
+  }, [selectedItem?.ItemID]);
+
   const systemQty = selectedItem ? selectedItem.Qty : 0;
   const parsedPhysicalQty = parseInt(physicalCountInput, 10);
   const isValidPhysicalQty = !isNaN(parsedPhysicalQty) && parsedPhysicalQty >= 0;
   const variance = isValidPhysicalQty ? parsedPhysicalQty - systemQty : 0;
+
+  const numericItemPrice = typeof itemUnitPrice === 'number' && itemUnitPrice > 0 ? itemUnitPrice : (selectedItem?.UnitPrice || 0);
+  const lineVarianceFinancialImpact = variance * numericItemPrice;
 
   // Filtered Stock Items via Search Engine
   const filteredStockList = useMemo(() => {
@@ -146,6 +167,19 @@ export const StockAdjustmentRequestModal: React.FC<StockAdjustmentRequestModalPr
   const totalPositiveVariance = useMemo(() => {
     const list = Array.isArray(itemList) ? itemList : [];
     return list.filter((i) => (i?.VarianceQty || 0) > 0).reduce((sum, it) => sum + (it?.VarianceQty || 0), 0);
+  }, [itemList]);
+
+  const totalNetVarianceCostUsd = useMemo(() => {
+    const list = Array.isArray(itemList) ? itemList : [];
+    const rate = getExchangeRate();
+    return list.reduce((sum, it) => {
+      const p = it.UnitPrice || 0;
+      const v = it.VarianceQty || 0;
+      const c = it.Currency || 'USD';
+      const costRaw = v * p;
+      const costUsd = c === 'USD' ? costRaw : (rate > 0 ? costRaw / rate : 0);
+      return sum + costUsd;
+    }, 0);
   }, [itemList]);
 
   if (!isOpen) return null;
@@ -169,6 +203,12 @@ export const StockAdjustmentRequestModal: React.FC<StockAdjustmentRequestModalPr
     const existingIndex = itemList.findIndex((it) => it.ItemID === selectedItem.ItemID);
     const chosenReason = REASON_OPTIONS.find((r) => r.code === reasonCode) || REASON_OPTIONS[0];
 
+    const priceNum = typeof itemUnitPrice === 'number' && itemUnitPrice > 0
+      ? itemUnitPrice
+      : (selectedItem.UnitPrice && selectedItem.UnitPrice > 0 ? selectedItem.UnitPrice : undefined);
+    const rate = getExchangeRate();
+    const pricing = normalizePriceAndValue(priceNum || 0, Math.abs(variance), itemCurrency, 'USD', rate);
+
     const newItem: StockAdjustmentRequestItem = {
       ItemID: selectedItem.ItemID,
       ItemName: selectedItem.ItemName,
@@ -177,6 +217,12 @@ export const StockAdjustmentRequestModal: React.FC<StockAdjustmentRequestModalPr
       ProposedPhysicalQty: parsedPhysicalQty,
       VarianceQty: variance,
       Unit: selectedItem.Unit,
+      UnitPrice: priceNum,
+      Currency: itemCurrency,
+      BaseCurrency: 'USD',
+      NormalizedUnitPrice: pricing.normalizedUnitPrice,
+      TotalVarianceCost: priceNum ? Math.round(variance * priceNum * 100) / 100 : undefined,
+      NormalizedVarianceCost: priceNum ? Math.round(variance * pricing.normalizedUnitPrice * 100) / 100 : undefined,
       ReasonCode: chosenReason.code,
       ReasonLabel: chosenReason.label,
       CountRef: countRefInput.trim() || `COUNT-${Date.now()}`,
@@ -570,6 +616,84 @@ export const StockAdjustmentRequestModal: React.FC<StockAdjustmentRequestModalPr
                       />
                     </div>
 
+                    {/* Unit Purchase Price & Currency Selector (USD / ZWG) */}
+                    <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                          <Coins className="w-3.5 h-3.5 text-amber-500" />
+                          <span>Pricing &amp; Multi-Currency Metadata (USD / ZWG)</span>
+                        </label>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          1 USD = {getExchangeRate()} ZWG
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {/* Currency Selector Dropdown */}
+                        <div className="space-y-1">
+                          <label htmlFor="req-item-currency-dropdown" className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block uppercase">
+                            Currency:
+                          </label>
+                          <select
+                            id="req-item-currency-dropdown"
+                            value={itemCurrency}
+                            onChange={(e) => setItemCurrency(e.target.value as CurrencyCode)}
+                            className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-slate-100 cursor-pointer"
+                          >
+                            <option value="USD">$ USD (US Dollar)</option>
+                            <option value="ZWG">ZiG ZWG (Zimbabwe Gold)</option>
+                          </select>
+                        </div>
+
+                        {/* Unit Price Input */}
+                        <div className="space-y-1">
+                          <label htmlFor="req-item-price-input" className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block uppercase">
+                            Unit Purchase Price:
+                          </label>
+                          <div className="relative">
+                            <span className="absolute left-2.5 top-1.5 text-xs font-bold text-slate-400 font-mono">
+                              {itemCurrency === 'USD' ? '$' : 'ZiG'}
+                            </span>
+                            <input
+                              id="req-item-price-input"
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="0.00"
+                              value={itemUnitPrice}
+                              onChange={(e) => setItemUnitPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                              className="w-full pl-8 pr-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono font-bold text-slate-900 dark:text-slate-100"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Variance Financial Impact */}
+                        <div className="space-y-1">
+                          <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block uppercase">
+                            Financial Variance Impact:
+                          </span>
+                          <div className="px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg">
+                            <div className={`text-xs font-mono font-bold ${
+                              lineVarianceFinancialImpact < 0 ? 'text-rose-600 dark:text-rose-400' :
+                              lineVarianceFinancialImpact > 0 ? 'text-emerald-600 dark:text-emerald-400' :
+                              'text-slate-700 dark:text-slate-300'
+                            }`}>
+                              {numericItemPrice > 0 ? formatCurrency(Math.abs(lineVarianceFinancialImpact), itemCurrency, { showCode: true }) : '—'}
+                            </div>
+                            {numericItemPrice > 0 && variance !== 0 && (
+                              <div className="text-[9px] text-purple-600 dark:text-purple-400 font-mono truncate">
+                                ≈ {formatCurrency(
+                                  convertCurrency(Math.abs(lineVarianceFinancialImpact), itemCurrency, itemCurrency === 'USD' ? 'ZWG' : 'USD'),
+                                  itemCurrency === 'USD' ? 'ZWG' : 'USD',
+                                  { showCode: true }
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
                     {/* Add to List Button */}
                     <div className="flex justify-end">
                       <button
@@ -617,6 +741,8 @@ export const StockAdjustmentRequestModal: React.FC<StockAdjustmentRequestModalPr
                             <th className="p-2.5 text-right">System Qty</th>
                             <th className="p-2.5 text-right">Physical Count</th>
                             <th className="p-2.5 text-right">Variance</th>
+                            <th className="p-2.5 text-right">Price &amp; Currency</th>
+                            <th className="p-2.5 text-right">Variance Cost</th>
                             <th className="p-2.5">Reason & Reference</th>
                             <th className="p-2.5">Audit Notes</th>
                             <th className="p-2.5 text-right">Action</th>
@@ -642,6 +768,24 @@ export const StockAdjustmentRequestModal: React.FC<StockAdjustmentRequestModalPr
                                   <span className="text-teal-600">0 {it.Unit}</span>
                                 )}
                               </td>
+                              <td className="p-2.5 text-right font-mono text-[11px]">
+                                {it.UnitPrice !== undefined && it.UnitPrice > 0 ? (
+                                  <span className="font-bold text-slate-700 dark:text-slate-300">
+                                    {formatCurrency(it.UnitPrice, it.Currency || 'USD', { showCode: true })}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400 italic">Unspecified</span>
+                                )}
+                              </td>
+                              <td className="p-2.5 text-right font-mono text-[11px] font-bold">
+                                {it.TotalVarianceCost !== undefined ? (
+                                  <span className={it.TotalVarianceCost < 0 ? 'text-red-600' : it.TotalVarianceCost > 0 ? 'text-emerald-600' : 'text-slate-600'}>
+                                    {formatCurrency(Math.abs(it.TotalVarianceCost), it.Currency || 'USD', { showCode: true })}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400">—</span>
+                                )}
+                              </td>
                               <td className="p-2.5">
                                 <span className="font-semibold text-slate-800 dark:text-slate-200 block text-[11px]">
                                   {it.ReasonLabel}
@@ -655,7 +799,7 @@ export const StockAdjustmentRequestModal: React.FC<StockAdjustmentRequestModalPr
                                 <button
                                   type="button"
                                   onClick={() => handleRemoveItem(it.ItemID)}
-                                  className="text-rose-600 hover:text-rose-800 p-1 rounded hover:bg-rose-50 dark:hover:bg-rose-950"
+                                  className="text-rose-600 hover:text-rose-800 p-1 rounded hover:bg-rose-50 dark:hover:bg-rose-950 cursor-pointer"
                                   title="Remove from list"
                                 >
                                   <Trash2 className="w-4 h-4" />
@@ -703,7 +847,7 @@ export const StockAdjustmentRequestModal: React.FC<StockAdjustmentRequestModalPr
                       <span>Review Stock Adjustment Request Summary</span>
                     </h4>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
                       <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
                         <span className="text-[10px] text-slate-500 block uppercase font-bold">Requester:</span>
                         <div className="font-bold text-slate-900 dark:text-slate-100 mt-0.5">
@@ -718,6 +862,16 @@ export const StockAdjustmentRequestModal: React.FC<StockAdjustmentRequestModalPr
                           {itemList.length} Items Listed
                         </div>
                         <div className="text-[10px] text-slate-500">Net Variance: {totalNetVariance} Units</div>
+                      </div>
+
+                      <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+                        <span className="text-[10px] text-slate-500 block uppercase font-bold">Net Financial Impact:</span>
+                        <div className={`font-bold mt-0.5 ${totalNetVarianceCostUsd < 0 ? 'text-red-600' : totalNetVarianceCostUsd > 0 ? 'text-emerald-600' : 'text-slate-900 dark:text-white'}`}>
+                          {totalNetVarianceCostUsd !== 0 ? formatCurrency(Math.abs(totalNetVarianceCostUsd), 'USD', { showCode: true }) : '$0.00 USD'}
+                        </div>
+                        <div className="text-[10px] text-purple-600 dark:text-purple-400">
+                          ≈ ZiG {Math.abs(totalNetVarianceCostUsd * getExchangeRate()).toFixed(2)} ZWG
+                        </div>
                       </div>
 
                       <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
@@ -755,6 +909,8 @@ export const StockAdjustmentRequestModal: React.FC<StockAdjustmentRequestModalPr
                           <th className="p-2.5 text-right">System Qty</th>
                           <th className="p-2.5 text-right">Physical Count</th>
                           <th className="p-2.5 text-right">Variance</th>
+                          <th className="p-2.5 text-right">Price &amp; Currency</th>
+                          <th className="p-2.5 text-right">Variance Cost</th>
                           <th className="p-2.5">Reason Code</th>
                           <th className="p-2.5">Notes</th>
                         </tr>
@@ -774,6 +930,24 @@ export const StockAdjustmentRequestModal: React.FC<StockAdjustmentRequestModalPr
                                 <span className="text-emerald-600">+{it.VarianceQty} {it.Unit}</span>
                               ) : (
                                 <span className="text-teal-600">0</span>
+                              )}
+                            </td>
+                            <td className="p-2.5 text-right font-mono text-[11px]">
+                              {it.UnitPrice !== undefined && it.UnitPrice > 0 ? (
+                                <span className="font-bold text-slate-700 dark:text-slate-300">
+                                  {formatCurrency(it.UnitPrice, it.Currency || 'USD', { showCode: true })}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 italic">Unspecified</span>
+                              )}
+                            </td>
+                            <td className="p-2.5 text-right font-mono text-[11px] font-bold">
+                              {it.TotalVarianceCost !== undefined ? (
+                                <span className={it.TotalVarianceCost < 0 ? 'text-red-600' : it.TotalVarianceCost > 0 ? 'text-emerald-600' : 'text-slate-600'}>
+                                  {formatCurrency(Math.abs(it.TotalVarianceCost), it.Currency || 'USD', { showCode: true })}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400">—</span>
                               )}
                             </td>
                             <td className="p-2.5 text-[11px]">{it.ReasonLabel}</td>
@@ -899,6 +1073,14 @@ export const StockAdjustmentRequestModal: React.FC<StockAdjustmentRequestModalPr
                                     <span className="text-teal-600">0</span>
                                   )}
                                 </div>
+                                {it.UnitPrice !== undefined && it.UnitPrice > 0 && (
+                                  <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                                    {formatCurrency(it.UnitPrice, it.Currency || 'USD')}
+                                    {it.TotalVarianceCost !== undefined && (
+                                      <span> • {formatCurrency(Math.abs(it.TotalVarianceCost), it.Currency || 'USD')}</span>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           ))}

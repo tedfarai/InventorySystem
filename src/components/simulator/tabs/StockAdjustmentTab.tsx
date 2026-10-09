@@ -24,6 +24,8 @@ import {
   ChevronRight,
   Eye,
   XCircle,
+  DollarSign,
+  Coins,
 } from 'lucide-react';
 import {
   StockItem,
@@ -32,8 +34,10 @@ import {
   TimedAccessWindow,
   StockAdjustmentRequest,
   StockAdjustmentRequestItem,
+  CurrencyCode,
 } from '../../../types';
 import { StockItemDropUpSelect } from '../../common/StockItemDropUpSelect';
+import { formatCurrency, convertCurrency, getExchangeRate } from '../../../utils/currencyUtils';
 
 interface StockAdjustmentTabProps {
   stockItems: StockItem[];
@@ -50,6 +54,8 @@ interface StockAdjustmentTabProps {
     countRef: string;
     notes: string;
     requestId?: string;
+    unitPrice?: number;
+    currency?: CurrencyCode;
   }) => Promise<{ success: boolean; allAdjusted?: boolean; voucherNumber?: string } | void> | void;
   onOpenRequestsModal?: () => void;
   onOpenSuperiorManagerModal?: () => void;
@@ -214,6 +220,8 @@ export const StockAdjustmentTab: React.FC<StockAdjustmentTabProps> = ({
     `COUNT-${new Date().getFullYear()}-0${Math.floor(10 + Math.random() * 90)}`
   );
   const [adminNotes, setAdminNotes] = useState<string>('');
+  const [adminUnitPrice, setAdminUnitPrice] = useState<number | ''>('');
+  const [adminCurrency, setAdminCurrency] = useState<CurrencyCode>('USD');
 
   // Synchronize selected item when accessible items list changes
   useEffect(() => {
@@ -228,6 +236,18 @@ export const StockAdjustmentTab: React.FC<StockAdjustmentTabProps> = ({
 
   const selectedItem = stockItems.find((i) => i.ItemID === selectedItemId);
   const matchedRequestItem = activeRequest?.items?.find((i) => i.ItemID === selectedItemId);
+
+  // Sync unit price and currency when selected stock item changes
+  useEffect(() => {
+    if (selectedItem) {
+      if (selectedItem.UnitPrice !== undefined && Number(selectedItem.UnitPrice) > 0) {
+        setAdminUnitPrice(selectedItem.UnitPrice);
+      } else {
+        setAdminUnitPrice('');
+      }
+      setAdminCurrency(selectedItem.Currency || 'USD');
+    }
+  }, [selectedItem?.ItemID]);
 
   // If user is operating under request/timed access, variant is strictly locked to initial request
   const isEnforcingRequestVariant = Boolean(hasValidTimedAccess && activeRequest && matchedRequestItem);
@@ -258,6 +278,18 @@ export const StockAdjustmentTab: React.FC<StockAdjustmentTabProps> = ({
     ? matchedRequestItem!.Notes
     : adminNotes;
 
+  const effectiveCurrency: CurrencyCode = isEnforcingRequestVariant
+    ? (matchedRequestItem?.Currency || selectedItem?.Currency || 'USD')
+    : adminCurrency;
+
+  const effectiveUnitPrice: number | '' = isEnforcingRequestVariant
+    ? (matchedRequestItem?.UnitPrice !== undefined ? matchedRequestItem.UnitPrice : (selectedItem?.UnitPrice ?? ''))
+    : adminUnitPrice;
+
+  const numericPrice = typeof effectiveUnitPrice === 'number' && effectiveUnitPrice > 0 ? effectiveUnitPrice : 0;
+  const varianceFinancialImpact = effectiveVariance * numericPrice;
+  const exchangeRate = getExchangeRate();
+
   const isValidSubmit =
     Boolean(selectedItem) &&
     !isNaN(effectivePhysicalQty) &&
@@ -278,6 +310,8 @@ export const StockAdjustmentTab: React.FC<StockAdjustmentTabProps> = ({
         countRef: effectiveCountRef.trim() || `COUNT-${Date.now()}`,
         notes: effectiveNotes.trim() || 'Physical inventory audit reconciliation performed.',
         requestId: activeRequest?.id,
+        unitPrice: numericPrice > 0 ? numericPrice : undefined,
+        currency: effectiveCurrency,
       });
 
       const isLastItem = pendingRequestItems.length <= 1;
@@ -747,6 +781,120 @@ export const StockAdjustmentTab: React.FC<StockAdjustmentTabProps> = ({
                   ? `Master_Stock will adjust from ${selectedItem.Qty} to ${effectivePhysicalQty}`
                   : 'No numeric change required'}
               </p>
+            </div>
+          </div>
+        )}
+
+        {/* Step 2.5: Multi-Currency Pricing & Valuation Metadata (USD / ZWG) */}
+        {selectedItem && (
+          <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <Coins className="w-4 h-4 text-amber-500" />
+                <span>Unit Price &amp; Currency Metadata (Zimbabwe Multi-Currency)</span>
+              </label>
+              <span className="text-[10px] text-slate-400 font-mono">
+                Official Benchmark: 1 USD = {exchangeRate} ZWG
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Currency Selector Dropdown */}
+              <div className="space-y-1">
+                <label htmlFor="adjustment-currency-dropdown" className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block">
+                  Movement Currency:
+                </label>
+                {isEnforcingRequestVariant ? (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono font-bold text-slate-900 dark:text-slate-100">
+                    <span className="text-amber-500">{effectiveCurrency === 'USD' ? '$' : 'ZiG'}</span>
+                    <span>{effectiveCurrency}</span>
+                    <span className="ml-auto text-[10px] text-amber-600 font-sans font-semibold flex items-center gap-0.5">
+                      <Lock className="w-2.5 h-2.5" /> Locked
+                    </span>
+                  </div>
+                ) : (
+                  <select
+                    id="adjustment-currency-dropdown"
+                    value={adminCurrency}
+                    onChange={(e) => setAdminCurrency(e.target.value as CurrencyCode)}
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-amber-500 cursor-pointer"
+                  >
+                    <option value="USD">$ USD (US Dollar)</option>
+                    <option value="ZWG">ZiG ZWG (Zimbabwe Gold)</option>
+                  </select>
+                )}
+                <span className="text-[10px] text-slate-400 block">Captured for audit &amp; valuation</span>
+              </div>
+
+              {/* Unit Price Input */}
+              <div className="space-y-1">
+                <label htmlFor="adjustment-unit-price-input" className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block">
+                  Unit Purchase Price:
+                </label>
+                {isEnforcingRequestVariant ? (
+                  <div className="px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono font-bold text-slate-900 dark:text-slate-100">
+                    {effectiveUnitPrice !== '' && Number(effectiveUnitPrice) > 0 ? (
+                      formatCurrency(Number(effectiveUnitPrice), effectiveCurrency, { showCode: true })
+                    ) : (
+                      <span className="text-slate-400 font-sans italic font-normal">Unspecified</span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <span className="absolute left-3 top-2 text-xs font-bold text-slate-400 font-mono">
+                      {adminCurrency === 'USD' ? '$' : 'ZiG'}
+                    </span>
+                    <input
+                      id="adjustment-unit-price-input"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={adminUnitPrice}
+                      onChange={(e) => setAdminUnitPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                      className="w-full pl-9 pr-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+                )}
+                {numericPrice > 0 && (
+                  <span className="text-[10px] text-purple-600 dark:text-purple-400 font-mono block truncate">
+                    ≈ {formatCurrency(
+                      convertCurrency(numericPrice, effectiveCurrency, effectiveCurrency === 'USD' ? 'ZWG' : 'USD'),
+                      effectiveCurrency === 'USD' ? 'ZWG' : 'USD',
+                      { showCode: true }
+                    )}
+                  </span>
+                )}
+              </div>
+
+              {/* Financial Variance Impact */}
+              <div className="space-y-1">
+                <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block">
+                  Variance Financial Cost:
+                </span>
+                <div className="p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg">
+                  <div
+                    className={`text-sm font-mono font-extrabold ${
+                      varianceFinancialImpact < 0
+                        ? 'text-rose-600 dark:text-rose-400'
+                        : varianceFinancialImpact > 0
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : 'text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    {numericPrice > 0 ? (
+                      formatCurrency(Math.abs(varianceFinancialImpact), effectiveCurrency, { showCode: true })
+                    ) : (
+                      <span className="text-xs text-slate-400 font-sans italic">Price not set</span>
+                    )}
+                  </div>
+                  {numericPrice > 0 && effectiveVariance !== 0 && (
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">
+                      {effectiveVariance > 0 ? 'Surplus gain' : 'Write-off impact'}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}

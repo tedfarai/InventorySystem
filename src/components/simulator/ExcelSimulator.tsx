@@ -62,6 +62,7 @@ import {
   BackupProtocolPolicy,
   StockAdjustmentRequest,
   TimedAccessWindow,
+  CurrencyCode,
 } from '../../types';
 import { searchStockItems } from '../../utils/searchEngine';
 import { LoginDialog } from './LoginDialog';
@@ -120,7 +121,9 @@ interface ExcelSimulatorProps {
     countRef: string;
     notes: string;
     requestId?: string;
-  }) => Promise<{ success: boolean; allAdjusted?: boolean; voucherNumber?: string; error?: string } | void> | void;
+    unitPrice?: number;
+    currency?: CurrencyCode;
+  }) => Promise<{ success: boolean; allAdjusted?: boolean; voucherNumber?: string; error?: string; doc?: AdjustmentDocument } | void> | void;
   onExecuteIssue: (dept: Department, cart: IssueCartItem[]) => Promise<IssuedDocument> | IssuedDocument;
   onAddNewStockItem: (item: StockItem) => void;
   onUpdateStockItemName: (itemId: string, newName: string) => void;
@@ -655,12 +658,18 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
     setActiveModal('preview');
   };
 
-  const handleConfirmExecuteIssue = async (finalCart?: IssueCartItem[]) => {
+  const handleConfirmExecuteIssue = async (finalCart?: IssueCartItem[], targetDept?: Department) => {
+    const deptToUse = targetDept || tempIssueDept || (departments && departments.length > 0 ? departments[0] : {
+      DeptID: 'DEP01',
+      DeptName: 'General Stores Requisition',
+      DeptHeadName: 'Store Manager',
+      DeptHeadEmail: 'stores@paramount.co.zw',
+    });
     const cartToExecute = finalCart && finalCart.length > 0 ? finalCart : tempIssueCart;
-    if (tempIssueDept && cartToExecute.length > 0) {
+    if (deptToUse && cartToExecute.length > 0) {
       let generatedDoc: IssuedDocument | undefined = undefined;
       try {
-        generatedDoc = await onExecuteIssue(tempIssueDept, cartToExecute);
+        generatedDoc = await onExecuteIssue(deptToUse, cartToExecute);
       } catch (err) {
         console.error('Error executing issue workflow:', err);
       }
@@ -668,14 +677,15 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
       if (!generatedDoc) {
         const nowStr = new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '');
         const timestampFile = new Date().toISOString().replace(/[-:]/g, '').replace(/T/, '_').substring(0, 15);
-        const pdfFileName = `IssueSlip_${tempIssueDept.DeptID.replace('-', '')}_${timestampFile}.pdf`;
+        const deptIdSafe = (deptToUse.DeptID || 'DEP01').replace(/[^a-zA-Z0-9]/g, '');
+        const pdfFileName = `IssueSlip_${deptIdSafe}_${timestampFile}.pdf`;
         generatedDoc = {
           docType: 'ISSUE',
           slipNumber: `ISN-${Math.floor(100000 + Math.random() * 900000)}`,
-          deptID: tempIssueDept.DeptID,
-          deptName: tempIssueDept.DeptName,
-          deptHeadName: (tempIssueDept as any).ManagerName || (tempIssueDept as any).DeptHeadName || 'Manager',
-          deptHeadEmail: (tempIssueDept as any).DeptHeadEmail || '',
+          deptID: deptToUse.DeptID || 'DEP01',
+          deptName: deptToUse.DeptName || 'General Stores Requisition',
+          deptHeadName: (deptToUse as any).ManagerName || (deptToUse as any).DeptHeadName || 'Manager',
+          deptHeadEmail: (deptToUse as any).DeptHeadEmail || (deptToUse as any).Email || '',
           timestamp: nowStr,
           issuerID: currentUser ? currentUser.IssuerID : 'ADM001',
           issuerName: currentUser ? currentUser.IssuerName : 'Rachel Pickard',
@@ -683,7 +693,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
             ItemID: item.ItemID,
             ItemName: item.ItemName,
             Category: item.Category,
-            Qty: item.Qty,
+            Qty: Number(item.RequestedQty ?? item.Qty ?? 1),
           })),
           pdfFileName,
           folderPath: `${masterFolderPath}\\Issued_Items\\`,
@@ -705,6 +715,8 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
     countRef: string;
     notes: string;
     requestId?: string;
+    unitPrice?: number;
+    currency?: CurrencyCode;
   }) => {
     if (!onSaveAdjustment) return;
     try {
@@ -715,23 +727,35 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
           return result;
         }
 
+        // Automatically open the generated Stock Adjustment PDF Voucher preview modal
+        if (result.doc) {
+          setSelectedMovementDoc({ type: 'ADJUSTMENT', data: result.doc });
+        }
+
         if (result.allAdjusted) {
           // Immediately close the adjustment modal or pane after the final adjustment is saved
           setActiveModal('none');
 
           // Visual 'Success' toast confirmation confirming the auto-close action
           showToast(
-            'Adjustment Batch Completed & Closed',
+            'Adjustment Batch Completed & PDF Voucher Generated',
             'success',
-            `All requested discrepancies for Request [${adjData.requestId || 'SAR'}] have been successfully saved and reconciled on Master_Stock. The adjustment session has automatically closed.`,
+            `All requested discrepancies for Request [${adjData.requestId || 'SAR'}] have been successfully saved and reconciled on Master_Stock. Official PDF voucher generated.`,
+            6000
+          );
+        } else {
+          showToast(
+            'Stock Adjustment Logged & PDF Voucher Generated',
+            'success',
+            `Voucher ${result.voucherNumber || 'ADJ'} created for ${adjData.itemId}. Reconciled physical count on Master_Stock.`,
             5000
           );
         }
+        return result;
       }
-      return result;
     } catch (err: any) {
-      console.error('[ExcelSimulator] Stock adjustment error:', err);
-      showToast('Adjustment Failed', 'error', err?.message || 'Unable to save stock adjustment', 5000);
+      console.error('Error during stock adjustment save:', err);
+      showToast('Adjustment Save Error', 'error', err?.message || 'Failed to save stock adjustment.', 6000);
     }
   };
 
@@ -2035,293 +2059,6 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
 
           {/* 4. WORKSHEET GRID AREA */}
           <div className="bg-slate-100/60 dark:bg-slate-950 p-4 min-h-[420px] max-h-[560px] overflow-auto">
-          {/* Master_Stock rendered in dedicated view above */}
-          {false && (
-            <div className="space-y-3.5">
-              {/* Search & Category Filter Header above Stock Management Table */}
-              <StockSearchBar
-                searchQuery={searchQuery}
-                onSearchChange={setSearchQuery}
-                categoryFilter={categoryFilter}
-                onCategoryChange={setCategoryFilter}
-                stockStatusFilter={stockStatusFilter}
-                onStockStatusChange={setStockStatusFilter}
-                skuRangeFrom={skuRangeFrom}
-                onSkuRangeFromChange={setSkuRangeFrom}
-                skuRangeTo={skuRangeTo}
-                onSkuRangeToChange={setSkuRangeTo}
-                onResetAllFilters={() => {
-                  setSearchQuery('');
-                  setCategoryFilter('All');
-                  setStockStatusFilter('All');
-                  setSkuRangeFrom('');
-                  setSkuRangeTo('');
-                }}
-                totalCount={stockItems.length}
-                filteredCount={filteredStock.length}
-                belowThresholdCount={belowSafetyThresholdCount}
-                onOpenReorderReport={() => setActiveModal('reorderReport')}
-              />
-
-              {/* Bulk Operations Toolbar & Selection Actions Menu */}
-              {selectedStockItemIds.length > 0 && (
-                <BulkStockActionsBar
-                  selectedCount={selectedStockItemIds.length}
-                  totalFilteredCount={filteredStock.length}
-                  totalStockCount={stockItems.length}
-                  isAllSelected={isAllVisibleSelected}
-                  isPartiallySelected={isPartiallySelected}
-                  selectedItems={selectedStockItems}
-                  onToggleSelectAll={handleToggleSelectAllVisible}
-                  onSelectByStatus={handleSelectByStatus}
-                  onClearSelection={handleClearSelection}
-                  onBulkRestock={handleTriggerBulkRestock}
-                  onBulkIssue={handleTriggerBulkIssue}
-                  onBulkAdjustment={handleTriggerBulkAdjustment}
-                  onOpenBatchUpdateModal={() => setShowBatchUpdateModal(true)}
-                  onExportSelectedCsv={handleExportSelectedCsv}
-                  onCopySelectedClipboard={handleCopySelectedClipboard}
-                  onBulkDelete={onDeleteStockItem ? handleBulkDelete : undefined}
-                  isSuperiorAdmin={isSuperiorAdmin}
-                />
-              )}
-
-              {/* Stock Management Inventory Table */}
-              <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs">
-                <table id="stock-management-table" className="w-full text-xs text-left border-collapse font-sans">
-                  <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono text-[11px] uppercase border-b border-slate-200 dark:border-slate-700">
-                    <tr>
-                      <th className="p-3 w-10 border-r border-slate-200 dark:border-slate-700 text-center">
-                        <input
-                          id="stock-table-master-checkbox"
-                          type="checkbox"
-                          checked={isAllVisibleSelected}
-                          ref={(input) => {
-                            if (input) input.indeterminate = isPartiallySelected;
-                          }}
-                          onChange={handleToggleSelectAllVisible}
-                          className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500 cursor-pointer"
-                          title={isAllVisibleSelected ? 'Deselect all visible' : 'Select all visible'}
-                        />
-                      </th>
-                      <th className="p-3 border-r border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">Row</th>
-                      <th className="p-3 border-r border-slate-200 dark:border-slate-700">ItemID (Col A)</th>
-                      <th className="p-3 border-r border-slate-200 dark:border-slate-700">ItemName (Col B)</th>
-                      <th className="p-3 border-r border-slate-200 dark:border-slate-700">Category (Col C)</th>
-                      <th className="p-3 border-r border-slate-200 dark:border-slate-700 text-right">
-                        Available Qty (Col D)
-                      </th>
-                      <th className="p-3 border-r border-slate-200 dark:border-slate-700 text-right">Reorder Level (Col E)</th>
-                      <th className="p-3 text-center">Stock Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-800 dark:text-slate-200">
-                    {filteredStock.length === 0 ? (
-                      <tr>
-                        <td colSpan={8} className="p-8 text-center bg-slate-50/50 dark:bg-slate-900/50">
-                          <div className="flex flex-col items-center justify-center space-y-2 text-slate-500 dark:text-slate-400">
-                            <Search className="w-8 h-8 text-slate-300 dark:text-slate-600" />
-                            <p className="text-xs font-semibold">
-                              No inventory items matched &ldquo;{searchQuery}&rdquo;
-                              {categoryFilter !== 'All' ? ` in ${categoryFilter} category` : ''}
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSearchQuery('');
-                                setCategoryFilter('All');
-                              }}
-                              className="px-3 py-1 bg-teal-50 dark:bg-teal-950/80 text-teal-700 dark:text-teal-300 hover:bg-teal-100 rounded-lg text-xs font-semibold border border-teal-200 dark:border-teal-800 transition"
-                            >
-                              Clear Search & Filters
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : (
-                      <AnimatePresence mode="popLayout" initial={false}>
-                        {filteredStock.map((item, idx) => {
-                          const isSelected = selectedStockItemIds.includes(item.ItemID);
-                          const isOutOfStock = (item.Qty || 0) <= 0;
-                          const hasPendingReplenishment =
-                            (Array.isArray(adjustmentRequests) &&
-                              adjustmentRequests.some(
-                                (r) =>
-                                  (r?.status === 'PENDING' || r?.status === 'TIMED_ACCESS_GRANTED' || (r?.status as string) === 'IN_TIMED_WINDOW') &&
-                                  Array.isArray(r?.items) &&
-                                  r.items.some((i) => i?.ItemID === item.ItemID || (i as any)?.itemId === item.ItemID)
-                              )) ||
-                            (Array.isArray(movementLogs) &&
-                              movementLogs.some((l) => l?.ItemID === item.ItemID && l?.Status === 'Pending'));
-                          const isCritical = (item.Qty || 0) > 0 && (item.Qty || 0) <= Math.ceil((item.ReorderLevel || 10) * 0.5);
-                          const isLow = (item.Qty || 0) > 0 && (item.Qty || 0) <= (item.ReorderLevel || 10);
-                          const isOptimal = (item.Qty || 0) >= (item.ReorderLevel || 10) * 2;
-
-                          return (
-                            <motion.tr
-                              key={item.ItemID}
-                              layout
-                              initial={{ opacity: 0, y: 8, scale: 0.99 }}
-                              animate={{
-                                opacity: 1,
-                                y: 0,
-                                scale: 1,
-                                transition: {
-                                  type: 'spring',
-                                  stiffness: 400,
-                                  damping: 30,
-                                  mass: 0.8,
-                                  delay: Math.min(idx * 0.01, 0.12),
-                                },
-                              }}
-                              exit={{
-                                opacity: 0,
-                                scale: 0.96,
-                                y: -4,
-                                transition: { duration: 0.15, ease: 'easeOut' },
-                              }}
-                              onClick={() => handleToggleSelectRow(item.ItemID)}
-                              onContextMenu={(e) => handleRowContextMenu(e, item)}
-                              title="Right-click for Quick Actions (Receive, Issue, Edit, Adjust, Export)"
-                              data-selected={isSelected ? 'true' : undefined}
-                              tabIndex={0}
-                              onKeyDown={(e) => {
-                                if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
-                                  e.preventDefault();
-                                  handleToggleSelectRow(item.ItemID);
-                                }
-                              }}
-                              className={`stock-table-row cursor-pointer transition-colors duration-150 group border-b border-slate-200/70 dark:border-slate-800/70 overflow-visible focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-inset ${
-                                isSelected
-                                  ? 'is-selected is-active bg-purple-50/90 dark:bg-purple-950/40 border-l-4 border-l-purple-600 dark:border-l-purple-400 font-medium'
-                                  : 'bg-white dark:bg-slate-900 hover:bg-slate-50/80 dark:hover:bg-slate-800/50'
-                              }`}
-                            >
-                              <td
-                                className="py-3 px-3 text-center border-r border-slate-200/60 dark:border-slate-800/60 align-middle"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleToggleSelectRow(item.ItemID);
-                                }}
-                              >
-                                <div className="flex items-center justify-center">
-                                  <input
-                                    type="checkbox"
-                                    checked={isSelected}
-                                    onChange={() => handleToggleSelectRow(item.ItemID)}
-                                    onClick={(e) => e.stopPropagation()}
-                                    id={`stock-checkbox-${item.ItemID}`}
-                                    aria-label={`Select ${item.ItemID}`}
-                                    className="w-4 h-4 rounded text-purple-600 accent-purple-600 border-slate-300 dark:border-slate-600 focus:ring-purple-500 cursor-pointer"
-                                  />
-                                </div>
-                              </td>
-                              <td className="py-3 px-3 font-mono text-slate-400 dark:text-slate-500 text-[11px] border-r border-slate-200/60 dark:border-slate-800/60 text-center whitespace-nowrap select-none">{idx + 2}</td>
-                              <td className="py-3 px-3.5 font-mono font-bold text-xs text-purple-700 dark:text-purple-300 border-r border-slate-200/60 dark:border-slate-800/60 group-hover:text-purple-900 dark:group-hover:text-purple-200 transition-colors whitespace-nowrap">{item.ItemID}</td>
-                              <td className="py-3 px-3.5 font-semibold text-xs sm:text-sm text-slate-800 dark:text-slate-100 group-hover:text-slate-950 dark:group-hover:text-white border-r border-slate-200/60 dark:border-slate-800/60 truncate max-w-[280px]">{item.ItemName}</td>
-                              <td className="py-3 px-3.5 border-r border-slate-200/60 dark:border-slate-800/60 whitespace-nowrap">
-                                <span
-                                  className={`text-xs font-semibold ${
-                                    item.Category === 'Cleaning'
-                                      ? 'text-emerald-700 dark:text-emerald-400'
-                                      : item.Category === 'Stationery'
-                                      ? 'text-blue-700 dark:text-blue-400'
-                                      : 'text-amber-700 dark:text-amber-400'
-                                  }`}
-                                >
-                                  {item.Category}
-                                </span>
-                              </td>
-                              <td className="py-2.5 px-3.5 text-right font-mono border-r border-slate-200/60 dark:border-slate-800/60 whitespace-nowrap">
-                                <span
-                                  className={`font-bold text-xs sm:text-sm ${
-                                    isOutOfStock
-                                      ? 'text-rose-600 dark:text-rose-400 font-extrabold'
-                                      : isCritical || isLow
-                                      ? 'text-amber-600 dark:text-amber-400'
-                                      : 'text-slate-900 dark:text-slate-100'
-                                  }`}
-                                >
-                                  {item.Qty}
-                                </span>{' '}
-                                <span
-                                  className={`text-xs font-medium ml-1 ${
-                                    isOutOfStock
-                                      ? 'text-rose-500 dark:text-rose-400/90'
-                                      : isCritical || isLow
-                                      ? 'text-amber-600/90 dark:text-amber-400/90'
-                                      : 'text-slate-500 dark:text-slate-400'
-                                  }`}
-                                >
-                                  {item.Unit}
-                                </span>
-                              </td>
-                              <td className="py-3 px-3.5 text-right font-mono text-slate-600 dark:text-slate-400 border-r border-slate-200/60 dark:border-slate-800/60 whitespace-nowrap">
-                                <span className="text-slate-800 dark:text-slate-200 font-semibold text-xs">{item.ReorderLevel}</span>{' '}
-                                <span className="text-[11px] text-slate-400 dark:text-slate-500 font-normal ml-1">{item.Unit}</span>
-                              </td>
-                              <td className="py-3 px-4 text-center whitespace-nowrap">
-                                {hasPendingReplenishment ? (
-                                  <span
-                                    id={`status-text-replenish-${item.ItemID.toLowerCase()}`}
-                                    className="font-bold text-xs text-purple-600 dark:text-purple-400"
-                                    title="Replenishment or stock adjustment authorization is pending"
-                                  >
-                                    Replenishment Pending
-                                  </span>
-                                ) : isOutOfStock ? (
-                                  <span
-                                    id={`status-text-oos-${item.ItemID.toLowerCase()}`}
-                                    className="font-extrabold text-xs text-rose-600 dark:text-rose-400"
-                                    title="Zero inventory available — immediate replenishment needed"
-                                  >
-                                    Out of Stock
-                                  </span>
-                                ) : isCritical ? (
-                                  <span
-                                    id={`status-text-critical-${item.ItemID.toLowerCase()}`}
-                                    className="font-bold text-xs text-amber-600 dark:text-amber-400"
-                                    title={`Critical Low Stock: Available quantity is ≤ 50% of reorder threshold (${item.ReorderLevel} ${item.Unit})`}
-                                  >
-                                    Critical Low
-                                  </span>
-                                ) : isLow ? (
-                                  <span
-                                    id={`status-text-low-${item.ItemID.toLowerCase()}`}
-                                    className="font-semibold text-xs text-amber-500 dark:text-amber-400"
-                                    title={`Low Stock: Below reorder threshold of ${item.ReorderLevel} ${item.Unit}`}
-                                  >
-                                    Low Stock
-                                  </span>
-                                ) : isOptimal ? (
-                                  <span
-                                    id={`status-text-optimal-${item.ItemID.toLowerCase()}`}
-                                    className="font-semibold text-xs text-emerald-600 dark:text-emerald-400"
-                                    title="Healthy optimal inventory level"
-                                  >
-                                    Optimal Stock
-                                  </span>
-                                ) : (
-                                  <span
-                                    id={`status-text-adequate-${item.ItemID.toLowerCase()}`}
-                                    className="font-medium text-xs text-teal-600 dark:text-teal-400"
-                                    title="Adequate inventory above reorder threshold"
-                                  >
-                                    Adequate
-                                  </span>
-                                )}
-                              </td>
-                            </motion.tr>
-                          );
-                        })}
-                      </AnimatePresence>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
           {/* SHEET 2: Movement_Log (READ-ONLY AUDIT TRAIL — INTERACTIVE TO OPEN GENERATED DOCUMENTS) */}
           {activeSheet === 'Movement_Log' && (
             <div className="space-y-3">

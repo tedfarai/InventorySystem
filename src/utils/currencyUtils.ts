@@ -1,4 +1,4 @@
-import { CurrencyCode } from '../types';
+import { CurrencyCode, StockItem, MovementLogEntry } from '../types';
 
 export const DEFAULT_USD_TO_ZWG_RATE = 26.5; // Official / benchmark exchange rate: 1 USD = 26.50 ZWG
 
@@ -69,7 +69,7 @@ export function convertCurrency(
   to: CurrencyCode = 'USD',
   rate: number = getExchangeRate()
 ): number {
-  if (isNaN(amount) || amount <= 0) return 0;
+  if (isNaN(amount) || amount === 0) return 0;
   if (from === to) return amount;
 
   if (from === 'USD' && to === 'ZWG') {
@@ -79,6 +79,110 @@ export function convertCurrency(
     return rate > 0 ? amount / rate : 0;
   }
   return amount;
+}
+
+/**
+ * Normalizes an amount from its source currency into the specified base currency (USD or ZWG).
+ * Essential for consistent financial reporting and predictive analytics across multi-currency catalogs.
+ */
+export function normalizeToBaseCurrency(
+  amount: number,
+  fromCurrency: CurrencyCode = 'USD',
+  baseCurrency: CurrencyCode = 'USD',
+  rate: number = getExchangeRate()
+): number {
+  if (isNaN(amount) || amount === 0) return 0;
+  if (fromCurrency === baseCurrency) return amount;
+  return convertCurrency(amount, fromCurrency, baseCurrency, rate);
+}
+
+export interface NormalizedPricing {
+  unitPrice: number;
+  originalCurrency: CurrencyCode;
+  baseCurrency: CurrencyCode;
+  normalizedUnitPrice: number;
+  totalValue: number;
+  normalizedTotalValue: number;
+  exchangeRate: number;
+}
+
+/**
+ * Calculates normalized price and total line value normalized to a base currency
+ */
+export function normalizePriceAndValue(
+  unitPrice: number = 0,
+  qty: number = 0,
+  currency: CurrencyCode = 'USD',
+  baseCurrency: CurrencyCode = 'USD',
+  rate: number = getExchangeRate()
+): NormalizedPricing {
+  const safePrice = Number(unitPrice) > 0 ? Number(unitPrice) : 0;
+  const safeQty = Number(qty) || 0;
+  const originalTotal = safePrice * safeQty;
+  const normalizedUnit = normalizeToBaseCurrency(safePrice, currency, baseCurrency, rate);
+  const normalizedTotal = normalizeToBaseCurrency(originalTotal, currency, baseCurrency, rate);
+
+  return {
+    unitPrice: safePrice,
+    originalCurrency: currency,
+    baseCurrency,
+    normalizedUnitPrice: Math.round(normalizedUnit * 10000) / 10000,
+    totalValue: Math.round(originalTotal * 100) / 100,
+    normalizedTotalValue: Math.round(normalizedTotal * 100) / 100,
+    exchangeRate: rate,
+  };
+}
+
+/**
+ * Normalizes a stock item's unit price and holding value to the specified base currency
+ */
+export function normalizeStockItem(
+  item: StockItem,
+  baseCurrency: CurrencyCode = 'USD',
+  rate: number = getExchangeRate()
+): StockItem & { normalizedUnitPrice: number; normalizedTotalValue: number } {
+  const rawPrice = Number(item.UnitPrice) || 0;
+  const curr: CurrencyCode = item.Currency || 'USD';
+  const qty = Number(item.Qty) || 0;
+  const pricing = normalizePriceAndValue(rawPrice, qty, curr, baseCurrency, rate);
+
+  return {
+    ...item,
+    UnitPrice: rawPrice > 0 ? rawPrice : undefined,
+    Currency: curr,
+    BaseCurrency: baseCurrency,
+    NormalizedUnitPrice: pricing.normalizedUnitPrice,
+    TotalValue: pricing.totalValue,
+    NormalizedTotalValue: pricing.normalizedTotalValue,
+    normalizedUnitPrice: pricing.normalizedUnitPrice,
+    normalizedTotalValue: pricing.normalizedTotalValue,
+  };
+}
+
+/**
+ * Normalizes an inventory movement entry (delivery, issue, or adjustment) to the base currency
+ */
+export function normalizeMovementEntry(
+  entry: MovementLogEntry,
+  baseCurrency: CurrencyCode = 'USD',
+  rate: number = getExchangeRate()
+): MovementLogEntry & { normalizedUnitPrice: number; normalizedTotalValue: number } {
+  const rawPrice = Number(entry.UnitPrice) || 0;
+  const curr: CurrencyCode = entry.Currency || 'USD';
+  const qty = Math.abs(Number(entry.Qty) || 0);
+  const pricing = normalizePriceAndValue(rawPrice, qty, curr, baseCurrency, rate);
+
+  return {
+    ...entry,
+    UnitPrice: rawPrice > 0 ? rawPrice : undefined,
+    Currency: curr,
+    BaseCurrency: baseCurrency,
+    NormalizedUnitPrice: pricing.normalizedUnitPrice,
+    TotalValue: pricing.totalValue,
+    NormalizedTotalValue: pricing.normalizedTotalValue,
+    normalizedUnitPrice: pricing.normalizedUnitPrice,
+    normalizedTotalValue: pricing.normalizedTotalValue,
+  };
 }
 
 /**
@@ -181,13 +285,54 @@ export function collateDualCurrencyValuation(
   });
 
   return {
-    totalUsdValuation,
-    totalZwgValuation,
-    rawUsdSpend,
-    rawZwgSpend,
+    totalUsdValuation: Math.round(totalUsdValuation * 100) / 100,
+    totalZwgValuation: Math.round(totalZwgValuation * 100) / 100,
+    rawUsdSpend: Math.round(rawUsdSpend * 100) / 100,
+    rawZwgSpend: Math.round(rawZwgSpend * 100) / 100,
     usdItemCount,
     zwgItemCount,
     unpricedItemCount,
     totalItems: items.length,
+  };
+}
+
+export interface NormalizedPortfolioSummary {
+  baseCurrency: CurrencyCode;
+  totalNormalizedValuation: number;
+  totalUsdValuation: number;
+  totalZwgValuation: number;
+  rawUsdTotal: number;
+  rawZwgTotal: number;
+  usdItemsCount: number;
+  zwgItemsCount: number;
+  unpricedItemsCount: number;
+  totalItemsCount: number;
+  exchangeRate: number;
+}
+
+/**
+ * Calculates a normalized inventory portfolio normalized directly to the requested baseCurrency (USD or ZWG)
+ */
+export function calculateNormalizedPortfolio(
+  items: { Qty?: number; addQty?: number; UnitPrice?: number; unitPrice?: number; Currency?: CurrencyCode; currency?: CurrencyCode }[],
+  baseCurrency: CurrencyCode = 'USD',
+  rate: number = getExchangeRate()
+): NormalizedPortfolioSummary {
+  const collation = collateDualCurrencyValuation(items, rate);
+  const totalNormalizedValuation =
+    baseCurrency === 'USD' ? collation.totalUsdValuation : collation.totalZwgValuation;
+
+  return {
+    baseCurrency,
+    totalNormalizedValuation,
+    totalUsdValuation: collation.totalUsdValuation,
+    totalZwgValuation: collation.totalZwgValuation,
+    rawUsdTotal: collation.rawUsdSpend,
+    rawZwgTotal: collation.rawZwgSpend,
+    usdItemsCount: collation.usdItemCount,
+    zwgItemsCount: collation.zwgItemCount,
+    unpricedItemsCount: collation.unpricedItemCount,
+    totalItemsCount: collation.totalItems,
+    exchangeRate: rate,
   };
 }

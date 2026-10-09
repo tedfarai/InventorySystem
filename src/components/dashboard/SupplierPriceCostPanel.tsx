@@ -403,7 +403,7 @@ export const SupplierPriceCostPanel: React.FC<SupplierPriceCostPanelProps> = ({
                           ? formatCurrency(item.totalValueZwg, 'ZWG', { showCode: true })
                           : formatCurrency(item.totalValueUsd, 'USD', { showCode: true })}
                       </strong>
-                    </strong>
+                    </span>
                     <span>({item.stockQty} {item.unit})</span>
                   </div>
                 </div>

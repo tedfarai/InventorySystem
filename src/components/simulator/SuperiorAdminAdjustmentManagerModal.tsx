@@ -30,6 +30,7 @@ import {
   AdjustmentReasonCode,
 } from '../../types';
 import { DraggableResizableModal } from '../common/DraggableResizableModal';
+import { formatCurrency } from '../../utils/currencyUtils';
 
 interface SuperiorAdminAdjustmentManagerModalProps {
   isOpen: boolean;
@@ -371,6 +372,8 @@ export const SuperiorAdminAdjustmentManagerModal: React.FC<SuperiorAdminAdjustme
                           <th className="p-2 text-right">System Qty</th>
                           <th className="p-2 text-right">Physical Count</th>
                           <th className="p-2 text-right">Variance</th>
+                          <th className="p-2 text-right">Price &amp; Currency</th>
+                          <th className="p-2 text-right">Variance Impact</th>
                           <th className="p-2">Discrepancy Reason & Tag</th>
                           <th className="p-2">Audit Finding Notes</th>
                         </tr>
@@ -393,6 +396,24 @@ export const SuperiorAdminAdjustmentManagerModal: React.FC<SuperiorAdminAdjustme
                                 <span className="text-emerald-600">+{it.VarianceQty} {it.Unit}</span>
                               ) : (
                                 <span className="text-teal-600">0</span>
+                              )}
+                            </td>
+                            <td className="p-2 text-right font-mono text-[11px]">
+                              {it.UnitPrice !== undefined && it.UnitPrice > 0 ? (
+                                <span className="font-bold text-slate-700 dark:text-slate-300">
+                                  {formatCurrency(it.UnitPrice, it.Currency || 'USD', { showCode: true })}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400">—</span>
+                              )}
+                            </td>
+                            <td className="p-2 text-right font-mono text-[11px] font-bold">
+                              {it.TotalVarianceCost !== undefined ? (
+                                <span className={it.TotalVarianceCost < 0 ? 'text-red-600' : it.TotalVarianceCost > 0 ? 'text-emerald-600' : 'text-slate-600'}>
+                                  {formatCurrency(Math.abs(it.TotalVarianceCost), it.Currency || 'USD', { showCode: true })}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400">—</span>
                               )}
                             </td>
                             <td className="p-2">

@@ -40,6 +40,7 @@ import {
   AdminUser,
   BackupSnapshot,
   ReceivedDocument,
+  CurrencyCode,
 } from '../../types';
 import { DraggableResizableModal } from '../common/DraggableResizableModal';
 import { getExecutiveAnalytics } from '../../utils/predictiveAnalytics';
@@ -199,10 +200,12 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
   const safeDepts = Array.isArray(departments) ? departments : [];
   const safeRequests = Array.isArray(adjustmentRequests) ? adjustmentRequests : [];
 
-  // Calculate predictive analytics summary
+  const activeBaseCurrency: CurrencyCode = currencyMode === 'ZWG' ? 'ZWG' : 'USD';
+
+  // Calculate predictive analytics summary normalized to active base currency
   const analyticsSummary = useMemo(() => {
-    return getExecutiveAnalytics(safeStock, safeLogs);
-  }, [safeStock, safeLogs]);
+    return getExecutiveAnalytics(safeStock, safeLogs, activeBaseCurrency);
+  }, [safeStock, safeLogs, activeBaseCurrency]);
 
   // Summary Metrics
   const totalSkus = safeStock.length;
@@ -588,6 +591,15 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
           analyticsSummary={analyticsSummary}
           onOpenQuickAction={handleQuickAction}
           onSelectItemForReorder={onSelectItemForReorder}
+        />
+      )}
+
+      {/* Widget: Supplier Price & Cost Intelligence (Zimbabwe USD & ZWG) */}
+      {widgets.supplierCostAnalytics && (
+        <SupplierPriceCostPanel
+          stockItems={safeStock}
+          receivedDocs={receivedDocs}
+          initialCurrencyMode={currencyMode}
         />
       )}
 
@@ -1004,6 +1016,8 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
 
             <div className="space-y-2">
               {[
+                { key: 'financialCollation', label: 'Zimbabwe Currency Collation & Status Strip', desc: 'USD vs ZWG rates, historical spend, and safety threshold shortcuts' },
+                { key: 'supplierCostAnalytics', label: 'Zimbabwe Supplier Price & Cost Intelligence', desc: 'Supplier procurement spend in USD/ZWG & per-item cost movements' },
                 { key: 'consumptionCharts', label: '6-Month Consumption Trends & Charts', desc: 'Recharts trends: Stationery vs Cleaning, Category Pie & Dept Bar' },
                 { key: 'aiInsights', label: 'AI Demand Forecast & Reorder Engine', desc: 'Predictive Monthly/Quarterly/6M consumption and reorder advice' },
                 { key: 'quickLaunchpad', label: 'Fast Procurement Launchpad', desc: 'One-click shortcuts to key actions' },

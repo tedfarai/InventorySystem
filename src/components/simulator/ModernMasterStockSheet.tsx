@@ -414,10 +414,17 @@ export const ModernMasterStockSheet: React.FC<ModernMasterStockSheetProps> = ({
                 return (
                   <React.Fragment key={item.ItemID}>
                     <tr
+                      tabIndex={0}
                       onClick={() => handleToggleExpandedRow(item.ItemID)}
-                      className={`hover:bg-slate-50 dark:hover:bg-slate-800/60 transition cursor-pointer ${
+                      onKeyDown={(e) => {
+                        if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+                          e.preventDefault();
+                          handleToggleExpandedRow(item.ItemID);
+                        }
+                      }}
+                      className={`stock-table-row hover:bg-slate-50 dark:hover:bg-slate-800/60 transition cursor-pointer ${
                         isSelected
-                          ? 'bg-emerald-50/60 dark:bg-emerald-950/30 font-medium'
+                          ? 'is-selected is-active bg-emerald-50/60 dark:bg-emerald-950/30 font-medium'
                           : 'bg-white dark:bg-slate-900'
                       }`}
                     >
