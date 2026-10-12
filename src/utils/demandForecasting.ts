@@ -877,3 +877,109 @@ export function calculatePredictedVsActualUsageTrends(
   };
 }
 
+/**
+ * Interface representing a 30-day predictive growth/usage trend metric for a stock item.
+ */
+export interface ItemUsageTrend30Day {
+  itemId: string;
+  recent30DayUsage: number;
+  prior30DayUsage: number;
+  predictedNext30DayDemand: number;
+  growthPct: number; // e.g. +15.4 or -8.2
+  trendDirection: 'UP' | 'DOWN' | 'STABLE';
+  runwayDays: number; // estimated days of supply remaining based on predicted usage
+  recommendedReorderSoon: boolean;
+  dailyVelocity: number;
+}
+
+/**
+ * Calculates a predictive growth indicator and 30-day usage trend based on all historical movement logs.
+ * Compares the most recent 30-day consumption velocity against the prior 30-day window to derive
+ * percentage growth and project upcoming 30-day demand and inventory runway days.
+ */
+export function calculateItemUsageTrend30Day(
+  item: StockItem,
+  movementLogs: MovementLogEntry[]
+): ItemUsageTrend30Day {
+  const safeLogs = Array.isArray(movementLogs) ? movementLogs : [];
+  
+  // Establish reference date: latest timestamp in movement logs or current time
+  let refTime = Date.now();
+  for (const log of safeLogs) {
+    if (log.Timestamp) {
+      const t = new Date(log.Timestamp.replace(' ', 'T')).getTime();
+      if (!isNaN(t) && t > refTime) {
+        refTime = t;
+      }
+    }
+  }
+
+  const MS_PER_DAY = 24 * 60 * 60 * 1000;
+  const WINDOW_30_DAYS = 30 * MS_PER_DAY;
+  const recentWindowStart = refTime - WINDOW_30_DAYS;
+  const priorWindowStart = refTime - (2 * WINDOW_30_DAYS);
+
+  let recent30DayUsage = 0;
+  let prior30DayUsage = 0;
+
+  for (const log of safeLogs) {
+    if (log.ItemID !== item.ItemID) continue;
+    if (log.Type !== 'ISSUE') continue;
+
+    const qty = Math.abs(Number(log.Qty) || 0);
+    if (qty <= 0) continue;
+
+    const logTime = log.Timestamp ? new Date(log.Timestamp.replace(' ', 'T')).getTime() : 0;
+    if (logTime >= recentWindowStart && logTime <= refTime) {
+      recent30DayUsage += qty;
+    } else if (logTime >= priorWindowStart && logTime < recentWindowStart) {
+      prior30DayUsage += qty;
+    }
+  }
+
+  // Calculate percentage growth / change
+  let growthPct = 0;
+  if (prior30DayUsage > 0) {
+    growthPct = Math.round(((recent30DayUsage - prior30DayUsage) / prior30DayUsage) * 1000) / 10;
+  } else if (recent30DayUsage > 0) {
+    growthPct = 100; // Baseline initiated
+  } else {
+    growthPct = 0;
+  }
+
+  // Trend direction classification
+  let trendDirection: 'UP' | 'DOWN' | 'STABLE' = 'STABLE';
+  if (growthPct > 5) trendDirection = 'UP';
+  else if (growthPct < -5) trendDirection = 'DOWN';
+
+  // Predictive Next 30-day Demand (weighted blend with momentum)
+  let predictedNext30DayDemand = 0;
+  if (recent30DayUsage > 0 && prior30DayUsage > 0) {
+    // 65% recent velocity + 35% prior velocity + mild trend continuation
+    const momentum = (recent30DayUsage - prior30DayUsage) * 0.25;
+    predictedNext30DayDemand = Math.max(1, Math.round(recent30DayUsage * 0.65 + prior30DayUsage * 0.35 + momentum));
+  } else if (recent30DayUsage > 0) {
+    predictedNext30DayDemand = recent30DayUsage;
+  } else {
+    // Fallback baseline from safety reorder level
+    predictedNext30DayDemand = Math.max(1, Math.round((item.ReorderLevel || 10) * 0.4));
+  }
+
+  const dailyVelocity = Math.round((predictedNext30DayDemand / 30) * 10) / 10;
+  const currentQty = Math.max(0, Number(item.Qty) || 0);
+  const runwayDays = dailyVelocity > 0 ? Math.floor(currentQty / dailyVelocity) : 999;
+  const recommendedReorderSoon = currentQty <= item.ReorderLevel || runwayDays <= 21;
+
+  return {
+    itemId: item.ItemID,
+    recent30DayUsage,
+    prior30DayUsage,
+    predictedNext30DayDemand,
+    growthPct,
+    trendDirection,
+    runwayDays,
+    recommendedReorderSoon,
+    dailyVelocity,
+  };
+}
+
