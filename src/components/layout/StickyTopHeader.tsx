@@ -11,6 +11,7 @@ import {
   Activity,
   Archive,
   LogIn,
+  RefreshCw,
 } from 'lucide-react';
 import { AdminUser } from '../../types';
 import { OfflineStatusBadge } from '../pwa/OfflineStatusBadge';
@@ -30,6 +31,8 @@ interface StickyTopHeaderProps {
   pendingMutationsCount?: number;
   onDrainQueue?: () => void;
   syncStatus?: string;
+  onRefreshData?: () => void;
+  isRefreshing?: boolean;
 }
 
 export const StickyTopHeader: React.FC<StickyTopHeaderProps> = ({
@@ -47,6 +50,8 @@ export const StickyTopHeader: React.FC<StickyTopHeaderProps> = ({
   pendingMutationsCount = 0,
   onDrainQueue,
   syncStatus = 'CONNECTED',
+  onRefreshData,
+  isRefreshing = false,
 }) => {
   const isSuperiorAdmin = currentUser?.IssuerID === 'ADM001';
 
@@ -79,8 +84,21 @@ export const StickyTopHeader: React.FC<StickyTopHeaderProps> = ({
           </div>
         </div>
 
-        {/* Right: Offline Status, Theme Toggle & User Avatar */}
+        {/* Right: Offline Status, Refresh, Theme Toggle & User Avatar */}
         <div className="flex items-center space-x-1 sm:space-x-1.5 shrink-0">
+          {/* Refresh SQLite Data Button */}
+          {onRefreshData && (
+            <button
+              onClick={() => onRefreshData()}
+              disabled={isRefreshing}
+              className="p-1 rounded-lg text-slate-500 hover:text-teal-600 dark:text-slate-400 dark:hover:text-teal-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer h-7 w-7 sm:h-8 sm:w-8 flex items-center justify-center disabled:opacity-50"
+              title="Refresh SQLite Data"
+              aria-label="Refresh SQLite Database"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-teal-500' : ''}`} />
+            </button>
+          )}
+
           {/* Offline Status Badge & Sync Queue */}
           <OfflineStatusBadge
             isOffline={isOffline}

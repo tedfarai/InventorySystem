@@ -26,6 +26,7 @@ import { BulkStockActionsBar } from './BulkStockActionsBar';
 import { BulkBatchUpdateModal } from './BulkBatchUpdateModal';
 import { BulkDeleteConfirmationModal } from './BulkDeleteConfirmationModal';
 import { BulkDeliveryConfirmationModal, BulkDeliveryReviewItem } from './BulkDeliveryConfirmationModal';
+import { MasterStockSheetSkeleton } from '../common/SkeletonLoader';
 
 interface ModernMasterStockSheetProps {
   stockItems: StockItem[];
@@ -40,6 +41,7 @@ interface ModernMasterStockSheetProps {
   onSaveBulkDeliveries?: (deliveries: { itemId: string; addQty: number }[], deliveryNoteRef?: string) => Promise<any>;
   onTriggerIssueModal?: (cart: IssueCartItem[]) => void;
   onOpenAdjustmentRequests?: () => void;
+  isLoading?: boolean;
 }
 
 export const ModernMasterStockSheet: React.FC<ModernMasterStockSheetProps> = ({
@@ -55,6 +57,7 @@ export const ModernMasterStockSheet: React.FC<ModernMasterStockSheetProps> = ({
   onSaveBulkDeliveries,
   onTriggerIssueModal,
   onOpenAdjustmentRequests,
+  isLoading = false,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<'All' | 'Stationery' | 'Cleaning' | 'General'>('All');
@@ -262,6 +265,10 @@ export const ModernMasterStockSheet: React.FC<ModernMasterStockSheetProps> = ({
     }
     handleClearSelection();
   };
+
+  if (isLoading) {
+    return <MasterStockSheetSkeleton rows={12} message="Loading inventory records from SQLite..." />;
+  }
 
   return (
     <div className="space-y-4">

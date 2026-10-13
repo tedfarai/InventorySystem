@@ -33,12 +33,14 @@ import {
   AdjustmentReasonCode,
   MovementType,
 } from '../../types';
+import { AuditLogSkeleton } from '../common/SkeletonLoader';
 
 interface AuditLogAnalyticsViewProps {
   movementLogs?: MovementLogEntry[];
   stockItems?: StockItem[];
   departments?: Department[];
   onOpenMovementDocument?: (log: MovementLogEntry) => void;
+  isLoading?: boolean;
 }
 
 export interface DailyDataPoint {
@@ -72,6 +74,7 @@ export const AuditLogAnalyticsView: React.FC<AuditLogAnalyticsViewProps> = ({
   stockItems = [],
   departments = [],
   onOpenMovementDocument,
+  isLoading = false,
 }) => {
   const safeMovementLogs = Array.isArray(movementLogs) ? movementLogs : [];
   const safeStockItems = Array.isArray(stockItems) ? stockItems : [];
@@ -769,6 +772,10 @@ export const AuditLogAnalyticsView: React.FC<AuditLogAnalyticsViewProps> = ({
     link.click();
     document.body.removeChild(link);
   };
+
+  if (isLoading) {
+    return <AuditLogSkeleton rows={10} message="Loading transaction audit trail from SQLite..." />;
+  }
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">

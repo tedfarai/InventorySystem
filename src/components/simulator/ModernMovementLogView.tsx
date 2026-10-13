@@ -20,12 +20,14 @@ interface ModernMovementLogViewProps {
   movementLogs: MovementLogEntry[];
   onRowClick?: (log: MovementLogEntry) => void;
   onExportCsv?: () => void;
+  isLoading?: boolean;
 }
 
 export const ModernMovementLogView: React.FC<ModernMovementLogViewProps> = ({
   movementLogs = [],
   onRowClick,
   onExportCsv,
+  isLoading = false,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<'ALL' | MovementType>('ALL');
@@ -168,7 +170,21 @@ export const ModernMovementLogView: React.FC<ModernMovementLogViewProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
-              {filteredLogs.map((log) => (
+              {isLoading ? (
+                Array.from({ length: 8 }).map((_, idx) => (
+                  <tr key={`modern-mov-skel-${idx}`} className="animate-pulse">
+                    <td className="py-3 px-4"><div className="h-3 w-28 bg-slate-200 dark:bg-slate-800 rounded font-mono" /></td>
+                    <td className="py-3 px-3"><div className="h-4 w-16 bg-slate-200 dark:bg-slate-800 rounded" /></td>
+                    <td className="py-3 px-3"><div className="h-3.5 w-16 bg-slate-200 dark:bg-slate-800 rounded font-mono" /></td>
+                    <td className="py-3 px-3"><div className="h-3.5 w-44 bg-slate-200 dark:bg-slate-800 rounded" /></td>
+                    <td className="py-3 px-3 text-right"><div className="h-3.5 w-10 ml-auto bg-slate-200 dark:bg-slate-800 rounded" /></td>
+                    <td className="py-3 px-3"><div className="h-3.5 w-36 bg-slate-200 dark:bg-slate-800 rounded" /></td>
+                    <td className="py-3 px-3"><div className="h-3.5 w-24 bg-slate-200 dark:bg-slate-800 rounded" /></td>
+                    <td className="py-3 px-3"><div className="h-3.5 w-28 bg-slate-200 dark:bg-slate-800 rounded font-mono" /></td>
+                    <td className="py-3 px-4 text-right"><div className="h-5 w-14 ml-auto bg-slate-200 dark:bg-slate-800 rounded" /></td>
+                  </tr>
+                ))
+              ) : filteredLogs.map((log) => (
                 <tr
                   key={log.id}
                   onClick={() => onRowClick && onRowClick(log)}

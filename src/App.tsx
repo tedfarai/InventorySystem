@@ -134,6 +134,8 @@ function AppContent() {
     handleRevokeTimedAccess,
     handleRejectRequest,
     handleExecuteIssue,
+    isDataLoading,
+    refreshAllFromSqlite,
   } = useSqliteProcurement();
 
   // Low stock counter for indicators
@@ -508,6 +510,8 @@ function AppContent() {
           pendingMutationsCount={pendingMutationsCount}
           onDrainQueue={drainPendingMutations}
           syncStatus={syncStatus}
+          onRefreshData={refreshAllFromSqlite}
+          isRefreshing={isDataLoading}
         />
 
         {/* Sidebar Accordion Navigation (Drawer) */}
@@ -611,6 +615,7 @@ function AppContent() {
               externalAction={externalSimulatorAction}
               onClearExternalAction={() => setExternalSimulatorAction(null)}
               onActiveSheetChange={setActiveSimulatorSheet}
+              isLoading={isDataLoading}
             />
           )}
 
@@ -620,6 +625,7 @@ function AppContent() {
               stockItems={stockItems}
               departments={departments}
               onOpenMovementDocument={handleOpenAuditMovementDocument}
+              isLoading={isDataLoading}
             />
           )}
 

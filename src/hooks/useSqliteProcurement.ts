@@ -34,6 +34,7 @@ import { getExchangeRate, normalizePriceAndValue } from '../utils/currencyUtils'
 
 export function useSqliteProcurement() {
   const [isDbReady, setIsDbReady] = useState(false);
+  const [isDataLoading, setIsDataLoading] = useState(true);
   const [dbError, setDbError] = useState<string | null>(null);
 
   // Core Data States
@@ -73,6 +74,7 @@ export function useSqliteProcurement() {
    * Refetches all tables asynchronously from the SQLite database
    */
   const refreshAllFromSqlite = useCallback(async () => {
+    setIsDataLoading(true);
     try {
       const [
         sItems,
@@ -118,6 +120,8 @@ export function useSqliteProcurement() {
     } catch (err: any) {
       console.error('[useSqliteProcurement] Refresh error:', err);
       setDbError(err.message || 'Error querying SQLite database');
+    } finally {
+      setIsDataLoading(false);
     }
   }, []);
 
@@ -1554,6 +1558,7 @@ export function useSqliteProcurement() {
 
   return {
     isDbReady,
+    isDataLoading,
     dbError,
     masterFolderPath,
     handleUpdateMasterFolderPath,

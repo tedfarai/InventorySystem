@@ -65,6 +65,7 @@ import {
   CurrencyCode,
 } from '../../types';
 import { searchStockItems } from '../../utils/searchEngine';
+import { MasterStockSheetSkeleton } from '../common/SkeletonLoader';
 import { LoginDialog } from './LoginDialog';
 import { NavigationDialog } from './NavigationDialog';
 import { ProcurementOperationsDialog, ProcurementTabType } from './ProcurementOperationsDialog';
@@ -155,6 +156,7 @@ interface ExcelSimulatorProps {
   onClearExternalAction?: () => void;
   onActiveSheetChange?: (sheet: 'Master_Stock' | 'Movement_Log' | 'Adjustment_Hub' | 'Admin_Config') => void;
   onOpenLogin?: () => void;
+  isLoading?: boolean;
 }
 
 export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
@@ -216,6 +218,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
   externalAction,
   onClearExternalAction,
   onActiveSheetChange,
+  isLoading = false,
 }) => {
   const safeStockItems = Array.isArray(stockItems) ? stockItems : [];
   const safeMovementLogs = Array.isArray(movementLogs) ? movementLogs : [];
@@ -1296,6 +1299,9 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
 
       {/* 1. DIRECT MASTER STOCK WORKSPACE VIEW (TAKES UP 96% OF HEIGHT FROM TOP TO BOTTOM, NO DEAD BOTTOM BAR) */}
       {activeSheet === 'Master_Stock' ? (
+        isLoading ? (
+          <MasterStockSheetSkeleton rows={12} message="Loading inventory records from SQLite..." />
+        ) : (
         <div className="w-full flex flex-col font-sans space-y-2 pb-0 min-h-0">
           {/* Search & Multi-Facet Filter Container (Sticky below shrunk 40% top header) */}
           <div className="sticky top-9 sm:top-10 z-20 bg-[#f8fafc]/95 dark:bg-slate-950/95 backdrop-blur-md pt-0.5 pb-1.5 -mx-1 px-1 border-b border-slate-300/80 dark:border-slate-800/80 transition-all shadow-xs">
@@ -1945,6 +1951,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
             </table>
           </div>
         </div>
+        )
       ) : (
         /* 2. EXCEL APPLICATION WINDOW CONTAINER (FOR OTHER SHEETS: MOVEMENT LOG, ADMIN CONFIG, ADJUSTMENT HUB) */
         <div className="bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-700 rounded-2xl shadow-xl overflow-hidden font-sans transition-colors">
@@ -2096,7 +2103,36 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-800 dark:text-slate-200 font-mono text-[11px]">
-                    {filteredMovementLogs.length === 0 ? (
+                    {isLoading ? (
+                      Array.from({ length: 8 }).map((_, idx) => (
+                        <tr key={`mov-skeleton-${idx}`} className="animate-pulse">
+                          <td className="p-2.5 border-r border-slate-200 dark:border-slate-800">
+                            <div className="h-3 w-28 bg-slate-200 dark:bg-slate-800 rounded" />
+                          </td>
+                          <td className="p-2.5 border-r border-slate-200 dark:border-slate-800">
+                            <div className="h-4 w-16 bg-slate-200 dark:bg-slate-800 rounded" />
+                          </td>
+                          <td className="p-2.5 border-r border-slate-200 dark:border-slate-800">
+                            <div className="h-3.5 w-28 bg-slate-200 dark:bg-slate-800 rounded" />
+                          </td>
+                          <td className="p-2.5 border-r border-slate-200 dark:border-slate-800">
+                            <div className="h-3.5 w-40 bg-slate-200 dark:bg-slate-800 rounded" />
+                          </td>
+                          <td className="p-2.5 border-r border-slate-200 dark:border-slate-800 text-right">
+                            <div className="h-3.5 w-10 ml-auto bg-slate-200 dark:bg-slate-800 rounded" />
+                          </td>
+                          <td className="p-2.5 border-r border-slate-200 dark:border-slate-800">
+                            <div className="h-3.5 w-32 bg-slate-200 dark:bg-slate-800 rounded" />
+                          </td>
+                          <td className="p-2.5 border-r border-slate-200 dark:border-slate-800">
+                            <div className="h-3.5 w-24 bg-slate-200 dark:bg-slate-800 rounded" />
+                          </td>
+                          <td className="p-2.5 text-center">
+                            <div className="h-5 w-16 mx-auto bg-slate-200 dark:bg-slate-800 rounded" />
+                          </td>
+                        </tr>
+                      ))
+                    ) : filteredMovementLogs.length === 0 ? (
                       <tr>
                         <td colSpan={8} className="p-8 text-center text-slate-400 italic">
                           No movement log entries match search filter.
