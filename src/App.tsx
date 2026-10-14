@@ -23,6 +23,7 @@ import { StickyTopHeader } from './components/layout/StickyTopHeader';
 import { SidebarAccordionNav, SidebarAction } from './components/layout/SidebarAccordionNav';
 import { AccountDetailsModal } from './components/auth/AccountDetailsModal';
 import { ExecutiveDashboardView } from './components/dashboard/ExecutiveDashboardView';
+import { UsageTrendProvider } from './context/UsageTrendContext';
 
 export type AppTab = 'simulator' | 'audit' | 'electron' | 'vba' | 'guide' | 'export' | 'styleguide' | 'dashboard';
 
@@ -414,6 +415,7 @@ function AppContent() {
   // MAIN WORKSPACE (Always visible in guest read-only mode until authentication)
   // ==========================================
   return (
+    <UsageTrendProvider movementLogs={movementLogs}>
     <DesktopWindowFrame
       title="Paramount Exports — Stationery & Cleaning Stock Inventory System"
       theme={theme}
@@ -734,6 +736,7 @@ function AppContent() {
         )}
       </div>
     </DesktopWindowFrame>
+    </UsageTrendProvider>
   );
 }
 

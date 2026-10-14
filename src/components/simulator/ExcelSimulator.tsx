@@ -70,7 +70,6 @@ import { LoginDialog } from './LoginDialog';
 import { NavigationDialog } from './NavigationDialog';
 import { ProcurementOperationsDialog, ProcurementTabType } from './ProcurementOperationsDialog';
 import { PreviewConfirmationModal } from './PreviewConfirmationModal';
-import { PdfPreviewModal } from './PdfPreviewModal';
 import { ReceivedPdfPreviewModal } from './ReceivedPdfPreviewModal';
 import { StockSearchBar } from './StockSearchBar';
 import { UserManagementModal } from './UserManagementModal';
@@ -92,6 +91,9 @@ import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import { useWriteGuard } from '../../hooks/useWriteGuard';
 import { SearchHighlightText } from '../common/SearchHighlightText';
 import { formatCurrency, convertCurrency, getExchangeRate } from '../../utils/currencyUtils';
+import { UsageTrendIndicator } from '../common/UsageTrendIndicator';
+import { generateVoucherPdfFile } from '../../utils/voucherPdfGenerator';
+import type { VoucherPdfFile } from '../../utils/voucherPdfGenerator';
 
 interface ExcelSimulatorProps {
   masterFolderPath: string;
@@ -275,6 +277,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
   // Master Folder & Movement Log Document Viewer State
   const [showFolderConfigModal, setShowFolderConfigModal] = useState(false);
   const [selectedMovementDoc, setSelectedMovementDoc] = useState<DisplayableDocument | null>(null);
+  const [selectedMovementPdfFile, setSelectedMovementPdfFile] = useState<VoucherPdfFile | null>(null);
   const [movementSearchQuery, setMovementSearchQuery] = useState('');
   const [movementTypeFilter, setMovementTypeFilter] = useState<'ALL' | 'DELIVERY' | 'ISSUE' | 'ADJUSTMENT'>('ALL');
   const [securityAlert, setSecurityAlert] = useState<string | null>(null);
@@ -574,6 +577,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
   const [tempIssueDept, setTempIssueDept] = useState<Department | null>(null);
   const [tempIssueCart, setTempIssueCart] = useState<IssueCartItem[]>([]);
   const [activeDocForPreview, setActiveDocForPreview] = useState<IssuedDocument | null>(null);
+  const [activeDocPdfFile, setActiveDocPdfFile] = useState<VoucherPdfFile | null>(null);
   const [activeReceivedDocForPreview, setActiveReceivedDocForPreview] = useState<ReceivedDocument | null>(null);
 
   // Global Simulator Keyboard Shortcuts
@@ -661,6 +665,32 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
     setActiveModal('preview');
   };
 
+  const handleOpenIssueDocument = async (doc: IssuedDocument) => {
+    const displayableDocument: DisplayableDocument = { type: 'ISSUE', data: doc };
+    try {
+      const pdfFile = await generateVoucherPdfFile(displayableDocument);
+      if (activeDocPdfFile) URL.revokeObjectURL(activeDocPdfFile.url);
+      setActiveDocPdfFile(pdfFile);
+      setActiveDocForPreview(doc);
+      setActiveModal('docPreview');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to generate the issue voucher PDF.';
+      showToast('Issue PDF Generation Failed', 'error', message, 6000);
+    }
+  };
+
+  const handleOpenMovementDocument = async (document: DisplayableDocument) => {
+    try {
+      const pdfFile = await generateVoucherPdfFile(document);
+      if (selectedMovementPdfFile) URL.revokeObjectURL(selectedMovementPdfFile.url);
+      setSelectedMovementPdfFile(pdfFile);
+      setSelectedMovementDoc(document);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to generate the voucher PDF.';
+      showToast('Voucher PDF Generation Failed', 'error', message, 6000);
+    }
+  };
+
   const handleConfirmExecuteIssue = async (finalCart?: IssueCartItem[], targetDept?: Department) => {
     const deptToUse = targetDept || tempIssueDept || (departments && departments.length > 0 ? departments[0] : {
       DeptID: 'DEP01',
@@ -675,6 +705,9 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
         generatedDoc = await onExecuteIssue(deptToUse, cartToExecute);
       } catch (err) {
         console.error('Error executing issue workflow:', err);
+        const message = err instanceof Error ? err.message : 'Issue request could not be completed.';
+        showToast('Issue Request Failed', 'error', message, 6000);
+        return;
       }
 
       if (!generatedDoc) {
@@ -704,8 +737,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
         };
       }
 
-      setActiveDocForPreview(generatedDoc);
-      setActiveModal('docPreview');
+      await handleOpenIssueDocument(generatedDoc);
     }
   };
 
@@ -732,7 +764,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
 
         // Automatically open the generated Stock Adjustment PDF Voucher preview modal
         if (result.doc) {
-          setSelectedMovementDoc({ type: 'ADJUSTMENT', data: result.doc });
+          await handleOpenMovementDocument({ type: 'ADJUSTMENT', data: result.doc });
         }
 
         if (result.allAdjusted) {
@@ -1163,7 +1195,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
         fullSavedPath: log.IssueSlipFileName || `${masterFolderPath}\\Received_Items\\GRN_Voucher_${log.id}.pdf`,
       };
 
-      setSelectedMovementDoc({ type: 'DELIVERY', data: docData });
+      void handleOpenMovementDocument({ type: 'DELIVERY', data: docData });
     } else if (log.Type === 'ADJUSTMENT') {
       const matched = adjustmentDocs.find(
         (d) =>
@@ -1207,7 +1239,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
         fullSavedPath: log.IssueSlipFileName || `${masterFolderPath}\\Adjustments\\Stock_Adjustment_${log.DocumentRef || log.id}.pdf`,
       };
 
-      setSelectedMovementDoc({ type: 'ADJUSTMENT', data: docData });
+      void handleOpenMovementDocument({ type: 'ADJUSTMENT', data: docData });
     } else {
       const safeIssuedDocs = Array.isArray(issuedDocs) ? issuedDocs : [];
       const matched = safeIssuedDocs.find(
@@ -1260,7 +1292,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
         fullSavedPath: log.IssueSlipFileName || `${masterFolderPath}\\Issued_Items\\IssueSlip_${log.DeptID.replace('-', '')}_${log.id}.pdf`,
       };
 
-      setSelectedMovementDoc({ type: 'ISSUE', data: docData });
+      void handleOpenMovementDocument({ type: 'ISSUE', data: docData });
     }
   };
 
@@ -1542,7 +1574,10 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                               <SearchHighlightText text={item.ItemID} query={searchQuery} />
                             </td>
                             <td className="py-1.5 px-2.5 font-semibold text-[11px] text-slate-800 dark:text-slate-100 group-hover:text-slate-950 dark:group-hover:text-white border-r border-slate-300 dark:border-slate-700 truncate max-w-[260px]">
-                              <SearchHighlightText text={item.ItemName} query={searchQuery} />
+                              <div className="flex items-center justify-between gap-1">
+                                <SearchHighlightText text={item.ItemName} query={searchQuery} />
+                                <UsageTrendIndicator item={item} compact />
+                              </div>
                             </td>
                             <td className="py-1.5 px-2.5 border-r border-slate-300 dark:border-slate-700 whitespace-nowrap">
                               <span
@@ -2671,9 +2706,15 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
       )}
 
       {activeModal === 'docPreview' && activeDocForPreview && (
-        <PdfPreviewModal
-          doc={activeDocForPreview}
-          onClose={() => setActiveModal('none')}
+        <DocumentViewerModal
+          document={{ type: 'ISSUE', data: activeDocForPreview }}
+          pdfFile={activeDocPdfFile || undefined}
+          onClose={() => {
+            if (activeDocPdfFile) URL.revokeObjectURL(activeDocPdfFile.url);
+            setActiveDocPdfFile(null);
+            setActiveDocForPreview(null);
+            setActiveModal('none');
+          }}
         />
       )}
 
@@ -2681,8 +2722,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
         <IssuedDocumentsArchiveModal
           issuedDocs={issuedDocs}
           onOpenPreview={(doc) => {
-            setActiveDocForPreview(doc);
-            setActiveModal('docPreview');
+            void handleOpenIssueDocument(doc);
           }}
           onClose={() => setActiveModal('none')}
         />
@@ -2792,7 +2832,12 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
       {selectedMovementDoc && (
         <DocumentViewerModal
           document={selectedMovementDoc}
-          onClose={() => setSelectedMovementDoc(null)}
+          pdfFile={selectedMovementPdfFile || undefined}
+          onClose={() => {
+            if (selectedMovementPdfFile) URL.revokeObjectURL(selectedMovementPdfFile.url);
+            setSelectedMovementPdfFile(null);
+            setSelectedMovementDoc(null);
+          }}
         />
       )}
 
