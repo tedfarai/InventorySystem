@@ -28,6 +28,7 @@ import {
   ReorderItemAnalysis,
 } from '../../utils/reorderReportPdfGenerator';
 import { DraggableResizableModal } from '../common/DraggableResizableModal';
+import { UsageTrendIndicator } from '../common/UsageTrendIndicator';
 
 interface ReorderReportModalProps {
   stockItems: StockItem[];
@@ -377,7 +378,10 @@ export const ReorderReportModal: React.FC<ReorderReportModalProps> = ({
                             {itemAnalysis.item.ItemID}
                           </td>
                           <td className="p-3 border-r border-slate-200 dark:border-slate-800 font-semibold">
-                            {itemAnalysis.item.ItemName}
+                            <div className="flex items-center justify-between gap-2">
+                              <span>{itemAnalysis.item.ItemName}</span>
+                              <UsageTrendIndicator item={itemAnalysis.item} compact />
+                            </div>
                           </td>
                           <td className="p-3 border-r border-slate-200 dark:border-slate-800">
                             <span

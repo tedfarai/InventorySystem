@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronUp, ChevronDown, Search, Check, Package, X } from 'lucide-react';
 import { StockItem, ItemCategory } from '../../types';
+import { UsageTrendIndicator } from './UsageTrendIndicator';
 
 export interface StockItemDropUpSelectProps {
   id?: string;
@@ -107,8 +108,11 @@ export const StockItemDropUpSelect: React.FC<StockItemDropUpSelectProps> = ({
       >
         <div className="flex-1 truncate">
           {selectedItem ? (
-            <span className="font-mono text-slate-900 dark:text-slate-100 font-medium text-xs truncate block">
-              {formattedSelectedItem}
+            <span className="flex items-center gap-2 min-w-0">
+              <span className="font-mono text-slate-900 dark:text-slate-100 font-medium text-xs truncate block">
+                {formattedSelectedItem}
+              </span>
+              <UsageTrendIndicator item={selectedItem} compact />
             </span>
           ) : (
             <span className="text-slate-400 dark:text-slate-500 italic text-xs">
@@ -206,8 +210,11 @@ export const StockItemDropUpSelect: React.FC<StockItemDropUpSelectProps> = ({
                         : 'text-slate-800 dark:text-slate-100 hover:bg-slate-100/90 dark:hover:bg-slate-800/80'
                     }`}
                   >
-                    <span className="truncate">
-                      [{item.ItemID}] {item.ItemName} — ({item.Category} | Current Qty: {item.Qty} {item.Unit})
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="truncate">
+                        [{item.ItemID}] {item.ItemName} — ({item.Category} | Current Qty: {item.Qty} {item.Unit})
+                      </span>
+                      <UsageTrendIndicator item={item} compact />
                     </span>
                     {isSelected && (
                       <Check className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />

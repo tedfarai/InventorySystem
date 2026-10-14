@@ -17,6 +17,7 @@ import { IssuedDocument } from '../../types';
 import { getPexGreenLogoDataUrl, PEX_GREEN_LOGO_PUBLIC_PATH } from '../brand/brandLogoData';
 import { DraggableResizableModal } from '../common/DraggableResizableModal';
 import jsPDF from 'jspdf';
+import { printPdfFromUrl } from '../../utils/voucherPdfGenerator';
 
 interface PdfPreviewModalProps {
   doc: IssuedDocument;
@@ -30,6 +31,7 @@ export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({ doc, onClose }
   const [autoSaveToast, setAutoSaveToast] = useState<string | null>(null);
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const [isPdfGenerating, setIsPdfGenerating] = useState(true);
+  const [pdfPrintError, setPdfPrintError] = useState<string | null>(null);
 
   // Safe field derivations
   const deptId = String(doc?.deptID || (doc as any)?.DeptID || 'DEPT-101');
@@ -269,22 +271,16 @@ export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({ doc, onClose }
   };
 
   const handlePrintNow = () => {
-    if (pdfBlobUrl) {
-      const printWindow = window.open(pdfBlobUrl, '_blank');
-      if (printWindow) {
-        printWindow.focus();
-        return;
-      }
+    if (!pdfBlobUrl) {
+      setPdfPrintError('The generated PDF is not ready to print yet.');
+      return;
     }
-    setIsPrintFriendly(true);
-    setTimeout(() => {
-      try {
-        window.focus();
-        window.print();
-      } catch {
-        handleDownloadPdf();
-      }
-    }, 150);
+    try {
+      setPdfPrintError(null);
+      printPdfFromUrl(pdfBlobUrl);
+    } catch (error) {
+      setPdfPrintError(error instanceof Error ? error.message : 'Unable to print the generated PDF.');
+    }
   };
 
   const digitalSignatureStamp = `${timestamp}-${issuerId}`;
@@ -383,6 +379,12 @@ export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({ doc, onClose }
               <span>{autoSaveToast}</span>
             </div>
             <span className="text-[10px] bg-emerald-700 px-2 py-0.5 rounded font-bold">100% COMPLETE</span>
+          </div>
+        )}
+
+        {pdfPrintError && (
+          <div role="alert" className="p-2.5 rounded-lg border border-rose-300 bg-rose-50 text-xs text-rose-800 dark:border-rose-800 dark:bg-rose-950/50 dark:text-rose-200">
+            {pdfPrintError}
           </div>
         )}
 

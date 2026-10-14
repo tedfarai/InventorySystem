@@ -3,19 +3,12 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   PackageCheck,
   SlidersHorizontal,
-  AlertTriangle,
-  CheckCircle2,
   X,
   Package,
-  Layers,
-  ArrowRight,
   ShieldAlert,
-  Clock,
-  ExternalLink,
   Send,
   Edit3,
   Download,
-  FileSpreadsheet,
   ListPlus,
   Plus,
 } from 'lucide-react';
@@ -243,216 +236,92 @@ export const StockItemContextMenuModal: React.FC<StockItemContextMenuModalProps>
             </div>
           )}
 
-          {/* Quick Actions List */}
-          <div className="space-y-1.5 pt-1">
+          {/* Quick Actions */}
+          <div className="space-y-2 pt-1">
             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
               Quick Actions &amp; Direct Entry:
             </div>
-
-            {/* Action 1: Bulk / Quick Receive */}
-            <button
-              type="button"
-              id={isMultipleSelected ? 'context-menu-bulk-receive' : 'context-menu-quick-receive'}
-              onClick={() => {
-                onClose();
-                onQuickReceive(targetItems, isMultipleSelected ? 'bulkGrid' : 'single');
-              }}
-              className="w-full p-2.5 bg-white dark:bg-slate-800/90 hover:bg-sky-50 dark:hover:bg-sky-950/50 border border-slate-200 dark:border-slate-700 hover:border-sky-400 dark:hover:border-sky-600 rounded-xl text-left transition flex items-center justify-between group cursor-pointer shadow-2xs"
-            >
-              <div className="flex items-center space-x-2.5 min-w-0">
-                <div className="w-7 h-7 rounded-lg bg-sky-100 dark:bg-sky-900/60 text-sky-700 dark:text-sky-300 flex items-center justify-center shrink-0">
-                  <PackageCheck className="w-3.5 h-3.5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-sky-700 dark:group-hover:text-sky-300 transition-colors truncate">
-                    {isMultipleSelected ? `Bulk Receive (${targetItems.length} Items)` : `Quick Receive Stock (${item.ItemID})`}
-                  </div>
-                  <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
-                    {isMultipleSelected
-                      ? 'Opens Interactive Bulk Stock Grid Entry'
-                      : `Opens Single Item Receive with ${item.ItemID} pre-filled`}
-                  </div>
-                </div>
-              </div>
-              <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-sky-600 group-hover:translate-x-0.5 transition-all shrink-0 ml-1" />
-            </button>
-
-            {/* Action 2: Bulk / Quick Issue */}
-            <button
-              type="button"
-              id={isMultipleSelected ? 'context-menu-bulk-issue' : 'context-menu-quick-issue'}
-              onClick={() => {
-                onClose();
-                onQuickIssue(targetItems);
-              }}
-              className="w-full p-2.5 bg-white dark:bg-slate-800/90 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 border border-slate-200 dark:border-slate-700 hover:border-emerald-400 dark:hover:border-emerald-600 rounded-xl text-left transition flex items-center justify-between group cursor-pointer shadow-2xs"
-            >
-              <div className="flex items-center space-x-2.5 min-w-0">
-                <div className="w-7 h-7 rounded-lg bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 flex items-center justify-center shrink-0">
-                  <Send className="w-3.5 h-3.5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-emerald-700 dark:group-hover:text-emerald-300 transition-colors truncate">
-                    {isMultipleSelected ? `Bulk Issue (${targetItems.length} Items)` : `Quick Issue Out (${item.ItemID})`}
-                  </div>
-                  <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
-                    {isMultipleSelected ? 'Opens Issue Out request with selected items' : 'Opens Requisition Issue slip with items pre-filled'}
-                  </div>
-                </div>
-              </div>
-              <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition-all shrink-0 ml-1" />
-            </button>
-
-            {/* Action 3: Bulk Stock Edit / Quick Edit */}
-            {isMultipleSelected ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
               <button
                 type="button"
-                id="context-menu-bulk-stock-edit"
+                id={isMultipleSelected ? 'context-menu-bulk-receive' : 'context-menu-quick-receive'}
+                title={isMultipleSelected ? 'Open interactive bulk stock grid entry' : `Receive stock for ${item.ItemID}`}
                 onClick={() => {
                   onClose();
-                  if (onBulkStockEdit) {
-                    onBulkStockEdit(targetItems);
-                  } else {
-                    onQuickEdit(item);
-                  }
+                  onQuickReceive(targetItems, isMultipleSelected ? 'bulkGrid' : 'single');
                 }}
-                className="w-full p-2.5 bg-white dark:bg-slate-800/90 hover:bg-purple-50 dark:hover:bg-purple-950/50 border border-slate-200 dark:border-slate-700 hover:border-purple-400 dark:hover:border-purple-600 rounded-xl text-left transition flex items-center justify-between group cursor-pointer shadow-2xs"
+                className="min-h-[76px] p-2 rounded-xl border border-sky-200 dark:border-sky-800 bg-white dark:bg-slate-800/90 hover:bg-sky-50 dark:hover:bg-sky-950/50 text-sky-700 dark:text-sky-300 flex flex-col items-center justify-center gap-1.5 text-[10px] font-bold transition cursor-pointer"
               >
-                <div className="flex items-center space-x-2.5 min-w-0">
-                  <div className="w-7 h-7 rounded-lg bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 flex items-center justify-center shrink-0">
-                    <Edit3 className="w-3.5 h-3.5" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-purple-700 dark:group-hover:text-purple-300 transition-colors truncate">
-                      Bulk Stock Edit ({targetItems.length} Items)
-                    </div>
-                    <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
-                      Batch update categories or reorder thresholds across {targetItems.length} items
-                    </div>
-                  </div>
-                </div>
-                <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-purple-600 group-hover:translate-x-0.5 transition-all shrink-0 ml-1" />
+                <PackageCheck className="w-5 h-5" />
+                <span>{isMultipleSelected ? 'Bulk Receive' : 'Receive'}</span>
               </button>
-            ) : (
               <button
                 type="button"
-                id="context-menu-quick-edit"
+                id={isMultipleSelected ? 'context-menu-bulk-issue' : 'context-menu-quick-issue'}
+                title={isMultipleSelected ? 'Create an issue request for selected items' : `Issue ${item.ItemID}`}
                 onClick={() => {
                   onClose();
-                  onQuickEdit(item);
+                  onQuickIssue(targetItems);
                 }}
-                className="w-full p-2.5 bg-white dark:bg-slate-800/90 hover:bg-purple-50 dark:hover:bg-purple-950/50 border border-slate-200 dark:border-slate-700 hover:border-purple-400 dark:hover:border-purple-600 rounded-xl text-left transition flex items-center justify-between group cursor-pointer shadow-2xs"
+                className="min-h-[76px] p-2 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-800/90 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 flex flex-col items-center justify-center gap-1.5 text-[10px] font-bold transition cursor-pointer"
               >
-                <div className="flex items-center space-x-2.5 min-w-0">
-                  <div className="w-7 h-7 rounded-lg bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 flex items-center justify-center shrink-0">
-                    <Edit3 className="w-3.5 h-3.5" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-purple-700 dark:group-hover:text-purple-300 transition-colors truncate">
-                      Quick Edit StockItem ({item.ItemID})
-                    </div>
-                    <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
-                      Opens Edit Stock dialogue with {item.ItemID} pre-filled
-                    </div>
-                  </div>
-                </div>
-                <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-purple-600 group-hover:translate-x-0.5 transition-all shrink-0 ml-1" />
+                <Send className="w-5 h-5" />
+                <span>{isMultipleSelected ? 'Bulk Issue' : 'Issue Out'}</span>
               </button>
-            )}
-
-            {/* Action 4: Export to CSV */}
-            <button
-              type="button"
-              id="context-menu-export-item"
-              onClick={() => {
-                onClose();
-                onExportItem(targetItems);
-              }}
-              className="w-full p-2.5 bg-white dark:bg-slate-800/90 hover:bg-teal-50 dark:hover:bg-teal-950/50 border border-slate-200 dark:border-slate-700 hover:border-teal-400 dark:hover:border-teal-600 rounded-xl text-left transition flex items-center justify-between group cursor-pointer shadow-2xs"
-            >
-              <div className="flex items-center space-x-2.5 min-w-0">
-                <div className="w-7 h-7 rounded-lg bg-teal-100 dark:bg-teal-900/60 text-teal-700 dark:text-teal-300 flex items-center justify-center shrink-0">
-                  <Download className="w-3.5 h-3.5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-teal-700 dark:group-hover:text-teal-300 transition-colors truncate">
-                    Export to CSV {isMultipleSelected ? `(${targetItems.length} Selected Items)` : `(${item.ItemID} Only)`}
-                  </div>
-                  <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
-                    Download clean CSV export of {isMultipleSelected ? 'selected items' : 'this item only'}
-                  </div>
-                </div>
-              </div>
-              <FileSpreadsheet className="w-3.5 h-3.5 text-slate-400 group-hover:text-teal-600 transition-all shrink-0 ml-1" />
-            </button>
-
-            {/* Action 5: Bulk Request Stock Adjustment / Add to Adjustment List */}
-            <div className="space-y-1">
+              <button
+                type="button"
+                id={isMultipleSelected ? 'context-menu-bulk-stock-edit' : 'context-menu-quick-edit'}
+                title={isMultipleSelected ? `Edit ${targetItems.length} selected items` : `Edit ${item.ItemID}`}
+                onClick={() => {
+                  onClose();
+                  if (isMultipleSelected && onBulkStockEdit) onBulkStockEdit(targetItems);
+                  else onQuickEdit(item);
+                }}
+                className="min-h-[76px] p-2 rounded-xl border border-purple-200 dark:border-purple-800 bg-white dark:bg-slate-800/90 hover:bg-purple-50 dark:hover:bg-purple-950/50 text-purple-700 dark:text-purple-300 flex flex-col items-center justify-center gap-1.5 text-[10px] font-bold transition cursor-pointer"
+              >
+                <Edit3 className="w-5 h-5" />
+                <span>{isMultipleSelected ? 'Bulk Edit' : 'Edit Item'}</span>
+              </button>
+              <button
+                type="button"
+                id="context-menu-export-item"
+                title={isMultipleSelected ? 'Export selected items to CSV' : `Export ${item.ItemID} to CSV`}
+                onClick={() => {
+                  onClose();
+                  onExportItem(targetItems);
+                }}
+                className="min-h-[76px] p-2 rounded-xl border border-teal-200 dark:border-teal-800 bg-white dark:bg-slate-800/90 hover:bg-teal-50 dark:hover:bg-teal-950/50 text-teal-700 dark:text-teal-300 flex flex-col items-center justify-center gap-1.5 text-[10px] font-bold transition cursor-pointer"
+              >
+                <Download className="w-5 h-5" />
+                <span>Export CSV</span>
+              </button>
               <button
                 type="button"
                 id={isMultipleSelected ? 'context-menu-bulk-request-adjustment' : 'context-menu-add-adjustment'}
                 disabled={isAdjustmentDisabled}
+                title={isAdjustmentDisabled ? 'A pending adjustment request already exists' : 'Open stock adjustment workflow'}
                 onClick={() => {
-                  if (!isAdjustmentDisabled) {
-                    onClose();
-                    if (isMultipleSelected && onBulkAdjustment) {
-                      onBulkAdjustment(targetItems);
-                    } else {
-                      onQuickAdjust(item);
-                    }
-                  }
+                  if (isAdjustmentDisabled) return;
+                  onClose();
+                  if (isMultipleSelected && onBulkAdjustment) onBulkAdjustment(targetItems);
+                  else onQuickAdjust(item);
                 }}
-                className={`w-full p-2.5 rounded-xl text-left transition flex items-center justify-between border ${
+                className={`min-h-[76px] p-2 rounded-xl border flex flex-col items-center justify-center gap-1.5 text-[10px] font-bold transition ${
                   isAdjustmentDisabled
-                    ? 'bg-slate-100 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 opacity-60 cursor-not-allowed'
-                    : 'bg-white dark:bg-slate-800/90 hover:bg-amber-50 dark:hover:bg-amber-950/50 border-slate-200 dark:border-slate-700 hover:border-amber-400 dark:hover:border-amber-600 group cursor-pointer shadow-2xs'
+                    ? 'bg-slate-100 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-400 cursor-not-allowed opacity-60'
+                    : 'bg-white dark:bg-slate-800/90 hover:bg-amber-50 dark:hover:bg-amber-950/50 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 cursor-pointer'
                 }`}
               >
-                <div className="flex items-center space-x-2.5 min-w-0">
-                  <div
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-                      isAdjustmentDisabled
-                        ? 'bg-slate-200 dark:bg-slate-700 text-slate-500'
-                        : 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300'
-                    }`}
-                  >
-                    <SlidersHorizontal className="w-3.5 h-3.5" />
-                  </div>
-                  <div className="min-w-0">
-                    <div
-                      className={`text-xs font-bold truncate ${
-                        isAdjustmentDisabled
-                          ? 'text-slate-500 dark:text-slate-400'
-                          : 'text-slate-900 dark:text-white group-hover:text-amber-700 dark:group-hover:text-amber-300'
-                      }`}
-                    >
-                      {isMultipleSelected ? `Bulk Request Stock Adjustment (${targetItems.length} Items)` : 'Add to Adjustment List'}
-                    </div>
-                    <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
-                      {isAdjustmentDisabled
-                        ? 'Disabled: Pending adjustment active in state'
-                        : isMultipleSelected
-                        ? `Stage ${targetItems.length} selected items into physical variance adjustment workflow`
-                        : 'Adjust physical count variance or audit'}
-                    </div>
-                  </div>
-                </div>
-                {!isAdjustmentDisabled && (
-                  <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-600 group-hover:translate-x-0.5 transition-all shrink-0 ml-1" />
-                )}
+                <SlidersHorizontal className="w-5 h-5" />
+                <span>{isMultipleSelected ? 'Bulk Adjust' : 'Adjust Stock'}</span>
               </button>
-
-              {/* Pending Stock Adjustment Lock Alert */}
-              {isAdjustmentDisabled && (
-                <div className="p-2 bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800/80 rounded-xl text-[10px] text-amber-800 dark:text-amber-200 flex items-start space-x-1.5">
-                  <ShieldAlert className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-bold">Option Disabled: </span>
-                    <span>An existing adjustment request with status &lsquo;PENDING&rsquo; is detected in the state ({pendingAdjustmentInState?.id || pendingAdjustmentForItem?.id || 'active'}).</span>
-                  </div>
-                </div>
-              )}
             </div>
+            {isAdjustmentDisabled && (
+              <div className="p-2 bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800/80 rounded-lg text-[10px] text-amber-800 dark:text-amber-200 flex items-start gap-1.5">
+                <ShieldAlert className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <span>An active pending stock adjustment request prevents another adjustment.</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -469,4 +338,3 @@ export const StockItemContextMenuModal: React.FC<StockItemContextMenuModalProps>
     </DraggableResizableModal>
   );
 };
-

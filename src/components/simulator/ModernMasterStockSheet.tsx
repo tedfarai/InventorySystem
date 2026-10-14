@@ -27,6 +27,7 @@ import { BulkBatchUpdateModal } from './BulkBatchUpdateModal';
 import { BulkDeleteConfirmationModal } from './BulkDeleteConfirmationModal';
 import { BulkDeliveryConfirmationModal, BulkDeliveryReviewItem } from './BulkDeliveryConfirmationModal';
 import { MasterStockSheetSkeleton } from '../common/SkeletonLoader';
+import { UsageTrendIndicator } from '../common/UsageTrendIndicator';
 
 interface ModernMasterStockSheetProps {
   stockItems: StockItem[];
@@ -450,7 +451,10 @@ export const ModernMasterStockSheet: React.FC<ModernMasterStockSheetProps> = ({
                       </span>
                     </td>
                     <td className="py-3 px-3 font-semibold text-slate-800 dark:text-slate-200">
-                      <SearchHighlightText text={item.ItemName} query={searchQuery} />
+                      <div className="flex items-center justify-between gap-2">
+                        <SearchHighlightText text={item.ItemName} query={searchQuery} />
+                        <UsageTrendIndicator item={item} compact />
+                      </div>
                     </td>
                     <td className="py-3 px-3">
                       <span
@@ -600,10 +604,11 @@ export const ModernMasterStockSheet: React.FC<ModernMasterStockSheetProps> = ({
                 </div>
               </div>
 
-              <div className="mt-2">
+              <div className="mt-2 flex items-start justify-between gap-2">
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white leading-snug">
                   <SearchHighlightText text={item.ItemName} query={searchQuery} />
                 </h3>
+                <UsageTrendIndicator item={item} compact />
               </div>
 
               <div className="mt-3 flex items-center justify-between border-t border-slate-100 dark:border-slate-800/80 pt-2.5">

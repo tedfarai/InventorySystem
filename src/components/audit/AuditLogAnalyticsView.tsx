@@ -26,6 +26,8 @@ import {
   Sparkles,
   ExternalLink,
   BarChart2,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import {
   StockItem,
@@ -91,6 +93,8 @@ export const AuditLogAnalyticsView: React.FC<AuditLogAnalyticsViewProps> = ({
   const [activeChartTab, setActiveChartTab] = useState<'trends' | 'reasons' | 'departments' | 'netFlow'>('trends');
   const [sortField, setSortField] = useState<'Timestamp' | 'Qty' | 'ItemName' | 'Type'>('Timestamp');
   const [sortAsc, setSortAsc] = useState<boolean>(false);
+  const [currentPage, setCurrentPage] = useState(0);
+  const pageSize = 50;
   const [selectedTrendItemIds, setSelectedTrendItemIds] = useState<string[]>(() => {
     if (stockItems && stockItems.length > 0) {
       return [stockItems[0].ItemID];
@@ -202,6 +206,17 @@ export const AuditLogAnalyticsView: React.FC<AuditLogAnalyticsViewProps> = ({
       return 0;
     });
   }, [filteredLogs, sortField, sortAsc]);
+
+  const pageCount = Math.max(1, Math.ceil(sortedLogs.length / pageSize));
+  const pageLogs = sortedLogs.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
+
+  useEffect(() => {
+    setCurrentPage(0);
+  }, [startDate, endDate, selectedType, selectedDept, searchQuery, sortField, sortAsc]);
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, pageCount - 1));
+  }, [pageCount]);
 
   // Analytics Metrics Aggregation
   const metrics = useMemo(() => {
@@ -1221,7 +1236,7 @@ export const AuditLogAnalyticsView: React.FC<AuditLogAnalyticsViewProps> = ({
                     </td>
                   </motion.tr>
                 ) : (
-                  sortedLogs.map((log) => {
+                  pageLogs.map((log) => {
                     const isDelivery = log.Type === 'DELIVERY';
                     const isAdjustment = log.Type === 'ADJUSTMENT';
                     const isIssue = log.Type === 'ISSUE';
@@ -1340,6 +1355,38 @@ export const AuditLogAnalyticsView: React.FC<AuditLogAnalyticsViewProps> = ({
               </AnimatePresence>
             </tbody>
           </table>
+        </div>
+        <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-xs">
+          <span className="text-slate-500 dark:text-slate-400 font-mono">
+            {sortedLogs.length === 0
+              ? 'Showing 0 records'
+              : `Showing ${currentPage * pageSize + 1}-${Math.min((currentPage + 1) * pageSize, sortedLogs.length)} of ${sortedLogs.length}`}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((page) => Math.max(0, page - 1))}
+              disabled={currentPage === 0}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white dark:hover:bg-slate-800"
+              aria-label="Previous audit log page"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+              Previous
+            </button>
+            <span className="font-mono text-slate-600 dark:text-slate-300">
+              {currentPage + 1} / {pageCount}
+            </span>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((page) => Math.min(pageCount - 1, page + 1))}
+              disabled={currentPage >= pageCount - 1}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white dark:hover:bg-slate-800"
+              aria-label="Next audit log page"
+            >
+              Next
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </div>
 
