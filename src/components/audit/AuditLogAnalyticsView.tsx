@@ -25,6 +25,7 @@ import {
   Package,
   Sparkles,
   ExternalLink,
+  BarChart2,
 } from 'lucide-react';
 import {
   StockItem,
@@ -34,6 +35,7 @@ import {
   MovementType,
 } from '../../types';
 import { AuditLogSkeleton } from '../common/SkeletonLoader';
+import { StockMovementTrend } from './StockMovementTrend';
 
 interface AuditLogAnalyticsViewProps {
   movementLogs?: MovementLogEntry[];
@@ -89,6 +91,13 @@ export const AuditLogAnalyticsView: React.FC<AuditLogAnalyticsViewProps> = ({
   const [activeChartTab, setActiveChartTab] = useState<'trends' | 'reasons' | 'departments' | 'netFlow'>('trends');
   const [sortField, setSortField] = useState<'Timestamp' | 'Qty' | 'ItemName' | 'Type'>('Timestamp');
   const [sortAsc, setSortAsc] = useState<boolean>(false);
+  const [selectedTrendItemIds, setSelectedTrendItemIds] = useState<string[]>(() => {
+    if (stockItems && stockItems.length > 0) {
+      return [stockItems[0].ItemID];
+    }
+    return [];
+  });
+  const [showItemTrendSection, setShowItemTrendSection] = useState<boolean>(true);
 
   // D3 Chart Refs
   const timelineSvgRef = useRef<SVGSVGElement | null>(null);
@@ -1104,7 +1113,36 @@ export const AuditLogAnalyticsView: React.FC<AuditLogAnalyticsViewProps> = ({
         </div>
       </div>
 
-      {/* 5. FILTERED AUDIT LOG INTERACTIVE TABLE WITH FRAMER-MOTION */}
+      {/* 5. STOCK MOVEMENT TREND: MONTHLY BREAKDOWN OF ISSUES VS DELIVERIES USING RECHARTS */}
+      <div id="stock-movement-trend-section" className="space-y-2">
+        <div className="flex items-center justify-between px-1">
+          <div className="flex items-center space-x-2">
+            <span className="text-xs font-mono font-bold text-slate-500 uppercase tracking-wider">
+              Item-Level Analytical Modeling
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowItemTrendSection(!showItemTrendSection)}
+            className="text-xs font-semibold text-teal-600 dark:text-teal-400 hover:underline cursor-pointer flex items-center space-x-1"
+          >
+            <span>{showItemTrendSection ? 'Collapse Trend Chart' : 'Expand Trend Chart'}</span>
+          </button>
+        </div>
+
+        {showItemTrendSection && (
+          <StockMovementTrend
+            movementLogs={safeMovementLogs}
+            stockItems={safeStockItems}
+            selectedItemIds={selectedTrendItemIds}
+            onSelectItemIdsChange={setSelectedTrendItemIds}
+            defaultStartDate={startDate}
+            defaultEndDate={endDate}
+          />
+        )}
+      </div>
+
+      {/* 6. FILTERED AUDIT LOG INTERACTIVE TABLE WITH FRAMER-MOTION */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
         <div className="p-4 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center space-x-2">
@@ -1262,17 +1300,38 @@ export const AuditLogAnalyticsView: React.FC<AuditLogAnalyticsViewProps> = ({
                           {log.IssuerName || log.IssuerID}
                         </td>
                         <td className="p-3 text-center">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onOpenMovementDocument && onOpenMovementDocument(log);
-                            }}
-                            className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded text-[10px] font-bold border border-slate-200 dark:border-slate-700 flex items-center justify-center space-x-1 mx-auto transition"
-                          >
-                            <span>Inspect</span>
-                            <ExternalLink className="w-3 h-3" />
-                          </button>
+                          <div className="flex items-center justify-center space-x-1">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedTrendItemIds([log.ItemID]);
+                                setShowItemTrendSection(true);
+                                // Scroll smoothly to trend chart
+                                const trendEl = document.getElementById('stock-movement-trend-section');
+                                if (trendEl) {
+                                  trendEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                }
+                              }}
+                              className="px-2 py-1 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/60 dark:hover:bg-teal-900/60 text-teal-700 dark:text-teal-300 rounded text-[10px] font-bold border border-teal-200 dark:border-teal-800/80 flex items-center space-x-1 transition cursor-pointer"
+                              title={`View Monthly Trend for ${log.ItemName}`}
+                            >
+                              <BarChart2 className="w-3 h-3 text-teal-600 dark:text-teal-400" />
+                              <span className="hidden xl:inline">Trend</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onOpenMovementDocument && onOpenMovementDocument(log);
+                              }}
+                              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded text-[10px] font-bold border border-slate-200 dark:border-slate-700 flex items-center space-x-1 transition cursor-pointer"
+                              title="Inspect Document Voucher"
+                            >
+                              <span>Doc</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </button>
+                          </div>
                         </td>
                       </motion.tr>
                     );
