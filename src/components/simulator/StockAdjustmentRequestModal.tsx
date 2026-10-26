@@ -55,6 +55,7 @@ interface StockAdjustmentRequestModalProps {
   activeTimedWindow: TimedAccessWindow | null;
   onSubmitRequest: (reqData: Omit<StockAdjustmentRequest, 'id' | 'createdAt' | 'status'>) => StockAdjustmentRequest | Promise<StockAdjustmentRequest>;
   onOpenDirectAdjustmentTab?: () => void;
+  initialSelectedItems?: StockItem[];
 }
 
 const REASON_OPTIONS: { code: AdjustmentReasonCode; label: string; description: string }[] = [
@@ -85,6 +86,33 @@ const REASON_OPTIONS: { code: AdjustmentReasonCode; label: string; description: 
   },
 ];
 
+const mapStockItemToAdjustmentItem = (item: StockItem): StockAdjustmentRequestItem => {
+  const rate = getExchangeRate();
+  const priceNum = item.UnitPrice ? Number(item.UnitPrice) : undefined;
+  const currency = item.Currency || 'USD';
+  const pricing = normalizePriceAndValue(priceNum || 0, 0, currency, 'USD', rate);
+
+  return {
+    ItemID: item.ItemID,
+    ItemName: item.ItemName,
+    Category: item.Category,
+    CurrentSystemQty: item.Qty,
+    ProposedPhysicalQty: item.Qty,
+    VarianceQty: 0,
+    Unit: item.Unit,
+    UnitPrice: priceNum,
+    Currency: currency,
+    BaseCurrency: 'USD',
+    NormalizedUnitPrice: pricing.normalizedUnitPrice,
+    TotalVarianceCost: 0,
+    NormalizedVarianceCost: 0,
+    ReasonCode: 'COUNT_DISCREPANCY' as AdjustmentReasonCode,
+    ReasonLabel: 'Physical Stocktake Count Discrepancy',
+    CountRef: `COUNT-${new Date().getFullYear()}-0${Math.floor(10 + Math.random() * 90)}`,
+    Notes: `Batch stocktake physical count adjustment for ${item.ItemID}`,
+  };
+};
+
 export const StockAdjustmentRequestModal: React.FC<StockAdjustmentRequestModalProps> = ({
   isOpen,
   onClose,
@@ -94,6 +122,7 @@ export const StockAdjustmentRequestModal: React.FC<StockAdjustmentRequestModalPr
   activeTimedWindow,
   onSubmitRequest,
   onOpenDirectAdjustmentTab,
+  initialSelectedItems = [],
 }) => {
   // Navigation tabs: 'create' | 'history' | 'notify'
   const [activeTab, setActiveTab] = useState<'create' | 'history' | 'notify'>('create');
@@ -102,10 +131,31 @@ export const StockAdjustmentRequestModal: React.FC<StockAdjustmentRequestModalPr
   const [wizardStep, setWizardStep] = useState<1 | 2>(1);
 
   // Request Header Info
-  const [requestTitle, setRequestTitle] = useState('');
+  const [requestTitle, setRequestTitle] = useState(
+    initialSelectedItems.length > 0
+      ? `Batch Adjustment: ${initialSelectedItems.length} items (${initialSelectedItems.map((i) => i.ItemID).slice(0, 3).join(', ')}${initialSelectedItems.length > 3 ? '...' : ''})`
+      : ''
+  );
 
   // Cart / Staging List of Adjustment Items (like Issue Request cart)
-  const [itemList, setItemList] = useState<StockAdjustmentRequestItem[]>([]);
+  const [itemList, setItemList] = useState<StockAdjustmentRequestItem[]>(() => {
+    if (initialSelectedItems && initialSelectedItems.length > 0) {
+      return initialSelectedItems.map(mapStockItemToAdjustmentItem);
+    }
+    return [];
+  });
+
+  // Re-sync itemList if initialSelectedItems is updated when opening
+  useEffect(() => {
+    if (isOpen && initialSelectedItems && initialSelectedItems.length > 0) {
+      setItemList(initialSelectedItems.map(mapStockItemToAdjustmentItem));
+      setRequestTitle(
+        `Batch Adjustment: ${initialSelectedItems.length} items (${initialSelectedItems.map((i) => i.ItemID).slice(0, 3).join(', ')}${initialSelectedItems.length > 3 ? '...' : ''})`
+      );
+      setActiveTab('create');
+      setWizardStep(1);
+    }
+  }, [isOpen, initialSelectedItems]);
 
   // Item Form Selection Fields
   const [selectedItemId, setSelectedItemId] = useState<string>(stockItems[0]?.ItemID || '');

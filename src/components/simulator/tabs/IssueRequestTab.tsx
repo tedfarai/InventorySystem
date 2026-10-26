@@ -51,7 +51,7 @@ export const IssueRequestTab: React.FC<IssueRequestTabProps> = ({
   );
   const [requestQty, setRequestQty] = useState<number | ''>(1);
   const [cart, setCart] = useState<IssueCartItem[]>(() => {
-    if (initialItemIds && initialItemIds.length > 1) {
+    if (initialItemIds && initialItemIds.length >= 1) {
       return initialItemIds
         .map((id) => stockItems.find((s) => s.ItemID === id))
         .filter((s): s is StockItem => Boolean(s))

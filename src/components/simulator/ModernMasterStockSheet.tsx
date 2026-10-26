@@ -28,6 +28,12 @@ import { BulkDeleteConfirmationModal } from './BulkDeleteConfirmationModal';
 import { BulkDeliveryConfirmationModal, BulkDeliveryReviewItem } from './BulkDeliveryConfirmationModal';
 import { MasterStockSheetSkeleton } from '../common/SkeletonLoader';
 import { UsageTrendIndicator } from '../common/UsageTrendIndicator';
+import {
+  TableViewOptionsMenu,
+  loadSavedColumnVisibility,
+  countHiddenColumns,
+  ColumnVisibilityState,
+} from './TableViewOptionsMenu';
 
 interface ModernMasterStockSheetProps {
   stockItems: StockItem[];
@@ -64,6 +70,17 @@ export const ModernMasterStockSheet: React.FC<ModernMasterStockSheetProps> = ({
   const [categoryFilter, setCategoryFilter] = useState<'All' | 'Stationery' | 'Cleaning' | 'General'>('All');
   const [selectedStockItemIds, setSelectedStockItemIds] = useState<string[]>([]);
   const [expandedStockItemIds, setExpandedStockItemIds] = useState<string[]>([]);
+  const [columnVisibility, setColumnVisibility] = useState<ColumnVisibilityState>(() => loadSavedColumnVisibility());
+
+  const visibleColCount =
+    1 /* Checkbox */ +
+    1 /* SKU */ +
+    1 /* ItemName */ +
+    (columnVisibility.category ? 1 : 0) +
+    1 /* Qty */ +
+    1 /* Unit */ +
+    (columnVisibility.reorderLevel ? 1 : 0) +
+    (columnVisibility.stockStatus ? 1 : 0);
 
   // Bulk operation modal states
   const [showBatchUpdateModal, setShowBatchUpdateModal] = useState(false);
@@ -387,13 +404,39 @@ export const ModernMasterStockSheet: React.FC<ModernMasterStockSheetProps> = ({
         />
       )}
 
+      {/* Table Controls Bar with 'Table View Options' above Inventory Table */}
+      <div className="hidden sm:flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-slate-50/80 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+        <div className="flex items-center gap-2 text-xs">
+          <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            Stock Inventory Sheet
+          </span>
+          <span className="text-slate-300 dark:text-slate-600">•</span>
+          <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
+            {filteredStock.length} items
+          </span>
+          {countHiddenColumns(columnVisibility) > 0 && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+              <span>{countHiddenColumns(columnVisibility)} column{countHiddenColumns(columnVisibility) > 1 ? 's' : ''} hidden</span>
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 ml-auto">
+          <TableViewOptionsMenu
+            visibility={columnVisibility}
+            onChange={setColumnVisibility}
+          />
+        </div>
+      </div>
+
       {/* Desktop / Tablet Table View (hidden on small mobile screens < 640px) */}
       <div className="hidden sm:block bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-950/80 text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 font-semibold select-none">
-                <th className="py-3 px-4 w-10">
+                <th className="py-2.5 px-3 w-10">
                   <input
                     type="checkbox"
                     checked={isAllVisibleSelected}
@@ -402,14 +445,19 @@ export const ModernMasterStockSheet: React.FC<ModernMasterStockSheetProps> = ({
                     title="Select all visible items"
                   />
                 </th>
-                <th className="py-3 px-3 w-28">SKU</th>
-                <th className="py-3 px-3 min-w-[200px]">Item Name</th>
-                <th className="py-3 px-3 w-28">Category</th>
-                <th className="py-3 px-3 text-right w-24">Qty</th>
-                <th className="py-3 px-3 w-20">Unit</th>
-                <th className="py-3 px-3 text-right w-24">Reorder Level</th>
-                <th className="py-3 px-3 text-center w-28">Status</th>
-                <th className="py-3 px-4 text-right w-40">Actions</th>
+                <th className="py-2.5 px-3 w-28 whitespace-nowrap">SKU</th>
+                <th className="py-2.5 px-3 min-w-[240px] md:min-w-[260px] lg:min-w-[280px] text-left">ItemName (Col B)</th>
+                {columnVisibility.category && (
+                  <th className="py-2.5 px-3 w-28 whitespace-nowrap">Category</th>
+                )}
+                <th className="py-2.5 px-3 text-right w-24 whitespace-nowrap">Qty</th>
+                <th className="py-2.5 px-3 w-20 whitespace-nowrap">Unit</th>
+                {columnVisibility.reorderLevel && (
+                  <th className="py-2.5 px-3 text-right w-24 whitespace-nowrap">Reorder Level</th>
+                )}
+                {columnVisibility.stockStatus && (
+                  <th className="py-2.5 px-3 text-center w-28 whitespace-nowrap">Status</th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
@@ -436,98 +484,81 @@ export const ModernMasterStockSheet: React.FC<ModernMasterStockSheetProps> = ({
                           : 'bg-white dark:bg-slate-900'
                       }`}
                     >
-                    <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => handleToggleSelectRow(item.ItemID)}
-                        className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
-                      />
+                    <td className="py-2 px-3 text-center align-middle" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-center">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleToggleSelectRow(item.ItemID)}
+                          aria-label={`Select ${item.ItemID} - ${item.ItemName}`}
+                          title={isSelected ? `Deselect ${item.ItemName}` : `Select ${item.ItemName} for batch issue or adjustment`}
+                          className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
+                        />
+                      </div>
                     </td>
-                    <td className="py-3 px-3 font-mono font-bold text-slate-900 dark:text-slate-100">
+                    <td className="py-2 px-3 font-mono font-bold text-slate-900 dark:text-slate-100">
                       <span className="inline-flex items-center gap-1.5">
                         {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-teal-600" /> : <ChevronRight className="w-3.5 h-3.5 text-slate-400" />}
                         <SearchHighlightText text={item.ItemID} query={searchQuery} />
                       </span>
                     </td>
-                    <td className="py-3 px-3 font-semibold text-slate-800 dark:text-slate-200">
-                      <div className="flex items-center justify-between gap-2">
-                        <SearchHighlightText text={item.ItemName} query={searchQuery} />
-                        <UsageTrendIndicator item={item} compact />
+                    <td className="py-2 px-3 font-semibold text-slate-800 dark:text-slate-200 min-w-[240px] md:min-w-[260px] lg:min-w-[280px]">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-medium text-xs leading-snug">
+                          <SearchHighlightText text={item.ItemName} query={searchQuery} />
+                        </span>
+                        <div className="shrink-0 pl-1">
+                          <UsageTrendIndicator item={item} compact />
+                        </div>
                       </div>
                     </td>
-                    <td className="py-3 px-3">
-                      <span
-                        className={`text-xs font-semibold ${
-                          item.Category === 'Cleaning'
-                            ? 'text-emerald-600 dark:text-emerald-400'
-                            : item.Category === 'Stationery'
-                            ? 'text-blue-600 dark:text-blue-400'
-                            : 'text-amber-600 dark:text-amber-400'
-                        }`}
-                      >
-                        <SearchHighlightText text={item.Category} query={searchQuery} />
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 text-right font-mono font-bold text-sm text-slate-900 dark:text-white">
+                    {columnVisibility.category && (
+                      <td className="py-2 px-3">
+                        <span
+                          className={`text-xs font-semibold ${
+                            item.Category === 'Cleaning'
+                              ? 'text-emerald-600 dark:text-emerald-400'
+                              : item.Category === 'Stationery'
+                              ? 'text-blue-600 dark:text-blue-400'
+                              : 'text-amber-600 dark:text-amber-400'
+                          }`}
+                        >
+                          <SearchHighlightText text={item.Category} query={searchQuery} />
+                        </span>
+                      </td>
+                    )}
+                    <td className="py-2 px-3 text-right font-mono font-bold text-sm text-slate-900 dark:text-white">
                       {item.Qty}
                     </td>
-                    <td className="py-3 px-3 text-slate-500 dark:text-slate-400">
+                    <td className="py-2 px-3 text-slate-500 dark:text-slate-400">
                       <SearchHighlightText text={item.Unit} query={searchQuery} />
                     </td>
-                    <td className="py-3 px-3 text-right font-mono text-slate-500 dark:text-slate-400">
-                      {item.ReorderLevel}
-                    </td>
-                    <td className="py-3 px-3 text-center">
-                      {isOutOfStock ? (
-                        <span className="text-xs font-bold text-rose-600 dark:text-rose-400">
-                          <SearchHighlightText text="Out of Stock" query={searchQuery} />
-                        </span>
-                      ) : isLowStock ? (
-                        <span className="text-xs font-bold text-amber-600 dark:text-amber-400">
-                          <SearchHighlightText text="Low Stock" query={searchQuery} />
-                        </span>
-                      ) : (
-                        <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                          <SearchHighlightText text="Optimal" query={searchQuery} />
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-1">
-                        {onQuickIssue && item.Qty > 0 && (
-                          <button
-                            onClick={() => onQuickIssue(item)}
-                            className="px-2 py-1 rounded-md text-[10px] font-bold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/60 cursor-pointer transition"
-                            title="Issue stock"
-                          >
-                            Issue
-                          </button>
+                    {columnVisibility.reorderLevel && (
+                      <td className="py-2 px-3 text-right font-mono text-slate-500 dark:text-slate-400">
+                        {item.ReorderLevel}
+                      </td>
+                    )}
+                    {columnVisibility.stockStatus && (
+                      <td className="py-2 px-3 text-center">
+                        {isOutOfStock ? (
+                          <span className="text-xs font-bold text-rose-600 dark:text-rose-400">
+                            <SearchHighlightText text="Out of Stock" query={searchQuery} />
+                          </span>
+                        ) : isLowStock ? (
+                          <span className="text-xs font-bold text-amber-600 dark:text-amber-400">
+                            <SearchHighlightText text="Low Stock" query={searchQuery} />
+                          </span>
+                        ) : (
+                          <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                            <SearchHighlightText text="Optimal" query={searchQuery} />
+                          </span>
                         )}
-                        {onQuickEdit && (
-                          <button
-                            onClick={() => onQuickEdit(item)}
-                            className="px-2 py-1 rounded-md text-[10px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition"
-                            title="Edit stock item"
-                          >
-                            Edit
-                          </button>
-                        )}
-                        {onOpenAdjustmentRequests && (
-                          <button
-                            onClick={() => onOpenAdjustmentRequests()}
-                            className="px-2 py-1 rounded-md text-[10px] font-bold text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/60 cursor-pointer transition"
-                            title={`Adjust ${item.ItemID}`}
-                          >
-                            Adjustment
-                          </button>
-                        )}
-                      </div>
-                    </td>
+                      </td>
+                    )}
                     </tr>
                     {isExpanded && (
                     <tr className="bg-slate-50/80 dark:bg-slate-950/60">
-                      <td colSpan={9} className="px-12 py-3 border-t border-slate-100 dark:border-slate-800">
+                      <td colSpan={visibleColCount} className="px-12 py-3 border-t border-slate-100 dark:border-slate-800">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
                           <div>
                             <span className="block text-[10px] uppercase tracking-wide font-bold text-slate-500 dark:text-slate-400">Last Supplier</span>

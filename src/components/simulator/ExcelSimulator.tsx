@@ -15,6 +15,7 @@ import {
   AlertOctagon,
   Clock,
   Check,
+  CheckSquare,
   FolderOpen,
   FileSpreadsheet,
   Shield,
@@ -86,6 +87,12 @@ import { BulkDeleteConfirmationModal } from './BulkDeleteConfirmationModal';
 import { BulkDeliveryConfirmationModal, BulkDeliveryReviewItem } from './BulkDeliveryConfirmationModal';
 import { ReorderReportModal } from './ReorderReportModal';
 import { StockItemContextMenuModal } from './StockItemContextMenuModal';
+import {
+  TableViewOptionsMenu,
+  loadSavedColumnVisibility,
+  countHiddenColumns,
+  ColumnVisibilityState,
+} from './TableViewOptionsMenu';
 import { useToast } from '../../context/ToastContext';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import { useWriteGuard } from '../../hooks/useWriteGuard';
@@ -273,6 +280,17 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
   const [stockStatusFilter, setStockStatusFilter] = useState<import('../../utils/searchEngine').StockStatusFilter>('All');
   const [skuRangeFrom, setSkuRangeFrom] = useState('');
   const [skuRangeTo, setSkuRangeTo] = useState('');
+
+  // Table Column Visibility State (Persisted in localStorage)
+  const [columnVisibility, setColumnVisibility] = useState<ColumnVisibilityState>(() => loadSavedColumnVisibility());
+  const visibleColCount =
+    3 + // Checkbox, ItemID (Col A), ItemName (Col B)
+    (columnVisibility.rowNumber ? 1 : 0) +
+    (columnVisibility.category ? 1 : 0) +
+    1 + // Available Qty (Col D)
+    (columnVisibility.reorderLevel ? 1 : 0) +
+    (columnVisibility.unitPrice ? 1 : 0) +
+    (columnVisibility.stockStatus ? 1 : 0);
 
   // Master Folder & Movement Log Document Viewer State
   const [showFolderConfigModal, setShowFolderConfigModal] = useState(false);
@@ -842,6 +860,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [showBulkDeliveryConfirmModal, setShowBulkDeliveryConfirmModal] = useState(false);
   const [bulkDeliveryReviewItems, setBulkDeliveryReviewItems] = useState<BulkDeliveryReviewItem[]>([]);
+  const [adjustmentInitialItems, setAdjustmentInitialItems] = useState<StockItem[]>([]);
 
   // Handle clicking row: toggle active state, toggle expand, and scroll into view if needed
   const handleRowClick = (itemId: string, e: React.MouseEvent<HTMLTableRowElement>) => {
@@ -1022,22 +1041,39 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
       }));
 
     if (cartItems.length === 0) {
-      alert('All selected items currently have 0 available quantity in stock. Please restock items before issuing.');
+      showToast(
+        'Stock Unavailable',
+        'warning',
+        'All selected items currently have 0 available quantity in stock. Please restock items before issuing.'
+      );
       return;
     }
+    setProcurementInitialItemIds(cartItems.map((c) => c.ItemID));
     setTempIssueDept(defaultDept);
     setTempIssueCart(cartItems);
     setProcurementInitialTab('issue');
     setActiveModal('procurement');
+    showToast(
+      'Batch Issue Cart Prepared',
+      'info',
+      `Staged ${cartItems.length} selected item${cartItems.length > 1 ? 's' : ''} in Requisition Cart for Department Issue.`
+    );
   };
 
-  const handleTriggerBulkAdjustment = (_items: StockItem[]) => {
+  const handleTriggerBulkAdjustment = (items: StockItem[]) => {
     if (!currentUser) {
       if (onOpenLogin) onOpenLogin();
       else setActiveModal('login');
       return;
     }
+    if (items.length === 0) return;
+    setAdjustmentInitialItems(items);
     setActiveModal('adjustmentRequests');
+    showToast(
+      'Batch Adjustment Initiated',
+      'info',
+      `Staged ${items.length} selected item${items.length > 1 ? 's' : ''} for physical count stocktake adjustment.`
+    );
   };
 
   const handleApplyBatchUpdate = (updates: {
@@ -1420,6 +1456,38 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
             </div>
           )}
 
+          {/* Table Controls Bar with 'Table View Options' above Inventory Table */}
+          <div className="flex flex-wrap items-center justify-between gap-2 px-2.5 py-1.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xs rounded-xl border border-slate-300 dark:border-slate-700 shadow-2xs shrink-0">
+            <div className="flex items-center gap-2 text-xs">
+              <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <FileSpreadsheet className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                Master Stock Table
+              </span>
+              <span className="text-slate-300 dark:text-slate-600">•</span>
+              <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                {filteredStock.length} items
+              </span>
+              {selectedStockItemIds.length > 0 && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-teal-100 dark:bg-teal-950/70 text-teal-800 dark:text-teal-300 border border-teal-300 dark:border-teal-700 animate-pulse">
+                  <CheckSquare className="w-3 h-3 text-teal-600 dark:text-teal-400" />
+                  <span>{selectedStockItemIds.length} selected</span>
+                </span>
+              )}
+              {countHiddenColumns(columnVisibility) > 0 && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+                  <span>{countHiddenColumns(columnVisibility)} column{countHiddenColumns(columnVisibility) > 1 ? 's' : ''} hidden</span>
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 ml-auto">
+              <TableViewOptionsMenu
+                visibility={columnVisibility}
+                onChange={setColumnVisibility}
+              />
+            </div>
+          </div>
+
           {/* Stock Management Inventory Table with Fixed Table Header and Visible High-Contrast Borders (Fills 100% of remaining 96vh space) */}
           <div
             className="inventory-table-shell flex-1 min-h-0 border-2 border-slate-300 dark:border-slate-700 rounded-2xl overflow-x-auto bg-white dark:bg-slate-900 shadow-sm transition-colors relative"
@@ -1438,37 +1506,47 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
               <thead className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-mono text-[10px] uppercase border-b-2 border-slate-300 dark:border-slate-700 shadow-xs select-none">
                 <tr>
                   <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 p-2 w-10 border-r border-slate-300 dark:border-slate-700 text-center shadow-xs">
-                    <input
-                      id="stock-table-master-checkbox"
-                      type="checkbox"
-                      checked={isAllVisibleSelected}
-                      ref={(input) => {
-                        if (input) input.indeterminate = isPartiallySelected;
-                      }}
-                      onChange={handleToggleSelectAllVisible}
-                      className="w-3.5 h-3.5 text-teal-600 rounded focus:ring-teal-500 cursor-pointer"
-                      title={isAllVisibleSelected ? 'Deselect all visible' : 'Select all visible'}
-                    />
+                    <div className="flex items-center justify-center">
+                      <input
+                        id="stock-table-master-checkbox"
+                        type="checkbox"
+                        checked={isAllVisibleSelected}
+                        ref={(input) => {
+                          if (input) input.indeterminate = isPartiallySelected;
+                        }}
+                        onChange={handleToggleSelectAllVisible}
+                        className="w-4 h-4 text-teal-600 accent-teal-600 rounded focus:ring-teal-500 cursor-pointer"
+                        title={isAllVisibleSelected ? 'Deselect all visible items' : 'Select all visible items'}
+                        aria-label="Select all visible stock items for batch actions"
+                      />
+                    </div>
                   </th>
-                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 p-2 border-r border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 font-bold shadow-xs">Row</th>
-                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 p-2 border-r border-slate-300 dark:border-slate-700 font-bold shadow-xs">ItemID (Col A)</th>
-                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 p-2 border-r border-slate-300 dark:border-slate-700 font-bold shadow-xs">ItemName (Col B)</th>
-                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 p-2 border-r border-slate-300 dark:border-slate-700 font-bold shadow-xs">Category (Col C)</th>
-                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 p-2 border-r border-slate-300 dark:border-slate-700 text-right font-bold shadow-xs">
+                  {columnVisibility.rowNumber && (
+                    <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 p-2 border-r border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 font-bold shadow-xs whitespace-nowrap">Row</th>
+                  )}
+                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 p-2 border-r border-slate-300 dark:border-slate-700 font-bold shadow-xs whitespace-nowrap">ItemID (Col A)</th>
+                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 p-2 border-r border-slate-300 dark:border-slate-700 font-bold shadow-xs min-w-[240px] md:min-w-[260px] lg:min-w-[280px] text-left">ItemName (Col B)</th>
+                  {columnVisibility.category && (
+                    <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 p-2 border-r border-slate-300 dark:border-slate-700 font-bold shadow-xs whitespace-nowrap">Category (Col C)</th>
+                  )}
+                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 p-2 border-r border-slate-300 dark:border-slate-700 text-right font-bold shadow-xs whitespace-nowrap">
                     Available Qty (Col D)
                   </th>
-                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 p-2 border-r border-slate-300 dark:border-slate-700 text-right font-bold shadow-xs">Reorder Level (Col E)</th>
-                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 p-2 border-r border-slate-300 dark:border-slate-700 text-right font-bold shadow-xs whitespace-nowrap">Price / Unit (Col F)</th>
-                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 p-2 text-center font-bold shadow-xs">Stock Status</th>
-                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 p-2 border-l border-slate-300 dark:border-slate-700 text-center font-bold shadow-xs whitespace-nowrap">
-                    Actions {!currentUser && <span className="text-[9px] text-amber-600 dark:text-amber-400 font-normal font-sans">(Read-Only)</span>}
-                  </th>
+                  {columnVisibility.reorderLevel && (
+                    <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 p-2 border-r border-slate-300 dark:border-slate-700 text-right font-bold shadow-xs whitespace-nowrap">Reorder Level (Col E)</th>
+                  )}
+                  {columnVisibility.unitPrice && (
+                    <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 p-2 border-r border-slate-300 dark:border-slate-700 text-right font-bold shadow-xs whitespace-nowrap">Price / Unit (Col F)</th>
+                  )}
+                  {columnVisibility.stockStatus && (
+                    <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 p-2 text-center font-bold shadow-xs whitespace-nowrap">Stock Status</th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-800 dark:text-slate-200">
                 {filteredStock.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="p-8 text-center bg-slate-50/50 dark:bg-slate-900/50">
+                    <td colSpan={visibleColCount} className="p-8 text-center bg-slate-50/50 dark:bg-slate-900/50">
                       <div className="flex flex-col items-center justify-center space-y-2 text-slate-500 dark:text-slate-400">
                         <Search className="w-8 h-8 text-slate-300 dark:text-slate-600" />
                         <p className="text-xs font-semibold">
@@ -1518,7 +1596,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                                 handleRowClick(item.ItemID, e as any);
                               }
                             }}
-                            title="Click or press Enter on row to set active & expand/collapse details. Tab to navigate Quick Actions."
+                            title="Click or press Enter on row to set active & expand/collapse details."
                             aria-label={`Stock row ${item.ItemID} - ${item.ItemName}`}
                             data-active={isCurrentActive ? 'true' : undefined}
                             data-selected={isSelected ? 'true' : undefined}
@@ -1548,50 +1626,75 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                                   onChange={() => handleToggleSelectRow(item.ItemID)}
                                   onClick={(e) => e.stopPropagation()}
                                   id={`stock-checkbox-${item.ItemID}`}
-                                  aria-label={`Select ${item.ItemID}`}
-                                  className="w-3.5 h-3.5 rounded text-purple-600 accent-purple-600 border-slate-300 dark:border-slate-600 focus:ring-purple-500 cursor-pointer"
+                                  aria-label={`Select ${item.ItemID} - ${item.ItemName}`}
+                                  title={isSelected ? `Deselect ${item.ItemName} (${item.ItemID})` : `Select ${item.ItemName} (${item.ItemID}) for batch issue or adjustment`}
+                                  className="w-4 h-4 rounded text-teal-600 accent-teal-600 border-2 border-slate-400 dark:border-slate-500 focus:ring-teal-500 cursor-pointer shadow-2xs transition"
                                 />
                               </div>
                             </td>
-                            <td className="py-1.5 px-2 font-mono text-slate-500 dark:text-slate-400 text-[10px] border-r border-slate-300 dark:border-slate-700 text-center whitespace-nowrap select-none">
-                              <div className="flex items-center justify-center space-x-1">
-                                <button
-                                  type="button"
-                                  onClick={(e) => handleToggleExpandRow(item.ItemID, e)}
-                                  className="p-0.5 rounded text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition"
-                                  title={isExpanded ? 'Collapse details' : 'Expand details'}
-                                >
-                                  {isExpanded ? (
-                                    <ChevronDown className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
-                                  ) : (
-                                    <ChevronRight className="w-3.5 h-3.5" />
-                                  )}
-                                </button>
-                                <span>{idx + 2}</span>
-                              </div>
-                            </td>
+                            {columnVisibility.rowNumber && (
+                              <td className="py-1.5 px-2 font-mono text-slate-500 dark:text-slate-400 text-[10px] border-r border-slate-300 dark:border-slate-700 text-center whitespace-nowrap select-none">
+                                <div className="flex items-center justify-center space-x-1">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleToggleExpandRow(item.ItemID, e)}
+                                    className="p-0.5 rounded text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition"
+                                    title={isExpanded ? 'Collapse details' : 'Expand details'}
+                                  >
+                                    {isExpanded ? (
+                                      <ChevronDown className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                                    ) : (
+                                      <ChevronRight className="w-3.5 h-3.5" />
+                                    )}
+                                  </button>
+                                  <span>{idx + 2}</span>
+                                </div>
+                              </td>
+                            )}
                             <td className="py-1.5 px-2.5 font-mono font-bold text-[10.5px] text-purple-700 dark:text-purple-300 border-r border-slate-300 dark:border-slate-700 group-hover:text-purple-900 dark:group-hover:text-purple-200 transition-colors whitespace-nowrap">
-                              <SearchHighlightText text={item.ItemID} query={searchQuery} />
-                            </td>
-                            <td className="py-1.5 px-2.5 font-semibold text-[11px] text-slate-800 dark:text-slate-100 group-hover:text-slate-950 dark:group-hover:text-white border-r border-slate-300 dark:border-slate-700 truncate max-w-[260px]">
-                              <div className="flex items-center justify-between gap-1">
-                                <SearchHighlightText text={item.ItemName} query={searchQuery} />
-                                <UsageTrendIndicator item={item} compact />
+                              <div className="flex items-center space-x-1">
+                                {!columnVisibility.rowNumber && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleToggleExpandRow(item.ItemID, e)}
+                                    className="p-0.5 rounded text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition"
+                                    title={isExpanded ? 'Collapse details' : 'Expand details'}
+                                  >
+                                    {isExpanded ? (
+                                      <ChevronDown className="w-3 h-3 text-teal-600 dark:text-teal-400" />
+                                    ) : (
+                                      <ChevronRight className="w-3 h-3" />
+                                    )}
+                                  </button>
+                                )}
+                                <SearchHighlightText text={item.ItemID} query={searchQuery} />
                               </div>
                             </td>
-                            <td className="py-1.5 px-2.5 border-r border-slate-300 dark:border-slate-700 whitespace-nowrap">
-                              <span
-                                className={`text-[10.5px] font-semibold ${
-                                  item.Category === 'Cleaning'
-                                    ? 'text-emerald-700 dark:text-emerald-400'
-                                    : item.Category === 'Stationery'
-                                    ? 'text-blue-700 dark:text-blue-400'
-                                    : 'text-amber-700 dark:text-amber-400'
-                                }`}
-                              >
-                                <SearchHighlightText text={item.Category} query={searchQuery} />
-                              </span>
+                            <td className="py-1.5 px-2.5 font-semibold text-xs text-slate-900 dark:text-slate-100 group-hover:text-black dark:group-hover:text-white border-r border-slate-300 dark:border-slate-700 min-w-[240px] md:min-w-[260px] lg:min-w-[280px]">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-medium text-[11px] leading-snug tracking-tight">
+                                  <SearchHighlightText text={item.ItemName} query={searchQuery} />
+                                </span>
+                                <div className="shrink-0 pl-1">
+                                  <UsageTrendIndicator item={item} compact />
+                                </div>
+                              </div>
                             </td>
+                            {columnVisibility.category && (
+                              <td className="py-1.5 px-2.5 border-r border-slate-300 dark:border-slate-700 whitespace-nowrap">
+                                <span
+                                  className={`text-[10.5px] font-semibold ${
+                                    item.Category === 'Cleaning'
+                                      ? 'text-emerald-700 dark:text-emerald-400'
+                                      : item.Category === 'Stationery'
+                                      ? 'text-blue-700 dark:text-blue-400'
+                                      : 'text-amber-700 dark:text-amber-400'
+                                  }`}
+                                >
+                                  <SearchHighlightText text={item.Category} query={searchQuery} />
+                                </span>
+                              </td>
+                            )}
                             <td className="py-1.5 px-2.5 text-right font-mono border-r border-slate-300 dark:border-slate-700 whitespace-nowrap">
                               <span
                                 className={`font-bold text-[11px] ${
@@ -1616,192 +1719,76 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                                 <SearchHighlightText text={item.Unit} query={searchQuery} />
                               </span>
                             </td>
-                            <td className="py-1.5 px-2.5 text-right font-mono text-slate-600 dark:text-slate-400 border-r border-slate-300 dark:border-slate-700 whitespace-nowrap">
-                              <span className="text-slate-800 dark:text-slate-200 font-semibold text-[10.5px]">{item.ReorderLevel}</span>{' '}
-                              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal ml-1">
-                                <SearchHighlightText text={item.Unit} query={searchQuery} />
-                              </span>
-                            </td>
-                            <td className="py-1.5 px-2.5 text-right font-mono border-r border-slate-300 dark:border-slate-700 whitespace-nowrap">
-                              {item.UnitPrice && item.UnitPrice > 0 ? (
-                                <span className="font-bold text-[10.5px] text-emerald-700 dark:text-emerald-400">
-                                  {formatCurrency(item.UnitPrice, item.Currency || 'USD', { showCode: true })}
+                            {columnVisibility.reorderLevel && (
+                              <td className="py-1.5 px-2.5 text-right font-mono text-slate-600 dark:text-slate-400 border-r border-slate-300 dark:border-slate-700 whitespace-nowrap">
+                                <span className="text-slate-800 dark:text-slate-200 font-semibold text-[10.5px]">{item.ReorderLevel}</span>{' '}
+                                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal ml-1">
+                                  <SearchHighlightText text={item.Unit} query={searchQuery} />
                                 </span>
-                              ) : (
-                                <span className="text-[10px] text-slate-400 italic">—</span>
-                              )}
-                            </td>
-                            <td className="py-1.5 px-2 text-center whitespace-nowrap">
-                              {hasPendingReplenishment ? (
-                                <span
-                                  id={`status-text-replenish-${item.ItemID.toLowerCase()}`}
-                                  className="font-bold text-[10.5px] text-purple-600 dark:text-purple-400"
-                                  title="Replenishment or stock adjustment authorization is pending"
-                                >
-                                  <SearchHighlightText text="Replenishment Pending" query={searchQuery} />
-                                </span>
-                              ) : isOutOfStock ? (
-                                <span
-                                  id={`status-text-oos-${item.ItemID.toLowerCase()}`}
-                                  className="font-extrabold text-[10.5px] text-rose-600 dark:text-rose-400"
-                                  title="Zero inventory available — immediate replenishment needed"
-                                >
-                                  <SearchHighlightText text="Out of Stock" query={searchQuery} />
-                                </span>
-                              ) : isCritical ? (
-                                <span
-                                  id={`status-text-critical-${item.ItemID.toLowerCase()}`}
-                                  className="font-bold text-[10.5px] text-amber-600 dark:text-amber-400"
-                                  title={`Critical Low Stock: Available quantity is ≤ 50% of reorder threshold (${item.ReorderLevel} ${item.Unit})`}
-                                >
-                                  <SearchHighlightText text="Critical Low" query={searchQuery} />
-                                </span>
-                              ) : isLow ? (
-                                <span
-                                  id={`status-text-low-${item.ItemID.toLowerCase()}`}
-                                  className="font-semibold text-[10.5px] text-amber-500 dark:text-amber-400"
-                                  title={`Low Stock: Below reorder threshold of ${item.ReorderLevel} ${item.Unit}`}
-                                >
-                                  <SearchHighlightText text="Low Stock" query={searchQuery} />
-                                </span>
-                              ) : (
-                                <span
-                                  id={`status-text-healthy-${item.ItemID.toLowerCase()}`}
-                                  className="font-semibold text-[10.5px] text-emerald-600 dark:text-emerald-400"
-                                >
-                                  <SearchHighlightText text="Optimal" query={searchQuery} />
-                                </span>
-                              )}
-                            </td>
-                            <td
-                              className="py-1 px-2 border-l border-slate-300 dark:border-slate-700 text-center whitespace-nowrap overflow-visible"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <div className="flex items-center justify-center gap-1.5 overflow-visible">
-                                {/* Hidden 'Quick Action' menu (Edit/Delete icons) that appears when hovering, focusing, or selecting the row */}
-                                <div
-                                  data-quick-actions="true"
-                                  className="row-quick-actions quick-action-menu flex items-center gap-1 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xs p-0.5 rounded-lg border border-slate-300/80 dark:border-slate-700/80 shadow-xs overflow-visible"
-                                >
-                                  {/* Quick Edit Icon */}
-                                  <button
-                                    type="button"
-                                    tabIndex={0}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleQuickEditFromContext(item);
-                                    }}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter' || e.key === ' ') {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        handleQuickEditFromContext(item);
-                                      }
-                                    }}
-                                    title={!currentUser ? 'Log in to edit stock item' : `Edit Stock Item ${item.ItemID}`}
-                                    aria-label={!currentUser ? 'Log in to edit stock item' : `Edit Stock Item ${item.ItemID}`}
-                                    className="quick-action-item quick-action-btn inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-50 dark:bg-blue-950/70 hover:bg-blue-100 dark:hover:bg-blue-900/70 text-blue-700 dark:text-blue-300 rounded text-[10px] font-bold border border-blue-200 dark:border-blue-800 transition cursor-pointer shadow-2xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500"
+                              </td>
+                            )}
+                            {columnVisibility.unitPrice && (
+                              <td className="py-1.5 px-2.5 text-right font-mono border-r border-slate-300 dark:border-slate-700 whitespace-nowrap">
+                                {item.UnitPrice && item.UnitPrice > 0 ? (
+                                  <span className="font-bold text-[10.5px] text-emerald-700 dark:text-emerald-400">
+                                    {formatCurrency(item.UnitPrice, item.Currency || 'USD', { showCode: true })}
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] text-slate-400 italic">—</span>
+                                )}
+                              </td>
+                            )}
+                            {columnVisibility.stockStatus && (
+                              <td className="py-1.5 px-2 text-center whitespace-nowrap">
+                                {hasPendingReplenishment ? (
+                                  <span
+                                    id={`status-text-replenish-${item.ItemID.toLowerCase()}`}
+                                    className="font-bold text-[10.5px] text-purple-600 dark:text-purple-400"
+                                    title="Replenishment or stock adjustment authorization is pending"
                                   >
-                                    {!currentUser ? (
-                                      <Lock className="w-3 h-3 text-amber-500" />
-                                    ) : (
-                                      <Edit3 className="w-3 h-3 text-blue-600 dark:text-blue-400" />
-                                    )}
-                                    <span>Edit</span>
-                                  </button>
-
-                                  {/* Quick Delete Icon */}
-                                  <button
-                                    type="button"
-                                    tabIndex={0}
-                                    onClick={(e) => handleSingleDelete(item, e)}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter' || e.key === ' ') {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        handleSingleDelete(item, e as any);
-                                      }
-                                    }}
-                                    title={
-                                      !currentUser
-                                        ? 'Log in to delete stock item'
-                                        : !isSuperiorAdmin
-                                        ? 'Deletion restricted to Superior Admin ADM001 Rachel Pickard'
-                                        : `Permanently delete stock item ${item.ItemID}`
-                                    }
-                                    aria-label={
-                                      !currentUser
-                                        ? 'Log in to delete stock item'
-                                        : !isSuperiorAdmin
-                                        ? 'Deletion restricted to Superior Admin ADM001 Rachel Pickard'
-                                        : `Permanently delete stock item ${item.ItemID}`
-                                    }
-                                    className={`quick-action-item quick-action-btn inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border transition cursor-pointer shadow-2xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-rose-500 ${
-                                      !isSuperiorAdmin
-                                        ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700 hover:text-slate-600'
-                                        : 'bg-rose-50 dark:bg-rose-950/70 hover:bg-rose-100 dark:hover:bg-rose-900/70 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800'
-                                    }`}
+                                    <SearchHighlightText text="Replenishment Pending" query={searchQuery} />
+                                  </span>
+                                ) : isOutOfStock ? (
+                                  <span
+                                    id={`status-text-oos-${item.ItemID.toLowerCase()}`}
+                                    className="font-extrabold text-[10.5px] text-rose-600 dark:text-rose-400"
+                                    title="Zero inventory available — immediate replenishment needed"
                                   >
-                                    <Trash2 className="w-3 h-3 text-rose-600 dark:text-rose-400" />
-                                    <span>Delete</span>
-                                  </button>
-                                </div>
-
-                                {/* Standard Workflow Actions: Quick Issue & Adjustment */}
-                                <button
-                                  type="button"
-                                  tabIndex={0}
-                                  onClick={() => handleQuickIssueFromContext([item])}
-                                  onKeyDown={(e) => {
-                                    if ((e.key === 'Enter' || e.key === ' ') && item.Qty > 0) {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      handleQuickIssueFromContext([item]);
-                                    }
-                                  }}
-                                  disabled={item.Qty <= 0}
-                                  title={!currentUser ? 'Log in to issue stock' : item.Qty <= 0 ? 'Cannot issue: Stock is 0' : 'Issue Stock Requisition'}
-                                  aria-label={!currentUser ? 'Log in to issue stock' : item.Qty <= 0 ? 'Cannot issue: Stock is 0' : `Issue Stock Requisition for ${item.ItemID}`}
-                                  className="workflow-preview-btn inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 disabled:opacity-40 disabled:cursor-not-allowed text-emerald-700 dark:text-emerald-300 rounded text-[10px] font-semibold border border-emerald-300 dark:border-emerald-700 hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all cursor-pointer shadow-2xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-emerald-500"
-                                >
-                                  {!currentUser ? (
-                                    <Lock className="w-3 h-3 text-amber-500" />
-                                  ) : (
-                                    <Send className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                                  )}
-                                  <span>Issue</span>
-                                </button>
-
-                                <button
-                                  type="button"
-                                  tabIndex={0}
-                                  onClick={() => handleQuickAdjustFromContext(item)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter' || e.key === ' ') {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      handleQuickAdjustFromContext(item);
-                                    }
-                                  }}
-                                  title={!currentUser ? 'Log in to adjust stock count' : 'Stock Count Adjustment & Reconcile'}
-                                  aria-label={!currentUser ? 'Log in to adjust stock count' : `Stock Count Adjustment and Reconcile for ${item.ItemID}`}
-                                  className="workflow-preview-btn inline-flex items-center gap-1 px-1.5 py-0.5 bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 rounded text-[10px] font-semibold border border-purple-300 dark:border-purple-700 hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all cursor-pointer shadow-2xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-purple-500"
-                                >
-                                  {!currentUser ? (
-                                    <Lock className="w-3 h-3 text-amber-500" />
-                                  ) : (
-                                    <SlidersHorizontal className="w-3 h-3 text-purple-600 dark:text-purple-400" />
-                                  )}
-                                  <span>Adjustment</span>
-                                </button>
-                              </div>
-                            </td>
+                                    <SearchHighlightText text="Out of Stock" query={searchQuery} />
+                                  </span>
+                                ) : isCritical ? (
+                                  <span
+                                    id={`status-text-critical-${item.ItemID.toLowerCase()}`}
+                                    className="font-bold text-[10.5px] text-amber-600 dark:text-amber-400"
+                                    title={`Critical Low Stock: Available quantity is ≤ 50% of reorder threshold (${item.ReorderLevel} ${item.Unit})`}
+                                  >
+                                    <SearchHighlightText text="Critical Low" query={searchQuery} />
+                                  </span>
+                                ) : isLow ? (
+                                  <span
+                                    id={`status-text-low-${item.ItemID.toLowerCase()}`}
+                                    className="font-semibold text-[10.5px] text-amber-500 dark:text-amber-400"
+                                    title={`Low Stock: Below reorder threshold of ${item.ReorderLevel} ${item.Unit}`}
+                                  >
+                                    <SearchHighlightText text="Low Stock" query={searchQuery} />
+                                  </span>
+                                ) : (
+                                  <span
+                                    id={`status-text-healthy-${item.ItemID.toLowerCase()}`}
+                                    className="font-semibold text-[10.5px] text-emerald-600 dark:text-emerald-400"
+                                    title="Optimal Inventory"
+                                  >
+                                    <SearchHighlightText text="Optimal" query={searchQuery} />
+                                  </span>
+                                )}
+                              </td>
+                            )}
                           </motion.tr>
 
                           {/* Expandable Secondary Details Row */}
                           {isExpanded && (
                             <tr className="bg-slate-50/95 dark:bg-slate-950/90 border-b-2 border-slate-300 dark:border-slate-700">
-                              <td colSpan={10} className="p-4 pl-12 pr-6">
+                              <td colSpan={visibleColCount} className="p-4 pl-12 pr-6">
                                 <div className="space-y-3.5 text-xs">
                                   {/* Secondary Details 4-Card Grid */}
                                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -2664,6 +2651,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
           stockItems={stockItems}
           userRequests={adjustmentRequests}
           activeTimedWindow={activeTimedWindow}
+          initialSelectedItems={adjustmentInitialItems}
           onSubmitRequest={(req) => {
             return onCreateAdjustmentRequest(req);
           }}
@@ -2671,7 +2659,10 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
             setProcurementInitialTab('adjustment');
             setActiveModal('procurement');
           }}
-          onClose={() => setActiveModal('none')}
+          onClose={() => {
+            setActiveModal('none');
+            setAdjustmentInitialItems([]);
+          }}
         />
       )}
 

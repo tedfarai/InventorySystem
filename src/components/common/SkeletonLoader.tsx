@@ -96,7 +96,7 @@ export const MasterStockSheetSkeleton: React.FC<MasterStockSheetSkeletonProps> =
                 <th className="p-2 w-28 border-r border-slate-300 dark:border-slate-700 font-bold">
                   ItemID (Col A)
                 </th>
-                <th className="p-2 min-w-[200px] border-r border-slate-300 dark:border-slate-700 font-bold">
+                <th className="p-2 min-w-[240px] md:min-w-[260px] lg:min-w-[280px] border-r border-slate-300 dark:border-slate-700 font-bold">
                   ItemName (Col B)
                 </th>
                 <th className="p-2 w-28 border-r border-slate-300 dark:border-slate-700 font-bold">
@@ -112,9 +112,6 @@ export const MasterStockSheetSkeleton: React.FC<MasterStockSheetSkeletonProps> =
                   Price / Unit (Col F)
                 </th>
                 <th className="p-2 w-28 text-center font-bold">Stock Status</th>
-                <th className="p-2 w-36 border-l border-slate-300 dark:border-slate-700 text-center font-bold">
-                  Actions
-                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
@@ -124,19 +121,19 @@ export const MasterStockSheetSkeleton: React.FC<MasterStockSheetSkeletonProps> =
                   className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors"
                 >
                   {/* Selection Checkbox */}
-                  <td className="py-2 px-2 border-r border-slate-200 dark:border-slate-800 text-center">
+                  <td className="py-1.5 px-2 border-r border-slate-200 dark:border-slate-800 text-center">
                     <SkeletonBlock className="w-3.5 h-3.5 mx-auto rounded" />
                   </td>
 
                   {/* Row Number */}
-                  <td className="py-2 px-2 border-r border-slate-200 dark:border-slate-800 text-center">
+                  <td className="py-1.5 px-2 border-r border-slate-200 dark:border-slate-800 text-center">
                     <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500">
                       {idx + 2}
                     </span>
                   </td>
 
                   {/* Item ID / SKU */}
-                  <td className="py-2 px-2.5 border-r border-slate-200 dark:border-slate-800">
+                  <td className="py-1.5 px-2.5 border-r border-slate-200 dark:border-slate-800">
                     <SkeletonBlock
                       className="h-3.5 rounded font-mono"
                       style={{ width: `${60 + (idx % 3) * 12}px` }}
@@ -144,22 +141,22 @@ export const MasterStockSheetSkeleton: React.FC<MasterStockSheetSkeletonProps> =
                   </td>
 
                   {/* Item Name */}
-                  <td className="py-2 px-2.5 border-r border-slate-200 dark:border-slate-800">
+                  <td className="py-1.5 px-2.5 border-r border-slate-200 dark:border-slate-800 min-w-[240px] md:min-w-[260px] lg:min-w-[280px]">
                     <div className="space-y-1">
                       <SkeletonBlock
                         className="h-3.5 rounded"
-                        style={{ width: `${140 + (idx % 5) * 22}px` }}
+                        style={{ width: `${160 + (idx % 5) * 20}px` }}
                       />
                     </div>
                   </td>
 
                   {/* Category */}
-                  <td className="py-2 px-2.5 border-r border-slate-200 dark:border-slate-800">
+                  <td className="py-1.5 px-2.5 border-r border-slate-200 dark:border-slate-800">
                     <SkeletonBlock className="h-4 w-16 rounded-full" />
                   </td>
 
                   {/* Available Qty */}
-                  <td className="py-2 px-2.5 text-right border-r border-slate-200 dark:border-slate-800">
+                  <td className="py-1.5 px-2.5 text-right border-r border-slate-200 dark:border-slate-800">
                     <div className="flex items-center justify-end space-x-1.5">
                       <SkeletonBlock className="h-3.5 w-10 rounded" />
                       <SkeletonBlock className="h-3 w-7 rounded" />
@@ -167,7 +164,7 @@ export const MasterStockSheetSkeleton: React.FC<MasterStockSheetSkeletonProps> =
                   </td>
 
                   {/* Reorder Level */}
-                  <td className="py-2 px-2.5 text-right border-r border-slate-200 dark:border-slate-800">
+                  <td className="py-1.5 px-2.5 text-right border-r border-slate-200 dark:border-slate-800">
                     <div className="flex items-center justify-end space-x-1.5">
                       <SkeletonBlock className="h-3.5 w-8 rounded" />
                       <SkeletonBlock className="h-3 w-7 rounded" />
@@ -175,21 +172,13 @@ export const MasterStockSheetSkeleton: React.FC<MasterStockSheetSkeletonProps> =
                   </td>
 
                   {/* Price / Unit */}
-                  <td className="py-2 px-2.5 text-right border-r border-slate-200 dark:border-slate-800">
+                  <td className="py-1.5 px-2.5 text-right border-r border-slate-200 dark:border-slate-800">
                     <SkeletonBlock className="h-3.5 w-14 ml-auto rounded" />
                   </td>
 
                   {/* Stock Status Badge */}
-                  <td className="py-2 px-2 text-center">
+                  <td className="py-1.5 px-2 text-center">
                     <SkeletonBlock className="h-4 w-20 mx-auto rounded-full" />
-                  </td>
-
-                  {/* Actions */}
-                  <td className="py-2 px-2 border-l border-slate-200 dark:border-slate-800 text-center">
-                    <div className="flex items-center justify-center space-x-1.5">
-                      <SkeletonBlock className="h-5 w-11 rounded" />
-                      <SkeletonBlock className="h-5 w-11 rounded" />
-                    </div>
                   </td>
                 </tr>
               ))}

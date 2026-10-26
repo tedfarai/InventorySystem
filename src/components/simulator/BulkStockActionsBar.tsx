@@ -125,40 +125,40 @@ export const BulkStockActionsBar: React.FC<BulkStockActionsBarProps> = ({
 
       {/* Right side: Bulk Action Buttons & Dropdown Menu */}
       <div className="flex flex-wrap items-center gap-2">
-        {/* Action 1: Bulk Restock (Delivery Receipt) */}
-        <button
-          id="bulk-action-restock-btn"
-          type="button"
-          onClick={() => onBulkRestock(selectedItems)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded-lg text-xs font-bold shadow-xs transition"
-          title="Receive stock delivery for all selected items"
-        >
-          <PackagePlus className="w-3.5 h-3.5" />
-          <span>Receive / Restock ({selectedCount})</span>
-        </button>
-
-        {/* Action 2: Bulk Issue Request */}
+        {/* Primary Action 1: Batch Issue Request */}
         <button
           id="bulk-action-issue-btn"
           type="button"
           onClick={() => onBulkIssue(selectedItems)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold shadow-xs transition"
-          title="Issue all selected items to department requisition cart"
+          className="flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-sm transition cursor-pointer"
+          title="Stage all selected items in department requisition cart for batch issue"
         >
           <Send className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Requisition Issue</span>
+          <span>Batch Issue ({selectedCount})</span>
         </button>
 
-        {/* Action 3: Batch Adjustment Request */}
+        {/* Primary Action 2: Batch Stock Adjustment */}
         <button
           id="bulk-action-adjustment-btn"
           type="button"
           onClick={() => onBulkAdjustment(selectedItems)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-lg text-xs font-semibold border border-slate-700 transition"
-          title="Create stock adjustment discrepancy request for selected items"
+          className="flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 active:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-sm transition cursor-pointer"
+          title="Create physical count adjustment or discrepancy authorization request for all selected items"
         >
-          <SlidersHorizontal className="w-3.5 h-3.5 text-amber-400" />
-          <span className="hidden md:inline">Adjustment</span>
+          <SlidersHorizontal className="w-3.5 h-3.5" />
+          <span>Batch Adjustment ({selectedCount})</span>
+        </button>
+
+        {/* Action 3: Bulk Restock (Delivery Receipt) */}
+        <button
+          id="bulk-action-restock-btn"
+          type="button"
+          onClick={() => onBulkRestock(selectedItems)}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer"
+          title="Receive stock delivery for all selected items"
+        >
+          <PackagePlus className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Batch Restock</span>
         </button>
 
         {/* Action 4: Batch Update (Category / Reorder Level) */}
@@ -166,11 +166,11 @@ export const BulkStockActionsBar: React.FC<BulkStockActionsBarProps> = ({
           id="bulk-action-batch-update-btn"
           type="button"
           onClick={onOpenBatchUpdateModal}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-lg text-xs font-semibold border border-slate-700 transition"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-xl text-xs font-semibold border border-slate-700 transition cursor-pointer"
           title="Batch update category or reorder threshold"
         >
           <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-          <span>Batch Edit</span>
+          <span className="hidden md:inline">Batch Edit</span>
         </button>
 
         {/* Action 5: Export CSV */}
