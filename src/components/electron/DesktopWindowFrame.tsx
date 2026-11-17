@@ -165,7 +165,7 @@ export const DesktopWindowFrame: React.FC<DesktopWindowFrameProps> = ({
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100 font-sans antialiased select-none">
+    <div className="flex flex-col min-h-screen bg-[#f8fafc] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans antialiased select-none transition-colors duration-300">
       {/* ========================================================================= */}
       {/* 1. NATIVE ELECTRON WINDOW TITLEBAR & SYSTEM MENUS (Desktop only) */}
       {/* ========================================================================= */}

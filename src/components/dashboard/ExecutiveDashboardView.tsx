@@ -45,6 +45,7 @@ import {
 import { DraggableResizableModal } from '../common/DraggableResizableModal';
 import { getExecutiveAnalytics } from '../../utils/predictiveAnalytics';
 import { ExecutiveChartsView } from './ExecutiveChartsView';
+import { DailyMovementTrendsChart } from './DailyMovementTrendsChart';
 import { ExecutiveAiInsightsPanel } from './ExecutiveAiInsightsPanel';
 import { ExecutiveDemandForecastingView } from './ExecutiveDemandForecastingView';
 import { SupplierPriceCostPanel } from './SupplierPriceCostPanel';
@@ -76,6 +77,7 @@ interface ExecutiveDashboardViewProps {
 export interface DashboardWidgetConfig {
   financialCollation: boolean;
   supplierCostAnalytics: boolean;
+  dailyMovementTrends: boolean;
   consumptionCharts: boolean;
   aiInsights: boolean;
   lowStock: boolean;
@@ -90,6 +92,7 @@ export interface DashboardWidgetConfig {
 const DEFAULT_WIDGETS: DashboardWidgetConfig = {
   financialCollation: true,
   supplierCostAnalytics: true,
+  dailyMovementTrends: true,
   consumptionCharts: true,
   aiInsights: true,
   lowStock: true,
@@ -572,6 +575,14 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
         </div>
       )}
 
+      {/* Widget: Daily Stock Movement Trends — Last 30 Days (Recharts) */}
+      {widgets.dailyMovementTrends && (
+        <DailyMovementTrendsChart
+          stockItems={safeStock}
+          movementLogs={safeLogs}
+        />
+      )}
+
       {/* Widget: Consumption Trend & Visualizations (Recharts) */}
       {widgets.consumptionCharts && (
         <ExecutiveChartsView
@@ -1018,6 +1029,7 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
               {[
                 { key: 'financialCollation', label: 'Zimbabwe Currency Collation & Status Strip', desc: 'USD vs ZWG rates, historical spend, and safety threshold shortcuts' },
                 { key: 'supplierCostAnalytics', label: 'Zimbabwe Supplier Price & Cost Intelligence', desc: 'Supplier procurement spend in USD/ZWG & per-item cost movements' },
+                { key: 'dailyMovementTrends', label: '30-Day Daily Stock Movement Trends', desc: 'Recharts daily volume & inbound/outbound trends with category toggles' },
                 { key: 'consumptionCharts', label: '6-Month Consumption Trends & Charts', desc: 'Recharts trends: Stationery vs Cleaning, Category Pie & Dept Bar' },
                 { key: 'aiInsights', label: 'AI Demand Forecast & Reorder Engine', desc: 'Predictive Monthly/Quarterly/6M consumption and reorder advice' },
                 { key: 'quickLaunchpad', label: 'Fast Procurement Launchpad', desc: 'One-click shortcuts to key actions' },

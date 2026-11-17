@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { flushSync } from 'react-dom';
+import { motion, AnimatePresence } from 'motion/react';
 import { ExcelSimulator } from './components/simulator/ExcelSimulator';
 import { AuditLogAnalyticsView } from './components/audit/AuditLogAnalyticsView';
 import { ElectronSuiteView } from './components/electron/ElectronSuiteView';
@@ -24,6 +26,13 @@ import { SidebarAccordionNav, SidebarAction } from './components/layout/SidebarA
 import { AccountDetailsModal } from './components/auth/AccountDetailsModal';
 import { ExecutiveDashboardView } from './components/dashboard/ExecutiveDashboardView';
 import { UsageTrendProvider } from './context/UsageTrendContext';
+import { BackupRemindersModal } from './components/simulator/BackupRemindersModal';
+import {
+  BackupReminderSettings,
+  loadBackupReminderSettings,
+  saveBackupReminderSettings,
+  evaluateBackupReminderStatus,
+} from './utils/backupReminders';
 
 export type AppTab = 'simulator' | 'audit' | 'electron' | 'vba' | 'guide' | 'export' | 'styleguide' | 'dashboard';
 
@@ -40,8 +49,12 @@ function AppContent() {
   const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
   const [isVaultModalOpen, setIsVaultModalOpen] = useState(false);
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
+  const [isBackupRemindersModalOpen, setIsBackupRemindersModalOpen] = useState(false);
+  const [backupReminderSettings, setBackupReminderSettings] = useState<BackupReminderSettings>(
+    () => loadBackupReminderSettings()
+  );
 
-  const { showToast } = useToast();
+  const { showToast, removeToast } = useToast();
   const { isInstallable, isInstalled, isOffline, isUpdateAvailable, triggerInstall, updateApp } = usePwaInstall();
 
   // URL Query Param Routing (for PWA shortcuts e.g. /?tab=audit or /?tab=simulator)
@@ -57,28 +70,133 @@ function AppContent() {
     }
   }, []);
 
-  // Theme state ('dark' or 'light')
+  // Theme state ('dark' or 'light') with smooth cross-fade transition
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     const saved = localStorage.getItem('xl_procurement_theme');
     return saved === 'light' || saved === 'dark' ? saved : 'dark';
   });
+  const [crossfadeOverlay, setCrossfadeOverlay] = useState<{
+    key: number;
+    fromTheme: 'dark' | 'light';
+  } | null>(null);
 
-  React.useEffect(() => {
-    localStorage.setItem('xl_procurement_theme', theme);
-    if (theme === 'dark') {
+  const themeRef = useRef<'dark' | 'light'>(theme);
+  const activeViewTransitionRef = useRef<{ skipTransition?: () => void; finished?: Promise<void> } | null>(null);
+  const crossfadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const themeToastDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastThemeToastIdRef = useRef<string | null>(null);
+
+  const applyThemeToDocument = useCallback((nextTheme: 'dark' | 'light') => {
+    localStorage.setItem('xl_procurement_theme', nextTheme);
+    document.documentElement.setAttribute('data-theme', nextTheme);
+    if (nextTheme === 'dark') {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
     }
-  }, [theme]);
+  }, []);
 
-  const handleToggleTheme = () => {
-    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
-    showToast(
-      theme === 'dark' ? 'Switched to Light Office Theme' : 'Switched to Dark Slate Theme',
-      'info'
-    );
-  };
+  useEffect(() => {
+    themeRef.current = theme;
+    applyThemeToDocument(theme);
+  }, [theme, applyThemeToDocument]);
+
+  useEffect(() => {
+    return () => {
+      if (crossfadeTimerRef.current) clearTimeout(crossfadeTimerRef.current);
+      if (themeToastDebounceRef.current) clearTimeout(themeToastDebounceRef.current);
+      document.documentElement.classList.remove('theme-crossfade-active');
+    };
+  }, []);
+
+  const handleToggleTheme = useCallback(() => {
+    const prevTheme = themeRef.current;
+    const nextTheme: 'dark' | 'light' = prevTheme === 'dark' ? 'light' : 'dark';
+    themeRef.current = nextTheme;
+
+    const prefersReducedMotion =
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    const scheduleSettledThemeToast = () => {
+      if (themeToastDebounceRef.current) {
+        clearTimeout(themeToastDebounceRef.current);
+      }
+      if (lastThemeToastIdRef.current) {
+        removeToast(lastThemeToastIdRef.current);
+        lastThemeToastIdRef.current = null;
+      }
+      themeToastDebounceRef.current = setTimeout(() => {
+        lastThemeToastIdRef.current = showToast(
+          nextTheme === 'light' ? 'Switched to Light Office Theme' : 'Switched to Dark Slate Theme',
+          'info',
+          undefined,
+          2000
+        );
+      }, 180);
+    };
+
+    const runFallbackCrossfade = () => {
+      if (crossfadeTimerRef.current) {
+        clearTimeout(crossfadeTimerRef.current);
+      }
+      document.documentElement.classList.add('theme-crossfade-active');
+      setCrossfadeOverlay({ key: Date.now(), fromTheme: prevTheme });
+      applyThemeToDocument(nextTheme);
+      setTheme(nextTheme);
+
+      crossfadeTimerRef.current = setTimeout(() => {
+        document.documentElement.classList.remove('theme-crossfade-active');
+        setCrossfadeOverlay(null);
+      }, 360);
+    };
+
+    if (prefersReducedMotion) {
+      applyThemeToDocument(nextTheme);
+      setTheme(nextTheme);
+      scheduleSettledThemeToast();
+      return;
+    }
+
+    const startViewTransition = (
+      document as Document & {
+        startViewTransition?: (cb: () => void) => {
+          skipTransition?: () => void;
+          finished?: Promise<void>;
+        };
+      }
+    ).startViewTransition?.bind(document);
+
+    if (typeof startViewTransition === 'function') {
+      try {
+        // Cancel any in-flight view transition cleanly during rapid toggling
+        activeViewTransitionRef.current?.skipTransition?.();
+        document.documentElement.classList.remove('theme-crossfade-active');
+        setCrossfadeOverlay(null);
+
+        const transition = startViewTransition(() => {
+          applyThemeToDocument(nextTheme);
+          flushSync(() => {
+            setTheme(nextTheme);
+          });
+        });
+
+        activeViewTransitionRef.current = transition;
+        transition?.finished?.finally(() => {
+          if (activeViewTransitionRef.current === transition) {
+            activeViewTransitionRef.current = null;
+          }
+        });
+      } catch {
+        runFallbackCrossfade();
+      }
+    } else {
+      runFallbackCrossfade();
+    }
+
+    scheduleSettledThemeToast();
+  }, [applyThemeToDocument, removeToast, showToast]);
 
   // SQLite Database Layer & Real-time Collaboration Engine
   const {
@@ -199,6 +317,8 @@ function AppContent() {
     if (action.type === 'OPEN_MODAL') {
       if (action.modal === 'accountDetails') {
         setIsAccountModalOpen(true);
+      } else if (action.modal === 'backupReminders') {
+        setIsBackupRemindersModalOpen(true);
       } else if (action.modal === 'documentVault') {
         setIsVaultModalOpen(true);
       } else if (action.modal === 'vbaHub') {
@@ -232,6 +352,7 @@ function AppContent() {
       setIsShortcutsModalOpen(false);
       setIsInstallModalOpen(false);
       setIsVaultModalOpen(false);
+      setIsBackupRemindersModalOpen(false);
       setIsSidebarOpen(false);
       setSelectedAuditMovementDoc(null);
     },
@@ -268,19 +389,131 @@ function AppContent() {
     }
   };
 
-  const handleCreateBackupWithToast = async (_type: import('./types').BackupType, note: string): Promise<import('./types').BackupSnapshot> => {
-    try {
-      const bkp = await handleCreateBackup('MANUAL', note);
-      if (bkp) {
-        showToast('SQLite Backup Saved', 'success', `Snapshot ${bkp.id} archived with ${bkp.itemCount} stock items`);
-        return bkp;
+  const handleCreateBackupWithToast = useCallback(
+    async (_type: import('./types').BackupType, note: string): Promise<import('./types').BackupSnapshot> => {
+      try {
+        const bkp = await handleCreateBackup('MANUAL', note);
+        if (bkp) {
+          showToast('SQLite Backup Saved', 'success', `Snapshot ${bkp.id} archived with ${bkp.itemCount} stock items`);
+          return bkp;
+        }
+        throw new Error('Backup returned empty');
+      } catch (e: any) {
+        showToast('Backup Error', 'error', e?.message || 'Failed to generate snapshot');
+        throw e;
       }
-      throw new Error('Backup returned empty');
-    } catch (e: any) {
-      showToast('Backup Error', 'error', e?.message || 'Failed to generate snapshot');
-      throw e;
+    },
+    [handleCreateBackup, showToast]
+  );
+
+  // ===========================================================================
+  // BACKUP REMINDERS (7-Day Overdue Toast Notification & Immediate Backup Trigger)
+  // ===========================================================================
+  const hasAutoCheckedBackupsRef = useRef(false);
+  const activeBackupReminderToastIdRef = useRef<string | null>(null);
+
+  const backupReminderEvaluation = useMemo(
+    () => evaluateBackupReminderStatus(backups, backupReminderSettings),
+    [backups, backupReminderSettings]
+  );
+
+  const isBackupReminderOverdue =
+    backupReminderSettings.enabled &&
+    backupReminderEvaluation.isOverdue &&
+    !backupReminderEvaluation.isSnoozed;
+
+  const handleUpdateBackupReminderSettings = useCallback((next: BackupReminderSettings) => {
+    setBackupReminderSettings((prev) => {
+      if (!prev.enabled && next.enabled) {
+        hasAutoCheckedBackupsRef.current = false;
+      }
+      saveBackupReminderSettings(next);
+      return next;
+    });
+  }, []);
+
+  const triggerBackupReminderToast = useCallback(
+    (manualCheck = false) => {
+      const evaluation = evaluateBackupReminderStatus(backups, backupReminderSettings);
+
+      if (!evaluation.isOverdue) {
+        if (activeBackupReminderToastIdRef.current) {
+          removeToast(activeBackupReminderToastIdRef.current);
+          activeBackupReminderToastIdRef.current = null;
+        }
+        if (manualCheck) {
+          showToast(
+            'Backup Schedule Up to Date',
+            'success',
+            `Latest snapshot created ${evaluation.formattedAge} (${evaluation.latestBackup?.timestamp}).`,
+            4500
+          );
+        }
+        return;
+      }
+
+      if (!manualCheck && !evaluation.shouldNotify) {
+        return;
+      }
+
+      if (activeBackupReminderToastIdRef.current) {
+        removeToast(activeBackupReminderToastIdRef.current);
+      }
+
+      const detailMessage = evaluation.latestBackup
+        ? `No backup has been created in the last ${evaluation.thresholdDays} day${evaluation.thresholdDays === 1 ? '' : 's'} (last snapshot: ${evaluation.formattedAge} on ${evaluation.latestBackup.timestamp}).`
+        : `No database backups found. Create a snapshot now (reminder threshold: ${evaluation.thresholdDays} day${evaluation.thresholdDays === 1 ? '' : 's'}).`;
+
+      const toastId = showToast(
+        'Backup Reminder: Snapshot Needed',
+        'warning',
+        detailMessage,
+        12000,
+        {
+          label: 'Backup Now',
+          onClick: async () => {
+            await handleCreateBackupWithToast(
+              'MANUAL',
+              `Manual backup triggered from ${evaluation.thresholdDays}-day Backup Reminder`
+            );
+          },
+        }
+      );
+
+      activeBackupReminderToastIdRef.current = toastId;
+    },
+    [backups, backupReminderSettings, handleCreateBackupWithToast, removeToast, showToast]
+  );
+
+  // Automatic check once SQLite data finishes loading, plus dismiss stale warning if a backup succeeds
+  useEffect(() => {
+    if (!isDbReady || isDataLoading) return;
+
+    if (!backupReminderEvaluation.isOverdue || !backupReminderSettings.enabled || backupReminderEvaluation.isSnoozed) {
+      if (activeBackupReminderToastIdRef.current) {
+        removeToast(activeBackupReminderToastIdRef.current);
+        activeBackupReminderToastIdRef.current = null;
+      }
+      return;
     }
-  };
+
+    if (backupReminderEvaluation.shouldNotify && !hasAutoCheckedBackupsRef.current) {
+      hasAutoCheckedBackupsRef.current = true;
+      const timer = setTimeout(() => {
+        triggerBackupReminderToast(false);
+      }, 450);
+      return () => clearTimeout(timer);
+    }
+  }, [
+    isDbReady,
+    isDataLoading,
+    backupReminderSettings.enabled,
+    backupReminderEvaluation.isOverdue,
+    backupReminderEvaluation.isSnoozed,
+    backupReminderEvaluation.shouldNotify,
+    removeToast,
+    triggerBackupReminderToast,
+  ]);
 
   const handleRestoreBackupWithToast = async (snapshot: any) => {
     try {
@@ -506,6 +739,8 @@ function AppContent() {
           isOffline={isOffline}
           onOpenDocumentVault={() => setIsVaultModalOpen(true)}
           onOpenShortcuts={() => setIsShortcutsModalOpen(true)}
+          onOpenBackupReminders={() => setIsBackupRemindersModalOpen(true)}
+          isBackupOverdue={isBackupReminderOverdue}
           activeSheetTitle={activeSheetTitle}
           isInstallable={isInstallable}
           onOpenInstallModal={() => setIsInstallModalOpen(true)}
@@ -535,6 +770,7 @@ function AppContent() {
           activeAppTab={activeTab}
           belowThresholdCount={lowStockCount}
           pendingRequestsCount={pendingAdjustmentRequestsCount}
+          isBackupOverdue={isBackupReminderOverdue}
         />
 
         {/* Main Application Content Area */}
@@ -700,7 +936,40 @@ function AppContent() {
             onUpdateAdmin={handleUpdateAdmin}
             onShowToast={(title, type) => showToast(title, type)}
           />
+
+          {/* Backup Reminders Settings & Manual Backup Modal */}
+          <BackupRemindersModal
+            isOpen={isBackupRemindersModalOpen}
+            onClose={() => setIsBackupRemindersModalOpen(false)}
+            settings={backupReminderSettings}
+            onUpdateSettings={handleUpdateBackupReminderSettings}
+            backups={backups}
+            currentUser={currentUser}
+            onTriggerManualBackup={(note) => handleCreateBackupWithToast('MANUAL', note)}
+            onCheckReminderNow={() => triggerBackupReminderToast(true)}
+            onOpenBackupVault={() => {
+              setActiveTab('simulator');
+              setExternalSimulatorAction({ type: 'OPEN_MODAL', modal: 'backupRecovery' });
+            }}
+          />
         </main>
+
+        {/* Smooth Cross-Fade Veil Fallback for Environments Without View Transitions API */}
+        <AnimatePresence>
+          {crossfadeOverlay && (
+            <motion.div
+              key={crossfadeOverlay.key}
+              aria-hidden="true"
+              initial={{ opacity: 0.35 }}
+              animate={{ opacity: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
+              className={`fixed inset-0 z-[9998] pointer-events-none ${
+                crossfadeOverlay.fromTheme === 'dark' ? 'bg-slate-950' : 'bg-[#f8fafc]'
+              }`}
+            />
+          )}
+        </AnimatePresence>
 
         {/* Interactive Login Modal Portal */}
         {isLoginModalOpen && (

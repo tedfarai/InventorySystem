@@ -30,6 +30,7 @@ import {
   LayoutDashboard,
   UserCheck,
   User,
+  BellRing,
 } from 'lucide-react';
 import { AdminUser } from '../../types';
 import { ProcurementTabType } from '../simulator/ProcurementOperationsDialog';
@@ -37,7 +38,7 @@ import { ProcurementTabType } from '../simulator/ProcurementOperationsDialog';
 export type SidebarAction =
   | { type: 'NAVIGATE_SHEET'; sheet: 'Master_Stock' | 'Movement_Log' | 'Adjustment_Hub' | 'Admin_Config' }
   | { type: 'OPEN_TAB'; tab: ProcurementTabType; subMode?: string }
-  | { type: 'OPEN_MODAL'; modal: 'reorderReport' | 'adjustmentRequests' | 'superiorAdjustmentManager' | 'userManagement' | 'backupRecovery' | 'folderConfig' | 'documentVault' | 'vbaHub' | 'setupGuide' | 'accountDetails' }
+  | { type: 'OPEN_MODAL'; modal: 'reorderReport' | 'adjustmentRequests' | 'superiorAdjustmentManager' | 'userManagement' | 'backupRecovery' | 'backupReminders' | 'folderConfig' | 'documentVault' | 'vbaHub' | 'setupGuide' | 'accountDetails' }
   | { type: 'NAVIGATE_APP_TAB'; appTab: 'simulator' | 'audit' | 'vba' | 'guide' | 'export' | 'dashboard' };
 
 interface NavSubItemConfig {
@@ -76,6 +77,7 @@ interface SidebarAccordionNavProps {
   activeAppTab?: string;
   belowThresholdCount?: number;
   pendingRequestsCount?: number;
+  isBackupOverdue?: boolean;
 }
 
 export const SidebarAccordionNav: React.FC<SidebarAccordionNavProps> = ({
@@ -89,6 +91,7 @@ export const SidebarAccordionNav: React.FC<SidebarAccordionNavProps> = ({
   activeAppTab = 'simulator',
   belowThresholdCount = 0,
   pendingRequestsCount = 0,
+  isBackupOverdue = false,
 }) => {
   const [openAccordion, setOpenAccordion] = useState<string | null>(null);
 
@@ -109,7 +112,8 @@ export const SidebarAccordionNav: React.FC<SidebarAccordionNavProps> = ({
     // Determine if the target view is allowed in unauthenticated read-only mode
     const isPublicView =
       (action.type === 'NAVIGATE_APP_TAB' && (action.appTab === 'dashboard' || action.appTab === 'simulator' || action.appTab === 'guide')) ||
-      (action.type === 'NAVIGATE_SHEET' && (action.sheet === 'Master_Stock' || action.sheet === 'Movement_Log'));
+      (action.type === 'NAVIGATE_SHEET' && (action.sheet === 'Master_Stock' || action.sheet === 'Movement_Log')) ||
+      (action.type === 'OPEN_MODAL' && action.modal === 'backupReminders');
 
     if (!currentUser && !isPublicView) {
       if (onOpenLogin) {
@@ -340,6 +344,19 @@ export const SidebarAccordionNav: React.FC<SidebarAccordionNavProps> = ({
       type: 'section-header',
       children: [
         {
+          id: 'backup_reminders',
+          label: 'Backup Reminders Settings',
+          icon: BellRing,
+          iconColor: isBackupOverdue ? 'text-amber-500' : 'text-emerald-500',
+          action: () => ({ type: 'OPEN_MODAL', modal: 'backupReminders' }),
+          badge: () =>
+            isBackupOverdue ? (
+              <span className="bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 text-[10px] px-1.5 py-0.2 rounded font-mono font-bold ml-auto">
+                Due
+              </span>
+            ) : null,
+        },
+        {
           id: 'document_vault',
           label: 'Central Document Vault',
           icon: Archive,
@@ -498,14 +515,21 @@ export const SidebarAccordionNav: React.FC<SidebarAccordionNavProps> = ({
                           <button
                             key={subItem.id}
                             onClick={() => handleAction(actionToRun)}
-                            className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl font-medium transition-all duration-150 cursor-pointer text-left hover:scale-[1.015] hover:shadow-xs ${
+                            className={`w-full flex items-center justify-between space-x-2.5 px-3 py-2 rounded-xl font-medium transition-all duration-150 cursor-pointer text-left hover:scale-[1.015] hover:shadow-xs ${
                               isSubActive
                                 ? 'bg-emerald-50 text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300 border-l-4 border-emerald-600 font-bold shadow-2xs'
                                 : 'border-l-4 border-transparent text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
                             }`}
                           >
-                            <SubIcon className={`w-4 h-4 shrink-0 ${subItem.iconColor || 'text-slate-400'}`} />
-                            <span className="truncate">{subItem.label}</span>
+                            <div className="flex items-center space-x-2.5 min-w-0">
+                              <SubIcon className={`w-4 h-4 shrink-0 ${subItem.iconColor || 'text-slate-400'}`} />
+                              <span className="truncate">{subItem.label}</span>
+                            </div>
+                            {subItem.badge &&
+                              subItem.badge({
+                                pendingRequestsCount,
+                                belowThresholdCount,
+                              })}
                           </button>
                         );
                       })}

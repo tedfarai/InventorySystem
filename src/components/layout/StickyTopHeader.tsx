@@ -1,17 +1,14 @@
 import React from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   Menu,
   Sun,
   Moon,
   Package,
   Crown,
-  Download,
-  Command,
-  FileSpreadsheet,
-  Activity,
-  Archive,
   LogIn,
   RefreshCw,
+  BellRing,
 } from 'lucide-react';
 import { AdminUser } from '../../types';
 import { OfflineStatusBadge } from '../pwa/OfflineStatusBadge';
@@ -25,6 +22,8 @@ interface StickyTopHeaderProps {
   isOffline?: boolean;
   onOpenDocumentVault?: () => void;
   onOpenShortcuts?: () => void;
+  onOpenBackupReminders?: () => void;
+  isBackupOverdue?: boolean;
   activeSheetTitle?: string;
   isInstallable?: boolean;
   onOpenInstallModal?: () => void;
@@ -42,11 +41,8 @@ export const StickyTopHeader: React.FC<StickyTopHeaderProps> = ({
   theme,
   onToggleTheme,
   isOffline = false,
-  onOpenDocumentVault,
-  onOpenShortcuts,
-  activeSheetTitle = 'Master Stock Sheet',
-  isInstallable = false,
-  onOpenInstallModal,
+  onOpenBackupReminders,
+  isBackupOverdue = false,
   pendingMutationsCount = 0,
   onDrainQueue,
   syncStatus = 'CONNECTED',
@@ -84,7 +80,7 @@ export const StickyTopHeader: React.FC<StickyTopHeaderProps> = ({
           </div>
         </div>
 
-        {/* Right: Offline Status, Refresh, Theme Toggle & User Avatar */}
+        {/* Right: Offline Status, Refresh, Backup Reminders, Theme Toggle & User Avatar */}
         <div className="flex items-center space-x-1 sm:space-x-1.5 shrink-0">
           {/* Refresh SQLite Data Button */}
           {onRefreshData && (
@@ -108,13 +104,60 @@ export const StickyTopHeader: React.FC<StickyTopHeaderProps> = ({
             syncStatus={syncStatus}
           />
 
-          {/* Theme Toggle */}
+          {/* Backup Reminders Settings Button */}
+          {onOpenBackupReminders && (
+            <button
+              id="btn-header-backup-reminders"
+              type="button"
+              onClick={onOpenBackupReminders}
+              className="relative p-1 rounded-lg text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer h-7 w-7 sm:h-8 sm:w-8 flex items-center justify-center"
+              title={isBackupOverdue ? 'Backup Reminders (Backup Due)' : 'Backup Reminders Settings'}
+              aria-label="Backup Reminders Settings"
+            >
+              <BellRing className={`w-3.5 h-3.5 ${isBackupOverdue ? 'text-amber-500 dark:text-amber-400' : ''}`} />
+              {isBackupOverdue && (
+                <span
+                  aria-hidden="true"
+                  className="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-500 ring-2 ring-white dark:ring-slate-900"
+                />
+              )}
+            </button>
+          )}
+
+          {/* Theme Toggle with Smooth Icon Cross-Fade */}
           <button
+            id="btn-header-theme-toggle"
+            type="button"
             onClick={() => onToggleTheme?.()}
-            className="p-1 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer h-7 w-7 sm:h-8 sm:w-8 flex items-center justify-center"
+            className="relative p-1 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer h-7 w-7 sm:h-8 sm:w-8 flex items-center justify-center overflow-hidden"
             title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
+            aria-label={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
           >
-            {theme === 'dark' ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-slate-600" />}
+            <AnimatePresence mode="wait" initial={false}>
+              {theme === 'dark' ? (
+                <motion.span
+                  key="sun"
+                  initial={{ opacity: 0, scale: 0.75, rotate: -45 }}
+                  animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                  exit={{ opacity: 0, scale: 0.75, rotate: 45 }}
+                  transition={{ duration: 0.2, ease: 'easeOut' }}
+                  className="inline-flex items-center justify-center"
+                >
+                  <Sun className="w-3.5 h-3.5 text-amber-400" />
+                </motion.span>
+              ) : (
+                <motion.span
+                  key="moon"
+                  initial={{ opacity: 0, scale: 0.75, rotate: 45 }}
+                  animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                  exit={{ opacity: 0, scale: 0.75, rotate: -45 }}
+                  transition={{ duration: 0.2, ease: 'easeOut' }}
+                  className="inline-flex items-center justify-center"
+                >
+                  <Moon className="w-3.5 h-3.5 text-slate-600" />
+                </motion.span>
+              )}
+            </AnimatePresence>
           </button>
 
           {/* User Profile Pill or Log In Button */}
