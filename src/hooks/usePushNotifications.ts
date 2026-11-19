@@ -1,14 +1,15 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import type { StockItem } from '../types';
 
 /**
  * usePushNotifications
  *
- * Manages Web Push subscription lifecycle and fires local/push notifications
+ * Manages Web Notification lifecycle and fires local/push notifications
  * when stock items drop below their reorder threshold.
  *
  * - Requests Notification permission on first call to `requestPermission`.
- * - Uses the Notifications API directly (no server VAPID required for local alerts).
+ * - Uses ServiceWorkerRegistration.showNotification() when available (standard for PWAs and mobile),
+ *   with fallback to new Notification() in standard window context.
  * - Deduplicates alerts: each item only fires once per browser session until
  *   its quantity recovers above the threshold.
  */
@@ -25,36 +26,54 @@ export function usePushNotifications() {
   }, [isSupported]);
 
   /**
-   * Fires a local notification for a single low-stock item.
-   * Safe to call even if permission hasn't been granted yet — it will silently no-op.
+   * Fires a notification for a single low-stock item via ServiceWorker showNotification
+   * or Window Notification fallback.
    */
-  const notifyLowStock = useCallback((item: StockItem) => {
+  const notifyLowStock = useCallback(async (item: StockItem) => {
     if (!isSupported || Notification.permission !== 'granted') return;
     if (alertedIds.current.has(item.ItemID)) return;
 
     alertedIds.current.add(item.ItemID);
 
-    const isOut = item.Qty <= 0;
+    const isOut = (item.Qty ?? 0) <= 0;
     const title = isOut
       ? `🚨 Out of Stock: ${item.ItemName}`
       : `⚠️ Low Stock Alert: ${item.ItemName}`;
     const body = isOut
-      ? `${item.ItemID} has reached 0 ${item.Unit}. Immediate replenishment required.`
-      : `${item.ItemID} is at ${item.Qty} ${item.Unit} — below the ${item.ReorderLevel} ${item.Unit} reorder threshold.`;
+      ? `${item.ItemID} has reached 0 ${item.Unit || 'Units'}. Immediate replenishment required.`
+      : `${item.ItemID} is at ${item.Qty} ${item.Unit || 'Units'} — below the ${item.ReorderLevel ?? 10} ${item.Unit || 'Units'} reorder threshold.`;
+
+    const options: NotificationOptions & { renotify?: boolean; data?: any } = {
+      body,
+      icon: '/pwa-192x192.png',
+      badge: '/pwa-192x192.png',
+      tag: `low-stock-${item.ItemID}`,
+      renotify: false,
+      data: {
+        url: '/?tab=simulator',
+        itemId: item.ItemID,
+        type: 'low-stock',
+      },
+    };
+
+    // Prefer Service Worker showNotification (works on Android Chrome, iOS standalone, and desktop PWA)
+    if ('serviceWorker' in navigator) {
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        if (registration && registration.showNotification) {
+          await registration.showNotification(title, options);
+          return;
+        }
+      } catch {
+        // Fall back to window Notification
+      }
+    }
 
     try {
-      const options: NotificationOptions & { renotify?: boolean } = {
-        body,
-        icon: '/pwa-192x192.png',
-        badge: '/pwa-192x192.png',
-        tag: `low-stock-${item.ItemID}`,
-        renotify: false,
-      };
       const n = new Notification(title, options);
-      // Auto-close after 8 s
       setTimeout(() => n.close(), 8000);
     } catch {
-      // Notification constructor can throw in some sandboxed environments
+      // Notification constructor can fail in some sandboxed browser environments
     }
   }, [isSupported]);
 
@@ -67,7 +86,7 @@ export function usePushNotifications() {
       if (!isSupported || Notification.permission !== 'granted') return;
       for (const item of stockItems) {
         if ((item.Qty ?? 0) <= (item.ReorderLevel ?? 10)) {
-          notifyLowStock(item);
+          void notifyLowStock(item);
         }
       }
     },

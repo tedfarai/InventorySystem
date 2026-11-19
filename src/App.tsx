@@ -17,6 +17,8 @@ import { ToastProvider, useToast } from './context/ToastContext';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { KeyboardShortcutsModal } from './components/common/KeyboardShortcutsModal';
 import { usePwaInstall } from './hooks/usePwaInstall';
+import { useAppBadging } from './hooks/useAppBadging';
+import { usePushNotifications } from './hooks/usePushNotifications';
 import { PWAInstallButton } from './components/pwa/PWAInstallButton';
 import { CrossPlatformInstallModal } from './components/pwa/CrossPlatformInstallModal';
 import { SharedDocumentVaultModal } from './components/collaboration/SharedDocumentVaultModal';
@@ -57,15 +59,37 @@ function AppContent() {
   const { showToast, removeToast } = useToast();
   const { isInstallable, isInstalled, isOffline, isUpdateAvailable, triggerInstall, updateApp } = usePwaInstall();
 
-  // URL Query Param Routing (for PWA shortcuts e.g. /?tab=audit or /?tab=simulator)
+  // URL Query Param Routing (for PWA shortcuts e.g. /?tab=audit or /?tab=simulator&action=delivery)
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get('tab');
-      if (tabParam && ['simulator', 'audit', 'electron', 'vba', 'guide', 'export', 'styleguide'].includes(tabParam)) {
+      const actionParam = params.get('action');
+
+      if (tabParam && ['simulator', 'audit', 'electron', 'vba', 'guide', 'export', 'styleguide', 'dashboard'].includes(tabParam)) {
         setActiveTab(tabParam as AppTab);
+        if (tabParam === 'dashboard') setActiveSheetTitle('Executive Dashboard');
+        else if (tabParam === 'audit') setActiveSheetTitle('Audit Log Analytics');
+        else if (tabParam === 'vba') setActiveSheetTitle('Excel VBA Code Hub');
+        else if (tabParam === 'guide') setActiveSheetTitle('System Setup Guide');
+        else if (tabParam === 'export') setActiveSheetTitle('Export & Reporting Center');
       }
-    } catch (e) {
+
+      if (actionParam) {
+        setActiveTab('simulator');
+        if (actionParam === 'delivery') {
+          setExternalSimulatorAction({ type: 'OPEN_TAB', tab: 'delivery' });
+        } else if (actionParam === 'issue') {
+          setExternalSimulatorAction({ type: 'OPEN_TAB', tab: 'issue' });
+        } else if (actionParam === 'adjustment') {
+          setExternalSimulatorAction({ type: 'OPEN_TAB', tab: 'adjustment' });
+        } else if (actionParam === 'reorder') {
+          setExternalSimulatorAction({ type: 'OPEN_MODAL', modal: 'reorderReport' });
+        } else if (actionParam === 'backup') {
+          setExternalSimulatorAction({ type: 'OPEN_MODAL', modal: 'backupRecovery' });
+        }
+      }
+    } catch {
       // Ignore URL parsing errors
     }
   }, []);
@@ -266,6 +290,17 @@ function AppContent() {
   const pendingAdjustmentRequestsCount = Array.isArray(adjustmentRequests)
     ? adjustmentRequests.filter((r) => r?.status === 'PENDING').length
     : 0;
+
+  // PWA App Badging: OS-level badge counter for Windows taskbar, macOS dock, and mobile launcher
+  useAppBadging(lowStockCount + pendingAdjustmentRequestsCount);
+
+  // Push notifications for critical low stock items
+  const { checkAndNotifyLowStock } = usePushNotifications();
+  useEffect(() => {
+    if (isDbReady && !isDataLoading && safeStockItems.length > 0) {
+      checkAndNotifyLowStock(safeStockItems);
+    }
+  }, [safeStockItems, isDbReady, isDataLoading, checkAndNotifyLowStock]);
 
   // Handle Sidebar Navigation Actions
   const handleSelectSidebarAction = (action: SidebarAction) => {

@@ -104,6 +104,7 @@ class SqliteBridge {
                 if (header[0] === 0x00 && header[1] === 0x61 && header[2] === 0x73 && header[3] === 0x6D) {
                   const sqlInstance = await initSqlJs({
                     wasmBinary,
+                    useOldExtensionFunctions: false,
                   });
                   if (sqlInstance) {
                     this.SQL = sqlInstance;
@@ -124,6 +125,7 @@ class SqliteBridge {
         try {
           const sqlInstance = await initSqlJs({
             locateFile: () => sqlWasmUrl,
+            useOldExtensionFunctions: false,
           });
           if (sqlInstance) {
             this.SQL = sqlInstance;
