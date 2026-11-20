@@ -18,9 +18,11 @@ export function usePwaInstall(): PwaInstallState {
   const [isUpdateAvailable, setIsUpdateAvailable] = useState(false);
 
   useEffect(() => {
-    // Check initial standalone mode
+    // Check initial standalone / window-controls-overlay mode across desktop and mobile
     const isStandalone =
       window.matchMedia('(display-mode: standalone)').matches ||
+      window.matchMedia('(display-mode: window-controls-overlay)').matches ||
+      window.matchMedia('(display-mode: minimal-ui)').matches ||
       (window.navigator as any).standalone === true ||
       document.referrer.includes('android-app://');
 
@@ -52,8 +54,10 @@ export function usePwaInstall(): PwaInstallState {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    // Check display-mode media query change
-    const mediaQuery = window.matchMedia('(display-mode: standalone)');
+    // Listen for display-mode media query change (standalone or window-controls-overlay)
+    const mediaQueryStandalone = window.matchMedia('(display-mode: standalone)');
+    const mediaQueryWco = window.matchMedia('(display-mode: window-controls-overlay)');
+
     const handleDisplayModeChange = (evt: MediaQueryListEvent) => {
       if (evt.matches) {
         setIsInstalled(true);
@@ -61,8 +65,9 @@ export function usePwaInstall(): PwaInstallState {
       }
     };
 
-    if (mediaQuery.addEventListener) {
-      mediaQuery.addEventListener('change', handleDisplayModeChange);
+    if (mediaQueryStandalone.addEventListener) {
+      mediaQueryStandalone.addEventListener('change', handleDisplayModeChange);
+      mediaQueryWco.addEventListener('change', handleDisplayModeChange);
     }
 
     // Custom event listener for service worker updates
@@ -77,8 +82,9 @@ export function usePwaInstall(): PwaInstallState {
       window.removeEventListener('appinstalled', handleAppInstalled);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
-      if (mediaQuery.removeEventListener) {
-        mediaQuery.removeEventListener('change', handleDisplayModeChange);
+      if (mediaQueryStandalone.removeEventListener) {
+        mediaQueryStandalone.removeEventListener('change', handleDisplayModeChange);
+        mediaQueryWco.removeEventListener('change', handleDisplayModeChange);
       }
       window.removeEventListener('pwa-update-available', handleSwUpdate);
     };
@@ -102,14 +108,30 @@ export function usePwaInstall(): PwaInstallState {
 
   const updateApp = useCallback(() => {
     if ('serviceWorker' in navigator) {
+      // Reload as soon as the new service worker activates and claims the client
+      navigator.serviceWorker.addEventListener(
+        'controllerchange',
+        () => {
+          window.location.reload();
+        },
+        { once: true }
+      );
+
       navigator.serviceWorker.getRegistrations().then((registrations) => {
+        let hasWaitingWorker = false;
         for (const registration of registrations) {
-          registration.update();
+          registration.update().catch(() => undefined);
           if (registration.waiting) {
+            hasWaitingWorker = true;
             registration.waiting.postMessage({ type: 'SKIP_WAITING' });
           }
         }
+        // Fallback reload if no worker was waiting
+        if (!hasWaitingWorker) {
+          window.location.reload();
+        }
       });
+    } else {
       window.location.reload();
     }
   }, []);
