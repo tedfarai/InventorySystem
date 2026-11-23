@@ -104,6 +104,7 @@ export interface IssueCartItem {
 
 export interface IssuedDocument {
   docType?: 'ISSUE';
+  voucherTitle?: string;
   slipNumber: string;
   timestamp: string;
   deptID: string;
@@ -127,11 +128,16 @@ export interface IssuedDocument {
 
 export interface ReceivedDocument {
   docType: 'DELIVERY';
+  voucherTitle?: string;
   voucherNumber: string;
   timestamp: string;
   deliveryRef: string;
   SupplierName?: string;
   supplier?: string;
+  deptID?: string;
+  deptName?: string;
+  deptHeadName?: string;
+  deptHeadEmail?: string;
   issuerID: string;
   issuerName: string;
   issuerRole?: string;

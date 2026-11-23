@@ -16,14 +16,18 @@ import {
   ArrowRight,
   Lock,
 } from 'lucide-react';
-import { POPULAR_SEARCH_TAGS, StockStatusFilter } from '../../utils/searchEngine';
+import { StockStatusFilter } from '../../utils/searchEngine';
 import { ItemCategory } from '../../types';
+import { CategoryMultiSelectDropdown } from './CategoryMultiSelectDropdown';
 
 interface StockSearchBarProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
-  categoryFilter: 'All' | ItemCategory;
-  onCategoryChange: (category: 'All' | ItemCategory) => void;
+  categoryFilter?: 'All' | ItemCategory;
+  onCategoryChange?: (category: 'All' | ItemCategory) => void;
+  selectedCategories?: ItemCategory[];
+  onSelectedCategoriesChange?: (categories: ItemCategory[]) => void;
+  categoryCounts?: Partial<Record<ItemCategory, number>>;
   stockStatusFilter?: StockStatusFilter;
   onStockStatusChange?: (status: StockStatusFilter) => void;
   skuRangeFrom?: string;
@@ -44,8 +48,11 @@ interface StockSearchBarProps {
 export const StockSearchBar: React.FC<StockSearchBarProps> = ({
   searchQuery,
   onSearchChange,
-  categoryFilter,
+  categoryFilter = 'All',
   onCategoryChange,
+  selectedCategories,
+  onSelectedCategoriesChange,
+  categoryCounts,
   stockStatusFilter = 'All',
   onStockStatusChange,
   skuRangeFrom = '',
@@ -55,8 +62,8 @@ export const StockSearchBar: React.FC<StockSearchBarProps> = ({
   onResetAllFilters,
   totalCount,
   filteredCount,
-  belowThresholdCount,
-  onOpenReorderReport,
+  belowThresholdCount: _belowThresholdCount,
+  onOpenReorderReport: _onOpenReorderReport,
   onNewStockItem,
   isReadOnly = false,
   placeholder = 'Multi-facet search: Type text, or use tags like status:low, cat:cleaning, ST-001..ST-020...',
@@ -66,16 +73,20 @@ export const StockSearchBar: React.FC<StockSearchBarProps> = ({
   const isMac = typeof window !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0;
   const modKey = isMac ? '⌘' : 'Ctrl';
 
+  const isMultiCategoryMode = Boolean(onSelectedCategoriesChange);
+  const activeMultiCategories = selectedCategories ?? [];
+
   const hasActiveFilters =
     Boolean(searchQuery.trim()) ||
-    categoryFilter !== 'All' ||
+    (isMultiCategoryMode ? activeMultiCategories.length > 0 : categoryFilter !== 'All') ||
     stockStatusFilter !== 'All' ||
     Boolean(skuRangeFrom.trim()) ||
     Boolean(skuRangeTo.trim());
 
   const handleReset = () => {
     onSearchChange('');
-    onCategoryChange('All');
+    if (onCategoryChange) onCategoryChange('All');
+    if (onSelectedCategoriesChange) onSelectedCategoriesChange([]);
     if (onStockStatusChange) onStockStatusChange('All');
     if (onSkuRangeFromChange) onSkuRangeFromChange('');
     if (onSkuRangeToChange) onSkuRangeToChange('');
@@ -125,36 +136,45 @@ export const StockSearchBar: React.FC<StockSearchBarProps> = ({
           )}
         </div>
 
-        {/* Category Filter Selector Buttons */}
-        <div
-          id="stock-category-filter-group"
-          className="flex items-center space-x-1 bg-slate-50 dark:bg-slate-950 p-1 rounded-xl border-2 border-slate-300 dark:border-slate-700 shrink-0 overflow-x-auto shadow-xs"
-        >
-          <span className="text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400 px-1.5 flex items-center gap-1">
-            <Filter className="w-3 h-3 text-slate-400" /> Category:
-          </span>
-          {(['All', 'Stationery', 'Cleaning', 'General'] as const).map((cat) => (
-            <button
-              key={cat}
-              id={`filter-category-${cat.toLowerCase()}`}
-              type="button"
-              onClick={() => onCategoryChange(cat)}
-              className={`px-2.5 py-1 rounded text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
-                categoryFilter === cat
-                  ? cat === 'Stationery'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : cat === 'Cleaning'
-                    ? 'bg-purple-600 text-white shadow-xs'
-                    : cat === 'General'
-                    ? 'bg-amber-600 text-white shadow-xs'
-                    : 'bg-teal-600 text-white shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
+        {/* Category Filter Control: Multi-Select Dropdown on Master Stock, or Single-Select Pills for legacy tabs */}
+        {isMultiCategoryMode && onSelectedCategoriesChange ? (
+          <CategoryMultiSelectDropdown
+            selectedCategories={activeMultiCategories}
+            onChange={onSelectedCategoriesChange}
+            categoryCounts={categoryCounts}
+            totalCount={totalCount}
+          />
+        ) : (
+          <div
+            id="stock-category-filter-group"
+            className="flex items-center space-x-1 bg-slate-50 dark:bg-slate-950 p-1 rounded-xl border-2 border-slate-300 dark:border-slate-700 shrink-0 overflow-x-auto shadow-xs"
+          >
+            <span className="text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400 px-1.5 flex items-center gap-1">
+              <Filter className="w-3 h-3 text-slate-400" /> Category:
+            </span>
+            {(['All', 'Stationery', 'Cleaning', 'General'] as const).map((cat) => (
+              <button
+                key={cat}
+                id={`filter-category-${cat.toLowerCase()}`}
+                type="button"
+                onClick={() => onCategoryChange && onCategoryChange(cat)}
+                className={`px-2.5 py-1 rounded text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+                  categoryFilter === cat
+                    ? cat === 'Stationery'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : cat === 'Cleaning'
+                      ? 'bg-purple-600 text-white shadow-xs'
+                      : cat === 'General'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'bg-teal-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Toggle Advanced Facets (SKU Range & Stock Status) */}
         <button
@@ -325,7 +345,13 @@ export const StockSearchBar: React.FC<StockSearchBarProps> = ({
                 <span>Active Facets:</span>
                 <span className="font-bold text-teal-600 dark:text-teal-400">
                   {[
-                    categoryFilter !== 'All' ? `Cat: ${categoryFilter}` : null,
+                    isMultiCategoryMode
+                      ? activeMultiCategories.length > 0
+                        ? `Cat: ${activeMultiCategories.join(', ')}`
+                        : null
+                      : categoryFilter !== 'All'
+                      ? `Cat: ${categoryFilter}`
+                      : null,
                     stockStatusFilter !== 'All' ? `Status: ${stockStatusFilter}` : null,
                     skuRangeFrom || skuRangeTo ? `SKU: ${skuRangeFrom || '*' }..${skuRangeTo || '*'}` : null,
                   ]

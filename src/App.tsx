@@ -566,13 +566,21 @@ function AppContent() {
   const handleOpenAuditMovementDocument = (log: MovementLogEntry) => {
     const docRef = log.DocumentRef || log.id;
 
-    if (log.Type === 'DELIVERY' || docRef.startsWith('GRN-')) {
+    if (log.Type === 'DELIVERY' || docRef.startsWith('GRN-') || docRef.startsWith('BRV-')) {
       const matchedReceivedDoc = receivedDocs.find((d) => d.voucherNumber === docRef);
+      const isBrv = docRef.startsWith('BRV-') || (log.DeptID && log.DeptID !== 'N/A');
       const deliveryDoc: ReceivedDocument = matchedReceivedDoc || {
         docType: 'DELIVERY',
+        voucherTitle: isBrv ? 'BULK RECEIVE VOUCHER (BRV)' : undefined,
         voucherNumber: docRef,
         timestamp: log.Timestamp,
         deliveryRef: docRef,
+        SupplierName: log.SupplierName,
+        supplier: log.SupplierName,
+        deptID: log.DeptID && log.DeptID !== 'N/A' ? log.DeptID : undefined,
+        deptName: log.DeptID && log.DeptID !== 'N/A' ? log.DeptName : undefined,
+        deptHeadName: log.DeptHead && log.DeptHead !== 'N/A' ? log.DeptHead : undefined,
+        deptHeadEmail: log.DeptEmail && log.DeptEmail !== 'N/A' ? log.DeptEmail : undefined,
         issuerID: log.IssuerID,
         issuerName: log.IssuerName || 'Rachel Pickard',
         issuerRole: 'Procurement Manager',
@@ -585,9 +593,9 @@ function AppContent() {
             Unit: 'Units',
           },
         ],
-        pdfFileName: `GRN_${docRef}.pdf`,
+        pdfFileName: `${isBrv ? 'BRV' : 'GRN'}_${docRef}.pdf`,
         folderPath: `${masterFolderPath}\\Received_Items\\`,
-        fullSavedPath: `${masterFolderPath}\\Received_Items\\GRN_${docRef}.pdf`,
+        fullSavedPath: `${masterFolderPath}\\Received_Items\\${isBrv ? 'BRV' : 'GRN'}_${docRef}.pdf`,
       };
       setSelectedAuditMovementDoc({ type: 'DELIVERY', data: deliveryDoc });
       return;

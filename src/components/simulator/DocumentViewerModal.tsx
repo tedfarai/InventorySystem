@@ -43,7 +43,18 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
   const isDelivery = docObj.type === 'DELIVERY';
   const isAdjustment = docObj.type === 'ADJUSTMENT';
   const isIssue = docObj.type === 'ISSUE';
-  const isIssueManager = isIssue && String((docObj.data as IssuedDocument)?.deptID || '').startsWith('MGR-');
+  const delDoc = isDelivery ? (docObj.data as ReceivedDocument) : null;
+  const issueDoc = isIssue ? (docObj.data as IssuedDocument) : null;
+  const isBrv =
+    isDelivery &&
+    (String(delDoc?.voucherNumber || '').toUpperCase().startsWith('BRV-') ||
+      Boolean(delDoc?.deptID) ||
+      Boolean(delDoc?.voucherTitle));
+  const isSiv =
+    isIssue &&
+    (String(issueDoc?.slipNumber || '').toUpperCase().startsWith('SIV-') ||
+      Boolean(issueDoc?.voucherTitle));
+  const isIssueManager = isIssue && String(issueDoc?.deptID || '').startsWith('MGR-');
   const [hasAutoSaved, setHasAutoSaved] = useState(false);
   const [autoSaveToast, setAutoSaveToast] = useState<string | null>(null);
   const [logoSrc, setLogoSrc] = useState<string>(PEX_GREEN_LOGO_PUBLIC_PATH);
@@ -163,9 +174,13 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
           )}
           <span className="font-mono text-xs font-bold text-slate-100">
             {isDelivery
-              ? 'Goods / Items Received Voucher (GRN) — Authentic PDF Viewer'
+              ? isBrv
+                ? 'Bulk Receive Voucher (BRV) — Authentic PDF Viewer'
+                : 'Goods / Items Received Voucher (GRN) — Authentic PDF Viewer'
               : isAdjustment
               ? 'Stock Adjustment & Physical Count Voucher — Authentic PDF Viewer'
+              : isSiv
+              ? 'Stock Issue Voucher (SIV) — Authentic PDF Viewer'
               : 'Stationery & Cleaning Item Issue Slip — Authentic PDF Viewer'}
           </span>
         </div>
@@ -372,9 +387,13 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
               <div className="flex-1 p-3 flex flex-col items-center justify-center text-center bg-white">
                 <h2 className="text-sm sm:text-base font-black tracking-tight text-slate-900 uppercase">
                   {isDelivery
-                    ? 'Goods / Items Received Voucher (GRN)'
+                    ? isBrv
+                      ? (delDoc?.voucherTitle || 'Bulk Receive Voucher (BRV)')
+                      : 'Goods / Items Received Voucher (GRN)'
                     : isAdjustment
                     ? 'Stock Adjustment & Count Discrepancy Voucher'
+                    : isSiv
+                    ? (issueDoc?.voucherTitle || 'Stock Issue Voucher (SIV)')
                     : 'Stationery & Cleaning Requisition Issue Form'}
                 </h2>
                 <span className="text-[10px] font-mono text-slate-700 font-bold">
@@ -391,11 +410,20 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
               {isDelivery ? (
                 <>
                   <div className="p-2 flex">
-                    <span className="font-bold w-48 text-slate-900">Voucher GRN Ref:</span>
+                    <span className="font-bold w-48 text-slate-900">{isBrv ? 'Voucher BRV Ref:' : 'Voucher GRN Ref:'}</span>
                     <span className="font-mono font-bold text-blue-700">
                       {(docObj.data as ReceivedDocument).voucherNumber}
                     </span>
                   </div>
+                  {(docObj.data as ReceivedDocument).deptName && (
+                    <div className="p-2 flex">
+                      <span className="font-bold w-48 text-slate-900">Target Department:</span>
+                      <span className="font-bold text-slate-900">
+                        {(docObj.data as ReceivedDocument).deptID || 'DEPT'} - {(docObj.data as ReceivedDocument).deptName}
+                        {(docObj.data as ReceivedDocument).deptHeadName ? ` (${(docObj.data as ReceivedDocument).deptHeadName})` : ''}
+                      </span>
+                    </div>
+                  )}
                   <div className="p-2 flex">
                     <span className="font-bold w-48 text-slate-900">Delivery Note / Invoice Ref:</span>
                     <span className="font-mono text-slate-900">

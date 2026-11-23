@@ -64,6 +64,7 @@ import {
   StockAdjustmentRequest,
   TimedAccessWindow,
   CurrencyCode,
+  ItemCategory,
 } from '../../types';
 import { searchStockItems } from '../../utils/searchEngine';
 import { MasterStockSheetSkeleton } from '../common/SkeletonLoader';
@@ -85,7 +86,10 @@ import { BulkStockActionsBar } from './BulkStockActionsBar';
 import { BulkBatchUpdateModal } from './BulkBatchUpdateModal';
 import { BulkDeleteConfirmationModal } from './BulkDeleteConfirmationModal';
 import { BulkDeliveryConfirmationModal, BulkDeliveryReviewItem } from './BulkDeliveryConfirmationModal';
+import { BulkIssueVoucherModal } from './BulkIssueVoucherModal';
 import { ReorderReportModal } from './ReorderReportModal';
+import { LowStockWarningOverlay } from './LowStockWarningOverlay';
+import { PurchaseRequisitionModal } from './PurchaseRequisitionModal';
 import { StockItemContextMenuModal } from './StockItemContextMenuModal';
 import {
   TableViewOptionsMenu,
@@ -101,6 +105,7 @@ import { formatCurrency, convertCurrency, getExchangeRate } from '../../utils/cu
 import { UsageTrendIndicator } from '../common/UsageTrendIndicator';
 import { generateVoucherPdfFile } from '../../utils/voucherPdfGenerator';
 import type { VoucherPdfFile } from '../../utils/voucherPdfGenerator';
+import { analyzeReorderInventory, ReorderItemAnalysis } from '../../utils/reorderReportPdfGenerator';
 
 interface ExcelSimulatorProps {
   masterFolderPath: string;
@@ -122,7 +127,12 @@ interface ExcelSimulatorProps {
   onRevokeTimedAccess?: (requestId: string) => void;
   onRejectRequest?: (requestId: string, adminNotes: string) => void;
   onSaveDelivery: (itemId: string, addQty: number, deliveryNoteRef?: string, supplier?: string, unitPrice?: number) => Promise<ReceivedDocument | void> | ReceivedDocument | void;
-  onSaveBulkDeliveries?: (deliveries: { itemId: string; addQty: number; supplier?: string; unitPrice?: number }[], deliveryNoteRef?: string, defaultSupplier?: string) => Promise<ReceivedDocument | void> | ReceivedDocument | void;
+  onSaveBulkDeliveries?: (
+    deliveries: { itemId: string; addQty: number; supplier?: string; unitPrice?: number; currency?: CurrencyCode }[],
+    deliveryNoteRef?: string,
+    defaultSupplier?: string,
+    targetDept?: Department
+  ) => Promise<ReceivedDocument | void> | ReceivedDocument | void;
   onSaveAdjustment?: (adjData: {
     itemId: string;
     physicalQty: number;
@@ -134,7 +144,11 @@ interface ExcelSimulatorProps {
     unitPrice?: number;
     currency?: CurrencyCode;
   }) => Promise<{ success: boolean; allAdjusted?: boolean; voucherNumber?: string; error?: string; doc?: AdjustmentDocument } | void> | void;
-  onExecuteIssue: (dept: Department, cart: IssueCartItem[]) => Promise<IssuedDocument> | IssuedDocument;
+  onExecuteIssue: (
+    dept: Department,
+    cart: IssueCartItem[],
+    options?: { slipPrefix?: 'SLIP' | 'SIV'; customRef?: string; voucherTitle?: string }
+  ) => Promise<IssuedDocument> | IssuedDocument;
   onAddNewStockItem: (item: StockItem) => void;
   onUpdateStockItemName: (itemId: string, newName: string) => void;
   onUpdateStockItem?: (updatedItem: StockItem) => void;
@@ -276,7 +290,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
   const [procurementInitialDeliveryMode, setProcurementInitialDeliveryMode] = useState<'single' | 'bulkQueue' | 'bulkGrid' | undefined>(undefined);
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<'All' | 'Stationery' | 'Cleaning' | 'General'>('All');
+  const [selectedCategories, setSelectedCategories] = useState<ItemCategory[]>([]);
   const [stockStatusFilter, setStockStatusFilter] = useState<import('../../utils/searchEngine').StockStatusFilter>('All');
   const [skuRangeFrom, setSkuRangeFrom] = useState('');
   const [skuRangeTo, setSkuRangeTo] = useState('');
@@ -637,8 +651,10 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
       setShowBatchUpdateModal(false);
       setShowBulkDeleteModal(false);
       setShowBulkDeliveryConfirmModal(false);
+      setShowBulkIssueVoucherModal(false);
       setShowFolderConfigModal(false);
       setSelectedStockItemIds([]);
+      setIsMultiSelectMode(false);
     },
   });
 
@@ -709,7 +725,11 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
     }
   };
 
-  const handleConfirmExecuteIssue = async (finalCart?: IssueCartItem[], targetDept?: Department) => {
+  const handleConfirmExecuteIssue = async (
+    finalCart?: IssueCartItem[],
+    targetDept?: Department,
+    options?: { slipPrefix?: 'SLIP' | 'SIV'; customRef?: string; voucherTitle?: string }
+  ) => {
     const deptToUse = targetDept || tempIssueDept || (departments && departments.length > 0 ? departments[0] : {
       DeptID: 'DEP01',
       DeptName: 'General Stores Requisition',
@@ -720,7 +740,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
     if (deptToUse && cartToExecute.length > 0) {
       let generatedDoc: IssuedDocument | undefined = undefined;
       try {
-        generatedDoc = await onExecuteIssue(deptToUse, cartToExecute);
+        generatedDoc = await onExecuteIssue(deptToUse, cartToExecute, options);
       } catch (err) {
         console.error('Error executing issue workflow:', err);
         const message = err instanceof Error ? err.message : 'Issue request could not be completed.';
@@ -732,10 +752,16 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
         const nowStr = new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '');
         const timestampFile = new Date().toISOString().replace(/[-:]/g, '').replace(/T/, '_').substring(0, 15);
         const deptIdSafe = (deptToUse.DeptID || 'DEP01').replace(/[^a-zA-Z0-9]/g, '');
-        const pdfFileName = `IssueSlip_${deptIdSafe}_${timestampFile}.pdf`;
+        const prefix = options?.slipPrefix || (cartToExecute.length > 1 ? 'SIV' : 'SLIP');
+        const slipNumber =
+          options?.customRef?.trim() ||
+          `${prefix}-${Math.floor(prefix === 'SIV' ? 100000 + Math.random() * 900000 : 1000 + Math.random() * 9000)}`;
+        const isSiv = prefix === 'SIV' || slipNumber.toUpperCase().startsWith('SIV-');
+        const pdfFileName = `${isSiv ? 'SIV_Voucher' : 'IssueSlip'}_${deptIdSafe}_${timestampFile}.pdf`;
         generatedDoc = {
           docType: 'ISSUE',
-          slipNumber: `ISN-${Math.floor(100000 + Math.random() * 900000)}`,
+          voucherTitle: options?.voucherTitle || (isSiv ? 'STOCK ISSUE VOUCHER (SIV)' : undefined),
+          slipNumber,
           deptID: deptToUse.DeptID || 'DEP01',
           deptName: deptToUse.DeptName || 'General Stores Requisition',
           deptHeadName: (deptToUse as any).ManagerName || (deptToUse as any).DeptHeadName || 'Manager',
@@ -838,34 +864,74 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
     setActiveModal('backupRecovery');
   };
 
+  const categoryCounts = React.useMemo(() => {
+    const counts: Partial<Record<ItemCategory, number>> = {
+      Stationery: 0,
+      Cleaning: 0,
+      General: 0,
+    };
+    safeStockItems.forEach((item) => {
+      if (item?.Category) {
+        counts[item.Category] = (counts[item.Category] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [safeStockItems]);
+
   // Dynamic Multi-token Fuzzy & Substring Indexing Search Engine with Multi-Facet Filtering
   const filteredStock = React.useMemo(() => {
     return searchStockItems(safeStockItems, searchQuery, {
-      category: categoryFilter,
+      categories: selectedCategories,
       stockStatus: stockStatusFilter,
       skuRangeFrom: skuRangeFrom.trim() || undefined,
       skuRangeTo: skuRangeTo.trim() || undefined,
     });
-  }, [safeStockItems, searchQuery, categoryFilter, stockStatusFilter, skuRangeFrom, skuRangeTo]);
+  }, [safeStockItems, searchQuery, selectedCategories, stockStatusFilter, skuRangeFrom, skuRangeTo]);
 
   // Real-time calculation of all items at or below safety threshold (Reorder Level)
-  const belowSafetyThresholdCount = React.useMemo(() => {
-    return safeStockItems.filter((i) => (Number(i.Qty) || 0) <= (Number(i.ReorderLevel) || 10)).length;
+  const reorderSummary = React.useMemo(() => {
+    return analyzeReorderInventory(safeStockItems);
   }, [safeStockItems]);
+  const belowSafetyThresholdCount = reorderSummary.belowThresholdCount;
+
+  // Automated Low Stock Warning Overlay State
+  const [isLowStockOverlayDismissed, setIsLowStockOverlayDismissed] = useState(false);
+  const [isLowStockOverlayMinimized, setIsLowStockOverlayMinimized] = useState(false);
+  const [requisitionPreviewItems, setRequisitionPreviewItems] = useState<ReorderItemAnalysis[] | null>(null);
+  const prevLowStockIdsRef = React.useRef<Set<string>>(new Set());
+
+  React.useEffect(() => {
+    const currentIds = new Set(reorderSummary.items.map((entry) => entry.item.ItemID));
+    const hasNewDepletedItem = reorderSummary.items.some(
+      (entry) => !prevLowStockIdsRef.current.has(entry.item.ItemID)
+    );
+    if (hasNewDepletedItem && prevLowStockIdsRef.current.size > 0) {
+      setIsLowStockOverlayDismissed(false);
+    }
+    prevLowStockIdsRef.current = currentIds;
+  }, [reorderSummary.items]);
 
   // Multi-Select & Bulk Operations State
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
   const [selectedStockItemIds, setSelectedStockItemIds] = useState<string[]>([]);
   const [activeRowId, setActiveRowId] = useState<string | null>(null);
   const [showBatchUpdateModal, setShowBatchUpdateModal] = useState(false);
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [showBulkDeliveryConfirmModal, setShowBulkDeliveryConfirmModal] = useState(false);
+  const [bulkDeliveryModalMode, setBulkDeliveryModalMode] = useState<'GRN' | 'BRV'>('GRN');
   const [bulkDeliveryReviewItems, setBulkDeliveryReviewItems] = useState<BulkDeliveryReviewItem[]>([]);
+  const [showBulkIssueVoucherModal, setShowBulkIssueVoucherModal] = useState(false);
+  const [bulkIssueModalItems, setBulkIssueModalItems] = useState<StockItem[]>([]);
   const [adjustmentInitialItems, setAdjustmentInitialItems] = useState<StockItem[]>([]);
 
-  // Handle clicking row: toggle active state, toggle expand, and scroll into view if needed
+  // Handle clicking row: in Multi-Select Mode toggle selection; otherwise set active & expand/collapse
   const handleRowClick = (itemId: string, e: React.MouseEvent<HTMLTableRowElement>) => {
     setActiveRowId((prev) => (prev === itemId ? null : itemId));
-    handleToggleExpandRow(itemId);
+    if (isMultiSelectMode) {
+      handleToggleSelectRow(itemId);
+    } else {
+      handleToggleExpandRow(itemId);
+    }
     const rowEl = e.currentTarget;
     if (rowEl) {
       rowEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -916,7 +982,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
   };
 
   // Bulk Action Execution Handlers
-  const handleTriggerBulkRestock = (items: StockItem[]) => {
+  const handleTriggerBulkRestock = (items: StockItem[], mode: 'GRN' | 'BRV' = 'BRV') => {
     if (!currentUser) {
       if (onOpenLogin) onOpenLogin();
       else setActiveModal('login');
@@ -928,11 +994,13 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
       itemName: i.ItemName,
       category: i.Category,
       currentQty: i.Qty,
-      addQty: i.Qty <= i.ReorderLevel ? Math.max(10, (i.ReorderLevel * 2) - i.Qty) : 10,
+      addQty: i.Qty <= i.ReorderLevel ? Math.max(10, i.ReorderLevel * 2 - i.Qty) : 10,
       unit: i.Unit,
       supplier: i.LastSupplier || i.SupplierName || '',
       unitPrice: i.UnitPrice || undefined,
+      currency: i.Currency || 'USD',
     }));
+    setBulkDeliveryModalMode(mode);
     setBulkDeliveryReviewItems(deliveryItems);
     setShowBulkDeliveryConfirmModal(true);
   };
@@ -940,7 +1008,8 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
   const handleConfirmBulkDeliveryModal = async (
     deliveryNoteRef?: string,
     updatedDeliveries?: BulkDeliveryReviewItem[],
-    batchSupplier?: string
+    batchSupplier?: string,
+    targetDept?: Department
   ) => {
     const deliveriesToSave = updatedDeliveries || bulkDeliveryReviewItems;
     let resDoc: ReceivedDocument | undefined = undefined;
@@ -952,9 +1021,11 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
             addQty: d.addQty,
             supplier: d.supplier || batchSupplier,
             unitPrice: d.unitPrice,
+            currency: d.currency || 'USD',
           })),
           deliveryNoteRef,
-          batchSupplier
+          batchSupplier,
+          targetDept
         );
         if (bulkDoc) {
           resDoc = bulkDoc;
@@ -982,13 +1053,25 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
     if (!resDoc && deliveriesToSave.length > 0) {
       const nowStr = new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '');
       const timestampFile = new Date().toISOString().replace(/[-:]/g, '').replace(/T/, '_').substring(0, 15);
-      const voucherNumber = deliveryNoteRef || `GRN-${Math.floor(100000 + Math.random() * 900000)}`;
-      const pdfFileName = `GRN_Voucher_${voucherNumber}_${timestampFile}.pdf`;
+      const isBrv =
+        bulkDeliveryModalMode === 'BRV' ||
+        Boolean(targetDept) ||
+        String(deliveryNoteRef || '').toUpperCase().startsWith('BRV-');
+      const voucherNumber =
+        deliveryNoteRef || `${isBrv ? 'BRV' : 'GRN'}-${Math.floor(100000 + Math.random() * 900000)}`;
+      const pdfFileName = `${isBrv ? 'BRV_Voucher' : 'GRN_Voucher'}_${voucherNumber}_${timestampFile}.pdf`;
       resDoc = {
         docType: 'DELIVERY',
+        voucherTitle: isBrv ? 'BULK RECEIVE VOUCHER (BRV)' : undefined,
         voucherNumber,
         timestamp: nowStr,
         deliveryRef: voucherNumber,
+        SupplierName: batchSupplier || deliveriesToSave[0]?.supplier,
+        supplier: batchSupplier || deliveriesToSave[0]?.supplier,
+        deptID: targetDept?.DeptID,
+        deptName: targetDept?.DeptName,
+        deptHeadName: targetDept?.DeptHeadName,
+        deptHeadEmail: targetDept?.DeptHeadEmail,
         issuerID: currentUser ? currentUser.IssuerID : 'ADM001',
         issuerName: currentUser ? currentUser.IssuerName : 'Rachel Pickard',
         issuerRole: currentUser ? currentUser.Role : 'Procurement Manager',
@@ -1002,6 +1085,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
           Supplier: d.supplier || batchSupplier,
           UnitPrice: d.unitPrice,
           unitPrice: d.unitPrice,
+          Currency: d.currency || 'USD',
         })),
         pdfFileName,
         folderPath: `${masterFolderPath}\\Received_Items\\`,
@@ -1015,6 +1099,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
     }
     setShowBulkDeliveryConfirmModal(false);
     handleClearSelection();
+    setIsMultiSelectMode(false);
   };
 
   const handleTriggerBulkIssue = (items: StockItem[]) => {
@@ -1024,40 +1109,8 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
       else setActiveModal('login');
       return;
     }
-    const defaultDept = departments[0] || {
-      DeptID: 'DEP01',
-      DeptName: 'Administration',
-      DeptHeadName: 'Sarah Jenkins',
-      DeptHeadEmail: 's.jenkins@company.local',
-    };
-    const cartItems: IssueCartItem[] = items
-      .filter((i) => i.Qty > 0)
-      .map((i) => ({
-        ItemID: i.ItemID,
-        ItemName: i.ItemName,
-        Category: i.Category,
-        AvailableQty: i.Qty,
-        RequestedQty: 1,
-      }));
-
-    if (cartItems.length === 0) {
-      showToast(
-        'Stock Unavailable',
-        'warning',
-        'All selected items currently have 0 available quantity in stock. Please restock items before issuing.'
-      );
-      return;
-    }
-    setProcurementInitialItemIds(cartItems.map((c) => c.ItemID));
-    setTempIssueDept(defaultDept);
-    setTempIssueCart(cartItems);
-    setProcurementInitialTab('issue');
-    setActiveModal('procurement');
-    showToast(
-      'Batch Issue Cart Prepared',
-      'info',
-      `Staged ${cartItems.length} selected item${cartItems.length > 1 ? 's' : ''} in Requisition Cart for Department Issue.`
-    );
+    setBulkIssueModalItems(items);
+    setShowBulkIssueVoucherModal(true);
   };
 
   const handleTriggerBulkAdjustment = (items: StockItem[]) => {
@@ -1376,8 +1429,9 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
             <StockSearchBar
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
-              categoryFilter={categoryFilter}
-              onCategoryChange={setCategoryFilter}
+              selectedCategories={selectedCategories}
+              onSelectedCategoriesChange={setSelectedCategories}
+              categoryCounts={categoryCounts}
               stockStatusFilter={stockStatusFilter}
               onStockStatusChange={setStockStatusFilter}
               skuRangeFrom={skuRangeFrom}
@@ -1386,7 +1440,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
               onSkuRangeToChange={setSkuRangeTo}
               onResetAllFilters={() => {
                 setSearchQuery('');
-                setCategoryFilter('All');
+                setSelectedCategories([]);
                 setStockStatusFilter('All');
                 setSkuRangeFrom('');
                 setSkuRangeTo('');
@@ -1400,7 +1454,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
           </div>
 
           {/* Bulk Operations Toolbar & Selection Actions Menu */}
-          {selectedStockItemIds.length > 0 && (
+          {(isMultiSelectMode || selectedStockItemIds.length > 0) && (
             <div className="shrink-0">
               <BulkStockActionsBar
                 selectedCount={selectedStockItemIds.length}
@@ -1408,11 +1462,13 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                 totalStockCount={stockItems.length}
                 isAllSelected={isAllVisibleSelected}
                 isPartiallySelected={isPartiallySelected}
+                isMultiSelectMode={isMultiSelectMode}
                 selectedItems={selectedStockItems}
                 onToggleSelectAll={handleToggleSelectAllVisible}
                 onSelectByStatus={handleSelectByStatus}
                 onClearSelection={handleClearSelection}
-                onBulkRestock={handleTriggerBulkRestock}
+                onExitMultiSelectMode={() => setIsMultiSelectMode(false)}
+                onBulkRestock={(items) => handleTriggerBulkRestock(items, 'BRV')}
                 onBulkIssue={handleTriggerBulkIssue}
                 onBulkAdjustment={handleTriggerBulkAdjustment}
                 onOpenBatchUpdateModal={() => setShowBatchUpdateModal(true)}
@@ -1456,7 +1512,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
             </div>
           )}
 
-          {/* Table Controls Bar with 'Table View Options' above Inventory Table */}
+          {/* Table Controls Bar with 'Multi-Select Mode' & 'Table View Options' above Inventory Table */}
           <div className="flex flex-wrap items-center justify-between gap-2 px-2.5 py-1.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xs rounded-xl border border-slate-300 dark:border-slate-700 shadow-2xs shrink-0">
             <div className="flex items-center gap-2 text-xs">
               <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
@@ -1468,7 +1524,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                 {filteredStock.length} items
               </span>
               {selectedStockItemIds.length > 0 && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-teal-100 dark:bg-teal-950/70 text-teal-800 dark:text-teal-300 border border-teal-300 dark:border-teal-700 animate-pulse">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-teal-100 dark:bg-teal-950/70 text-teal-800 dark:text-teal-300 border border-teal-300 dark:border-teal-700 tabular-nums">
                   <CheckSquare className="w-3 h-3 text-teal-600 dark:text-teal-400" />
                   <span>{selectedStockItemIds.length} selected</span>
                 </span>
@@ -1481,6 +1537,40 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
             </div>
 
             <div className="flex items-center gap-2 ml-auto">
+              {belowSafetyThresholdCount > 0 && isLowStockOverlayDismissed && (
+                <button
+                  id="btn-reopen-low-stock-overlay"
+                  type="button"
+                  onClick={() => {
+                    setIsLowStockOverlayDismissed(false);
+                    setIsLowStockOverlayMinimized(false);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/60 transition cursor-pointer whitespace-nowrap shrink-0"
+                  title="Show automated Low Stock Warning overlay"
+                >
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                  <span>Low Stock Alert ({belowSafetyThresholdCount})</span>
+                </button>
+              )}
+              <button
+                id="btn-toggle-multi-select-mode"
+                type="button"
+                aria-pressed={isMultiSelectMode}
+                onClick={() => setIsMultiSelectMode((prev) => !prev)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer whitespace-nowrap shrink-0 ${
+                  isMultiSelectMode
+                    ? 'bg-teal-600 hover:bg-teal-500 text-white border-teal-500 shadow-xs'
+                    : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700'
+                }`}
+                title={
+                  isMultiSelectMode
+                    ? 'Multi-Select Mode Active: click rows to select/deselect for Bulk Issue (SIV) or Interactive Bulk Receive (BRV)'
+                    : 'Enable Multi-Select Mode to click-select multiple items for Bulk Issue (SIV) or Interactive Bulk Receive (BRV)'
+                }
+              >
+                <CheckSquare className="w-3.5 h-3.5" />
+                <span>Multi-Select Mode{isMultiSelectMode ? ' (On)' : ''}</span>
+              </button>
               <TableViewOptionsMenu
                 visibility={columnVisibility}
                 onChange={setColumnVisibility}
@@ -1551,13 +1641,15 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                         <Search className="w-8 h-8 text-slate-300 dark:text-slate-600" />
                         <p className="text-xs font-semibold">
                           No inventory items matched &ldquo;{searchQuery}&rdquo;
-                          {categoryFilter !== 'All' ? ` in ${categoryFilter} category` : ''}
+                          {selectedCategories.length > 0
+                            ? ` in ${selectedCategories.join(', ')}`
+                            : ''}
                         </p>
                         <button
                           type="button"
                           onClick={() => {
                             setSearchQuery('');
-                            setCategoryFilter('All');
+                            setSelectedCategories([]);
                             setStockStatusFilter('All');
                             setSkuRangeFrom('');
                             setSkuRangeTo('');
@@ -1596,7 +1688,11 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                                 handleRowClick(item.ItemID, e as any);
                               }
                             }}
-                            title="Click or press Enter on row to set active & expand/collapse details."
+                            title={
+                              isMultiSelectMode
+                                ? 'Click or press Enter to toggle multi-select checkbox for Bulk Issue (SIV) or Interactive Bulk Receive (BRV).'
+                                : 'Click or press Enter on row to set active & expand/collapse details.'
+                            }
                             aria-label={`Stock row ${item.ItemID} - ${item.ItemName}`}
                             data-active={isCurrentActive ? 'true' : undefined}
                             data-selected={isSelected ? 'true' : undefined}
@@ -2745,8 +2841,47 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
           masterFolderPath={masterFolderPath}
           onClose={() => setActiveModal('none')}
           onBulkRestock={(items) => {
-            handleTriggerBulkRestock(items);
+            handleTriggerBulkRestock(items, 'GRN');
           }}
+        />
+      )}
+
+      {/* Automated Low Stock Warning UI Overlay (Visible on Master Stock Sheet) */}
+      {activeSheet === 'Master_Stock' &&
+        !isLoading &&
+        reorderSummary.belowThresholdCount > 0 &&
+        !isLowStockOverlayDismissed && (
+          <LowStockWarningOverlay
+            summary={reorderSummary}
+            isMinimized={isLowStockOverlayMinimized}
+            onToggleMinimize={() => setIsLowStockOverlayMinimized((prev) => !prev)}
+            onDismiss={() => setIsLowStockOverlayDismissed(true)}
+            onGenerateRequisition={(selectedAnalyses) => {
+              setRequisitionPreviewItems(selectedAnalyses);
+            }}
+            onFilterLowStockSheet={() => {
+              setStockStatusFilter('low_stock');
+              showToast(
+                'Master Stock Filtered',
+                'info',
+                `Showing ${reorderSummary.belowThresholdCount} items at or below safety threshold.`
+              );
+            }}
+            onOpenReorderReport={() => setActiveModal('reorderReport')}
+          />
+        )}
+
+      {/* Purchase Requisition Modal Triggered from Low Stock Warning Overlay */}
+      {requisitionPreviewItems && requisitionPreviewItems.length > 0 && (
+        <PurchaseRequisitionModal
+          itemsAnalysis={requisitionPreviewItems}
+          currentUser={currentUser}
+          masterFolderPath={masterFolderPath}
+          resolveSupplier={getLastSupplierForItem}
+          onProceedToBulkRestock={(items) => {
+            handleTriggerBulkRestock(items, 'GRN');
+          }}
+          onClose={() => setRequisitionPreviewItems(null)}
         />
       )}
 
@@ -2805,17 +2940,44 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
         />
       )}
 
-      {/* Bulk Restock Delivery Review & Confirmation Modal */}
+      {/* Bulk Restock / Interactive Bulk Receive Review & Confirmation Modal */}
       {showBulkDeliveryConfirmModal && (
         <BulkDeliveryConfirmationModal
+          mode={bulkDeliveryModalMode}
           deliveries={bulkDeliveryReviewItems}
           items={bulkDeliveryReviewItems}
+          departments={departments}
+          allStockItems={stockItems}
           isSuperiorAdmin={isSuperiorAdmin}
           issuerId={currentUser ? currentUser.IssuerID : 'ADM001'}
           issuerName={currentUser ? currentUser.IssuerName : 'Rachel Pickard'}
           onConfirm={handleConfirmBulkDeliveryModal}
           onCancel={() => setShowBulkDeliveryConfirmModal(false)}
           onClose={() => setShowBulkDeliveryConfirmModal(false)}
+        />
+      )}
+
+      {/* Bulk Issue — Single Combined Stock Issue Voucher (SIV) Modal */}
+      {showBulkIssueVoucherModal && (
+        <BulkIssueVoucherModal
+          isOpen={showBulkIssueVoucherModal}
+          selectedItems={bulkIssueModalItems}
+          allStockItems={stockItems}
+          departments={departments}
+          managers={managers}
+          issuerId={currentUser ? currentUser.IssuerID : 'ADM001'}
+          issuerName={currentUser ? currentUser.IssuerName : 'Rachel Pickard'}
+          onConfirmExecute={async (dept, cart, customSivRef) => {
+            await handleConfirmExecuteIssue(cart, dept, {
+              slipPrefix: 'SIV',
+              customRef: customSivRef,
+              voucherTitle: 'STOCK ISSUE VOUCHER (SIV)',
+            });
+            setShowBulkIssueVoucherModal(false);
+            handleClearSelection();
+            setIsMultiSelectMode(false);
+          }}
+          onClose={() => setShowBulkIssueVoucherModal(false)}
         />
       )}
 

@@ -46,8 +46,10 @@ import { DraggableResizableModal } from '../common/DraggableResizableModal';
 import { getExecutiveAnalytics } from '../../utils/predictiveAnalytics';
 import { ExecutiveChartsView } from './ExecutiveChartsView';
 import { DailyMovementTrendsChart } from './DailyMovementTrendsChart';
+import { CategoryMovementFrequencyChart } from './CategoryMovementFrequencyChart';
 import { ExecutiveAiInsightsPanel } from './ExecutiveAiInsightsPanel';
 import { ExecutiveDemandForecastingView } from './ExecutiveDemandForecastingView';
+import { ExecutiveLinearForecastTab } from './ExecutiveLinearForecastTab';
 import { SupplierPriceCostPanel } from './SupplierPriceCostPanel';
 import {
   formatCurrency,
@@ -66,7 +68,7 @@ interface ExecutiveDashboardViewProps {
   currentUser: AdminUser | null;
   receivedDocs?: ReceivedDocument[];
   backups?: BackupSnapshot[];
-  initialViewMode?: 'overview' | 'forecasting';
+  initialViewMode?: 'overview' | 'forecasting' | 'forecast';
   onNavigateTab?: (tab: 'simulator' | 'audit' | 'export') => void;
   onNavigateSheet?: (sheet: string) => void;
   onOpenQuickAction?: (actionType: 'delivery' | 'issue' | 'adjustment' | 'reorderReport') => void;
@@ -78,6 +80,7 @@ export interface DashboardWidgetConfig {
   financialCollation: boolean;
   supplierCostAnalytics: boolean;
   dailyMovementTrends: boolean;
+  categoryMovementFrequency: boolean;
   consumptionCharts: boolean;
   aiInsights: boolean;
   lowStock: boolean;
@@ -93,6 +96,7 @@ const DEFAULT_WIDGETS: DashboardWidgetConfig = {
   financialCollation: true,
   supplierCostAnalytics: true,
   dailyMovementTrends: true,
+  categoryMovementFrequency: true,
   consumptionCharts: true,
   aiInsights: true,
   lowStock: true,
@@ -138,7 +142,7 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
   onOpenMovementDoc,
   onSelectItemForReorder,
 }) => {
-  const [dashboardViewMode, setDashboardViewMode] = useState<'overview' | 'forecasting'>(
+  const [dashboardViewMode, setDashboardViewMode] = useState<'overview' | 'forecasting' | 'forecast'>(
     initialViewMode
   );
   const [currencyMode, setCurrencyMode] = useState<DashboardCurrencyMode>(() => {
@@ -277,11 +281,12 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
         </div>
       </div>
 
-      {/* Sub-View Navigation Tabs: Overview vs Demand Forecasting */}
+      {/* Sub-View Navigation Tabs: Overview vs Forecast vs Demand Forecasting */}
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-1.5 p-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700/80">
+        <div className="flex items-center flex-wrap gap-1.5 p-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700/80">
           <button
             type="button"
+            id="dashboard-tab-overview"
             onClick={() => setDashboardViewMode('overview')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
               dashboardViewMode === 'overview'
@@ -295,6 +300,21 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
 
           <button
             type="button"
+            id="dashboard-tab-forecast"
+            onClick={() => setDashboardViewMode('forecast')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+              dashboardViewMode === 'forecast'
+                ? 'bg-teal-600 text-white shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <TrendingUp className={`w-4 h-4 ${dashboardViewMode === 'forecast' ? 'text-white' : 'text-teal-600 dark:text-teal-400'}`} />
+            <span>Forecast</span>
+          </button>
+
+          <button
+            type="button"
+            id="dashboard-tab-forecasting"
             onClick={() => setDashboardViewMode('forecasting')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
               dashboardViewMode === 'forecasting'
@@ -316,7 +336,7 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
           </button>
         </div>
 
-        {dashboardViewMode === 'forecasting' && (
+        {(dashboardViewMode === 'forecasting' || dashboardViewMode === 'forecast') && (
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -329,7 +349,13 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
         )}
       </div>
 
-      {dashboardViewMode === 'forecasting' ? (
+      {dashboardViewMode === 'forecast' ? (
+        <ExecutiveLinearForecastTab
+          stockItems={safeStock}
+          movementLogs={safeLogs}
+          onNavigateToReorder={() => handleQuickAction('reorderReport')}
+        />
+      ) : dashboardViewMode === 'forecasting' ? (
         <ExecutiveDemandForecastingView
           stockItems={safeStock}
           movementLogs={safeLogs}
@@ -580,6 +606,15 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
         <DailyMovementTrendsChart
           stockItems={safeStock}
           movementLogs={safeLogs}
+        />
+      )}
+
+      {/* Widget: 30-Day Movement Frequency by Category & High-Demand Items (Recharts) */}
+      {widgets.categoryMovementFrequency && (
+        <CategoryMovementFrequencyChart
+          stockItems={safeStock}
+          movementLogs={safeLogs}
+          onSelectItemForReorder={onSelectItemForReorder}
         />
       )}
 
@@ -1030,6 +1065,7 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
                 { key: 'financialCollation', label: 'Zimbabwe Currency Collation & Status Strip', desc: 'USD vs ZWG rates, historical spend, and safety threshold shortcuts' },
                 { key: 'supplierCostAnalytics', label: 'Zimbabwe Supplier Price & Cost Intelligence', desc: 'Supplier procurement spend in USD/ZWG & per-item cost movements' },
                 { key: 'dailyMovementTrends', label: '30-Day Daily Stock Movement Trends', desc: 'Recharts daily volume & inbound/outbound trends with category toggles' },
+                { key: 'categoryMovementFrequency', label: '30-Day Category Movement Frequency & High-Demand SKUs', desc: 'Recharts movement frequency per category with high-demand item ranking' },
                 { key: 'consumptionCharts', label: '6-Month Consumption Trends & Charts', desc: 'Recharts trends: Stationery vs Cleaning, Category Pie & Dept Bar' },
                 { key: 'aiInsights', label: 'AI Demand Forecast & Reorder Engine', desc: 'Predictive Monthly/Quarterly/6M consumption and reorder advice' },
                 { key: 'quickLaunchpad', label: 'Fast Procurement Launchpad', desc: 'One-click shortcuts to key actions' },

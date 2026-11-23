@@ -11,11 +11,11 @@ import {
   AlertCircle,
   Sparkles,
   Edit3,
-  DollarSign,
+  Building2,
 } from 'lucide-react';
-import { CurrencyCode } from '../../types';
+import { CurrencyCode, Department, StockItem } from '../../types';
 import { DraggableResizableModal } from '../common/DraggableResizableModal';
-import { formatCurrency, collateDualCurrencyValuation, getExchangeRate } from '../../utils/currencyUtils';
+import { formatCurrency, collateDualCurrencyValuation } from '../../utils/currencyUtils';
 
 export interface BulkDeliveryReviewItem {
   itemId: string;
@@ -31,24 +31,40 @@ export interface BulkDeliveryReviewItem {
 
 interface BulkDeliveryConfirmationModalProps {
   isOpen?: boolean;
+  mode?: 'GRN' | 'BRV';
   deliveries?: BulkDeliveryReviewItem[];
   items?: BulkDeliveryReviewItem[];
   deliveryItems?: BulkDeliveryReviewItem[];
+  departments?: Department[];
+  allStockItems?: StockItem[];
   issuerId?: string;
   issuerName?: string;
   isSuperiorAdmin?: boolean;
   defaultSupplier?: string;
-  onConfirm?: (deliveryNoteRef?: string, updatedDeliveries?: BulkDeliveryReviewItem[], supplier?: string) => void | Promise<void>;
-  onConfirmDelivery?: (deliveryNoteRef?: string, updatedDeliveries?: BulkDeliveryReviewItem[], supplier?: string) => void | Promise<void>;
+  onConfirm?: (
+    deliveryNoteRef?: string,
+    updatedDeliveries?: BulkDeliveryReviewItem[],
+    supplier?: string,
+    targetDept?: Department
+  ) => void | Promise<void>;
+  onConfirmDelivery?: (
+    deliveryNoteRef?: string,
+    updatedDeliveries?: BulkDeliveryReviewItem[],
+    supplier?: string,
+    targetDept?: Department
+  ) => void | Promise<void>;
   onCancel?: () => void;
   onClose?: () => void;
 }
 
 export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationModalProps> = ({
   isOpen = true,
+  mode = 'GRN',
   deliveries,
   items,
   deliveryItems,
+  departments = [],
+  allStockItems = [],
   issuerId = 'ADM001',
   issuerName = 'Rachel Pickard',
   defaultSupplier = '',
@@ -57,6 +73,9 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
   onCancel,
   onClose,
 }) => {
+  const isBrvMode = mode === 'BRV';
+  const voucherPrefix = isBrvMode ? 'BRV' : 'GRN';
+  const voucherLabel = isBrvMode ? 'Bulk Receive Voucher (BRV)' : 'Goods Received Voucher (GRN)';
   const handleCloseModal = onCancel || onClose || (() => {});
   const effectiveDeliveries = deliveries ?? items ?? deliveryItems ?? [];
   const [currentStep, setCurrentStep] = useState<1 | 2>(1);
@@ -64,15 +83,26 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
     if (Array.isArray(effectiveDeliveries) && effectiveDeliveries.length > 0) return effectiveDeliveries;
     return [];
   });
-  const [deliveryNoteRef, setDeliveryNoteRef] = useState(`GRN-${Math.floor(100000 + Math.random() * 900000)}`);
+  const [selectedDeptId, setSelectedDeptId] = useState<string>(() =>
+    isBrvMode && departments.length > 0 ? departments[0].DeptID : ''
+  );
+  const [deliveryNoteRef, setDeliveryNoteRef] = useState(
+    () => `${isBrvMode ? 'BRV' : 'GRN'}-${Math.floor(100000 + Math.random() * 900000)}`
+  );
   const [vendorSupplier, setVendorSupplier] = useState(
     defaultSupplier || deliveries?.[0]?.supplier || items?.[0]?.supplier || ''
   );
+  const [batchQtyFill, setBatchQtyFill] = useState<string>('10');
   const [confirmedCheck, setConfirmedCheck] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [executionStatus, setExecutionStatus] = useState('');
   const [progressPercent, setProgressPercent] = useState(0);
   const [isCompleted, setIsCompleted] = useState(false);
+
+  const selectedDepartment = departments.find((d) => d.DeptID === selectedDeptId);
+  const availableToAdd = allStockItems.filter(
+    (stock) => !itemsList.some((it) => it.itemId === stock.ItemID)
+  );
 
   // Dynamic calculations based on editable itemsList
   const safeItemsList = Array.isArray(itemsList) ? itemsList : [];
@@ -122,6 +152,32 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
     setItemsList((prev) => prev.filter((item) => item.itemId !== itemId));
   };
 
+  const handleApplyBatchQty = () => {
+    const qtyNum = parseInt(batchQtyFill, 10);
+    if (isNaN(qtyNum) || qtyNum <= 0) return;
+    setItemsList((prev) => prev.map((item) => ({ ...item, addQty: qtyNum })));
+  };
+
+  const handleAppendStockItem = (selectedId: string) => {
+    if (!selectedId) return;
+    const stock = allStockItems.find((s) => s.ItemID === selectedId);
+    if (!stock) return;
+    setItemsList((prev) => [
+      ...prev,
+      {
+        itemId: stock.ItemID,
+        itemName: stock.ItemName,
+        category: stock.Category,
+        currentQty: stock.Qty,
+        addQty: 10,
+        unit: stock.Unit,
+        supplier: vendorSupplier || stock.LastSupplier || stock.SupplierName || '',
+        unitPrice: stock.UnitPrice,
+        currency: stock.Currency || 'USD',
+      },
+    ]);
+  };
+
   const handleFinalSubmit = async () => {
     if (!confirmedCheck || safeItemsList.length === 0 || isProcessing) return;
     setIsProcessing(true);
@@ -130,7 +186,7 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
     await new Promise((r) => setTimeout(r, 180));
 
     setProgressPercent(60);
-    setExecutionStatus('2/3 Appending movement logs & creating single GRV document...');
+    setExecutionStatus(`2/3 Appending movement logs & creating single ${voucherPrefix} document...`);
     await new Promise((r) => setTimeout(r, 180));
 
     setProgressPercent(90);
@@ -139,7 +195,7 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
 
     setProgressPercent(100);
     setIsCompleted(true);
-    setExecutionStatus('4/4 Finalizing Received Goods Voucher & opening PDF viewer...');
+    setExecutionStatus(`4/4 Finalizing ${voucherLabel} & opening PDF viewer...`);
     await new Promise((r) => setTimeout(r, 150));
 
     const finalBatch = safeItemsList.map((item) => ({
@@ -149,7 +205,7 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
 
     try {
       const confirmAction = onConfirm ?? onConfirmDelivery ?? (() => Promise.resolve());
-      await confirmAction(deliveryNoteRef, finalBatch, vendorSupplier);
+      await confirmAction(deliveryNoteRef, finalBatch, vendorSupplier, selectedDepartment);
     } catch (err) {
       console.error('Error during bulk delivery execution:', err);
     }
@@ -171,7 +227,9 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
         <div className="flex items-center space-x-2">
           <PackagePlus className="w-5 h-5 text-blue-400" />
           <span className="font-mono text-xs font-bold tracking-wide text-slate-100">
-            frmBulkDeliveryConfirmation — Delivery Review & Quantity Adjustment
+            {isBrvMode
+              ? 'Interactive Bulk Receive — Combined Bulk Receive Voucher (BRV)'
+              : 'frmBulkDeliveryConfirmation — Delivery Review & Quantity Adjustment'}
           </span>
         </div>
         {!isProcessing && (
@@ -197,7 +255,9 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
               {currentStep > 1 ? '✓' : '1'}
             </div>
             <span className={currentStep === 1 ? 'font-bold text-blue-400' : 'text-slate-400'}>
-              Step 1: Quantity Adjust & Item Review
+              {isBrvMode
+                ? 'Step 1: Department, Quantities & Prices'
+                : 'Step 1: Quantity Adjust & Item Review'}
             </span>
           </div>
 
@@ -214,7 +274,9 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
               2
             </div>
             <span className={currentStep === 2 ? 'font-bold text-blue-400' : 'text-slate-400'}>
-              Step 2: Single GRV Sign-Off & Commit
+              {isBrvMode
+                ? 'Step 2: Single BRV Sign-Off & Commit'
+                : 'Step 2: Single GRV Sign-Off & Commit'}
             </span>
           </div>
         </div>
@@ -224,12 +286,91 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
           {/* STEP 1: EDITABLE SUMMARY TABLE & STATS REVIEW */}
           {currentStep === 1 && (
             <div className="space-y-4">
+              {/* Department & Quick Batch Controls */}
+              {(departments.length > 0 || availableToAdd.length > 0) && (
+                <div className="p-3.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                  {departments.length > 0 && (
+                    <div>
+                      <label className="flex items-center gap-1 text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        <Building2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                        <span>Receiving Department (BRV Allocation)</span>
+                      </label>
+                      <select
+                        id="bulk-receive-dept-select"
+                        value={selectedDeptId}
+                        onChange={(e) => setSelectedDeptId(e.target.value)}
+                        className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Central Warehouse (General Stock)</option>
+                        {departments.map((d) => (
+                          <option key={d.DeptID} value={d.DeptID}>
+                            [{d.DeptID}] {d.DeptName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      Batch Supplier / Vendor
+                    </label>
+                    <input
+                      type="text"
+                      value={vendorSupplier}
+                      onChange={(e) => setVendorSupplier(e.target.value)}
+                      placeholder="Apply default supplier to rows..."
+                      className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      Quick Batch Incoming Qty
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        min={1}
+                        value={batchQtyFill}
+                        onChange={(e) => setBatchQtyFill(e.target.value)}
+                        className="w-20 px-2 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono font-bold text-slate-900 dark:text-slate-100 text-right"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleApplyBatchQty}
+                        className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-[11px] font-bold whitespace-nowrap cursor-pointer"
+                      >
+                        Apply All
+                      </button>
+                      {availableToAdd.length > 0 && (
+                        <select
+                          value=""
+                          onChange={(e) => handleAppendStockItem(e.target.value)}
+                          className="min-w-[110px] flex-1 px-2 py-1.5 bg-blue-50 dark:bg-blue-950/40 border border-blue-300 dark:border-blue-700 rounded-lg text-[11px] font-semibold text-blue-800 dark:text-blue-200 cursor-pointer"
+                          aria-label="Add another item to bulk receive batch"
+                        >
+                          <option value="">+ Add Item</option>
+                          {availableToAdd.map((st) => (
+                            <option key={st.ItemID} value={st.ItemID}>
+                              [{st.ItemID}] {st.ItemName}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Instructions banner */}
               <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl flex items-center justify-between text-xs text-slate-700 dark:text-slate-300">
                 <div className="flex items-center space-x-2">
                   <Edit3 className="w-4 h-4 text-blue-500 shrink-0" />
                   <span>
-                    <strong>Delivery Manifest Review:</strong> You can adjust incoming quantities or delete items before committing to Master_Stock.
+                    <strong>{isBrvMode ? 'Interactive Bulk Receive Manifest:' : 'Delivery Manifest Review:'}</strong>{' '}
+                    Adjust incoming quantities, prices, currencies, or suppliers before consolidating into{' '}
+                    <strong>1 combined {voucherPrefix}</strong>.
                   </span>
                 </div>
               </div>
@@ -396,16 +537,20 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
             </div>
           )}
 
-          {/* STEP 2: AUTHORIZATION & SIGN-OFF FOR SINGLE BATCH GRV */}
+          {/* STEP 2: AUTHORIZATION & SIGN-OFF FOR SINGLE BATCH GRV/BRV */}
           {currentStep === 2 && (
             <div className="space-y-4">
               <div className="bg-blue-500/10 border border-blue-500/30 p-3.5 rounded-xl flex items-start space-x-3">
                 <ShieldCheck className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
                 <div className="text-xs text-slate-700 dark:text-slate-300">
                   <span className="font-bold text-slate-900 dark:text-slate-100 block mb-0.5">
-                    Step 2: Single GRV Document Sign-Off
+                    Step 2: Single {voucherPrefix} Document Sign-Off
                   </span>
-                  All <strong className="text-blue-600 dark:text-blue-400">{totalItemsCount} received items</strong> will be consolidated into <strong>ONE Goods Received Voucher (GRV)</strong> document and logged with your receiving timestamp and user identity.
+                  All <strong className="text-blue-600 dark:text-blue-400">{totalItemsCount} received items</strong> will be consolidated into <strong>ONE {voucherLabel}</strong> document
+                  {selectedDepartment ? (
+                    <> allocated to <strong>{selectedDepartment.DeptName} ({selectedDepartment.DeptID})</strong></>
+                  ) : null}{' '}
+                  and logged with your receiving timestamp and user identity.
                 </div>
               </div>
 
@@ -421,15 +566,30 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
                   <span className="font-bold text-emerald-600 dark:text-emerald-400">{issuerName} ({issuerId})</span>
                 </div>
 
+                {selectedDepartment && (
+                  <div className="col-span-2 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                    <div>
+                      <span className="text-slate-500 dark:text-slate-400 block text-[11px]">Target Department Allocation</span>
+                      <span className="font-bold text-blue-700 dark:text-blue-300">
+                        [{selectedDepartment.DeptID}] {selectedDepartment.DeptName}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-slate-500 dark:text-slate-400 block text-[11px]">Department Head</span>
+                      <span className="font-medium text-slate-800 dark:text-slate-200">{selectedDepartment.DeptHeadName}</span>
+                    </div>
+                  </div>
+                )}
+
                 <div className="col-span-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                   <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Goods Received Voucher Reference (GRV Number)
+                    {isBrvMode ? 'Bulk Receive Voucher Reference (BRV Number)' : 'Goods Received Voucher Reference (GRV Number)'}
                   </label>
                   <input
                     type="text"
                     value={deliveryNoteRef}
                     onChange={(e) => setDeliveryNoteRef(e.target.value)}
-                    placeholder="e.g. GRN-882910 or Delivery Invoice #1024"
+                    placeholder={`e.g. ${voucherPrefix}-882910 or Delivery Invoice #1024`}
                     className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:ring-1 focus:ring-blue-500 mb-2"
                   />
 
@@ -456,7 +616,7 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
                     className="mt-0.5 rounded text-blue-600 focus:ring-blue-500 w-4 h-4"
                   />
                   <span className="text-xs text-slate-700 dark:text-slate-300 font-medium leading-relaxed">
-                    I confirm physical inspection of all <strong className="text-slate-900 dark:text-slate-100">{totalItemsCount} items</strong> (+{totalUnits} units) received and authorize committing them into <code className="font-mono text-emerald-600 dark:text-emerald-400">Master_Stock</code> on <strong>1 single GRV document</strong>.
+                    I confirm physical inspection of all <strong className="text-slate-900 dark:text-slate-100">{totalItemsCount} items</strong> (+{totalUnits} units) received and authorize committing them into <code className="font-mono text-emerald-600 dark:text-emerald-400">Master_Stock</code> on <strong>1 single {voucherPrefix} document</strong>.
                   </span>
                 </label>
               </div>
@@ -492,7 +652,7 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
                   {isCompleted && (
                     <div className="flex items-center justify-center gap-2 pt-1 text-emerald-400 text-xs font-bold font-mono animate-in zoom-in duration-300">
                       <Sparkles className="w-4 h-4 text-amber-400 animate-spin" />
-                      <span>Single GRV Document & Stock Commit Completed!</span>
+                      <span>Single {voucherPrefix} Document &amp; Stock Commit Completed!</span>
                     </div>
                   )}
                 </div>
@@ -517,9 +677,9 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
                 type="button"
                 onClick={() => setCurrentStep(2)}
                 disabled={itemsList.length === 0}
-                className="flex items-center space-x-1.5 px-5 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 text-white font-bold text-xs rounded-xl shadow transition disabled:opacity-50"
+                className="flex items-center space-x-1.5 px-5 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 text-white font-bold text-xs rounded-xl shadow transition disabled:opacity-50 cursor-pointer"
               >
-                <span>Proceed to Step 2 (Single GRV Sign-Off)</span>
+                <span>Proceed to Step 2 (Single {voucherPrefix} Sign-Off)</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </>
@@ -539,17 +699,17 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
                 type="button"
                 onClick={handleFinalSubmit}
                 disabled={!confirmedCheck || isProcessing || itemsList.length === 0}
-                className="flex items-center space-x-2 px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg transition disabled:opacity-50"
+                className="flex items-center space-x-2 px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg transition disabled:opacity-50 cursor-pointer"
               >
                 {isProcessing ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Saving GRV & Stock... ({progressPercent}%)</span>
+                    <span>Saving {voucherPrefix} &amp; Stock... ({progressPercent}%)</span>
                   </>
                 ) : (
                   <>
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>Confirm & Generate 1 Single GRV Document</span>
+                    <span>Confirm &amp; Generate 1 Single {voucherPrefix} Document</span>
                   </>
                 )}
               </button>

@@ -5,6 +5,7 @@ export type StockStatusFilter = 'All' | 'low_stock' | 'out_of_stock' | 'optimal'
 
 export interface MultiFacetFilterOptions {
   category?: 'All' | ItemCategory;
+  categories?: ItemCategory[];
   stockStatus?: StockStatusFilter;
   skuRangeFrom?: string;
   skuRangeTo?: string;
@@ -203,9 +204,13 @@ export function searchStockItems(
   const effectiveSkuFrom = parsed.skuFrom || facets.skuRangeFrom;
   const effectiveSkuTo = parsed.skuTo || facets.skuRangeTo;
 
-  // 1. Filter by Category
+  // 1. Filter by Category (supports inline cat:, multi-select categories[], or single category)
   let candidates = items;
-  if (effectiveCategory !== 'All') {
+  if (parsed.category) {
+    candidates = candidates.filter((item) => item.Category === parsed.category);
+  } else if (facets.categories && facets.categories.length > 0) {
+    candidates = candidates.filter((item) => facets.categories!.includes(item.Category));
+  } else if (effectiveCategory !== 'All') {
     candidates = candidates.filter((item) => item.Category === effectiveCategory);
   }
 

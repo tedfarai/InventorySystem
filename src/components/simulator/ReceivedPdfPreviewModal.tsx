@@ -32,15 +32,21 @@ export const ReceivedPdfPreviewModal: React.FC<ReceivedPdfPreviewModalProps> = (
   const [isPdfGenerating, setIsPdfGenerating] = useState(true);
   const [pdfPrintError, setPdfPrintError] = useState<string | null>(null);
 
-  // Safe field derivations
-  const voucherNumber = String(doc?.voucherNumber || (doc as any)?.deliveryRef || `GRN-${Date.now().toString().slice(-6)}`);
-  const deliveryRef = String(doc?.deliveryRef || doc?.voucherNumber || 'GRN-Delivery');
+  const isBrv =
+    String(doc?.voucherNumber || '').toUpperCase().startsWith('BRV-') ||
+    Boolean(doc?.deptID) ||
+    Boolean(doc?.voucherTitle);
+  const voucherNumber = String(doc?.voucherNumber || (doc as any)?.deliveryRef || `${isBrv ? 'BRV' : 'GRN'}-${Date.now().toString().slice(-6)}`);
+  const deliveryRef = String(doc?.deliveryRef || doc?.voucherNumber || (isBrv ? 'BRV-Bulk-Receive' : 'GRN-Delivery'));
   const timestamp = String(doc?.timestamp || new Date().toISOString().replace(/T/, ' ').substring(0, 19));
   const issuerId = String(doc?.issuerID || (doc as any)?.IssuerID || 'ADM001');
   const issuerName = String(doc?.issuerName || (doc as any)?.IssuerName || 'Rachel Pickard');
   const issuerRole = String(doc?.issuerRole || 'Procurement Manager');
   const supplierName = String(doc?.SupplierName || doc?.supplier || 'Approved Vendor');
-  const fullSavedPath = String(doc?.fullSavedPath || `C:\\Stationery & Cleaning\\Received_Items\\GRN_Voucher_${voucherNumber}.pdf`);
+  const deptLabel = doc?.deptName
+    ? `${doc.deptID ? `${doc.deptID} - ` : ''}${doc.deptName}${doc.deptHeadName ? ` (${doc.deptHeadName})` : ''}`
+    : '';
+  const fullSavedPath = String(doc?.fullSavedPath || `C:\\Stationery & Cleaning\\Received_Items\\${isBrv ? 'BRV' : 'GRN'}_Voucher_${voucherNumber}.pdf`);
   const safeDocItems = Array.isArray(doc?.items) ? doc.items : [];
   const totalUnits = safeDocItems.reduce((sum, item) => sum + (Number(item?.Qty || 0)), 0);
 
@@ -96,7 +102,7 @@ export const ReceivedPdfPreviewModal: React.FC<ReceivedPdfPreviewModalProps> = (
     pdf.setTextColor(15, 23, 42);
     pdf.setFontSize(13.5);
     pdf.setFont('helvetica', 'bold');
-    pdf.text('GOODS / ITEMS RECEIVED VOUCHER (GRN)', 37, 21);
+    pdf.text(isBrv ? (doc?.voucherTitle || 'BULK RECEIVE VOUCHER (BRV)') : 'GOODS / ITEMS RECEIVED VOUCHER (GRN)', 37, 21);
 
     pdf.setFontSize(8.5);
     pdf.setFont('helvetica', 'bold');
@@ -112,38 +118,65 @@ export const ReceivedPdfPreviewModal: React.FC<ReceivedPdfPreviewModalProps> = (
     // Metadata Table Box
     pdf.setDrawColor(148, 163, 184);
     pdf.setLineWidth(0.3);
-    pdf.rect(12, 47, 186, 38);
+    pdf.rect(12, 47, 186, deptLabel ? 44 : 38);
 
     // Metadata Lines
     pdf.setFontSize(9.5);
     pdf.setFont('helvetica', 'bold');
     pdf.setTextColor(15, 23, 42);
-    pdf.text('GRN Voucher Ref:', 16, 54);
+    pdf.text(isBrv ? 'BRV Voucher Ref:' : 'GRN Voucher Ref:', 16, 54);
     pdf.setFont('helvetica', 'normal');
     pdf.text(voucherNumber, 62, 54);
 
-    pdf.setFont('helvetica', 'bold');
-    pdf.text('Delivery Note Ref:', 16, 60);
-    pdf.setFont('helvetica', 'normal');
-    pdf.text(deliveryRef, 62, 60);
+    if (deptLabel) {
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Target Department:', 16, 60);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(deptLabel, 62, 60);
 
-    pdf.setFont('helvetica', 'bold');
-    pdf.text('Supplier / Vendor:', 16, 66);
-    pdf.setFont('helvetica', 'normal');
-    pdf.text(supplierName, 62, 66);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Supplier / Vendor:', 16, 66);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(supplierName, 62, 66);
 
-    pdf.setFont('helvetica', 'bold');
-    pdf.text('Receiving User / Issuer:', 16, 72);
-    pdf.setFont('helvetica', 'normal');
-    pdf.text(`${issuerName} (${issuerId}) - ${issuerRole}`, 62, 72);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Receiving User / Issuer:', 16, 72);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`${issuerName} (${issuerId}) - ${issuerRole}`, 62, 72);
 
-    pdf.setFont('helvetica', 'bold');
-    pdf.text('Target Worksheet:', 16, 78);
-    pdf.setFont('helvetica', 'normal');
-    pdf.text('Master_Stock (Quantities Credited) & Movement_Log (Audit Trail)', 62, 78);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Delivery Note Ref:', 16, 78);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(deliveryRef, 62, 78);
+
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Target Worksheet:', 16, 84);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text('Master_Stock (Quantities Credited) & Movement_Log (Audit Trail)', 62, 84);
+    } else {
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Delivery Note Ref:', 16, 60);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(deliveryRef, 62, 60);
+
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Supplier / Vendor:', 16, 66);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(supplierName, 62, 66);
+
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Receiving User / Issuer:', 16, 72);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`${issuerName} (${issuerId}) - ${issuerRole}`, 62, 72);
+
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Target Worksheet:', 16, 78);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text('Master_Stock (Quantities Credited) & Movement_Log (Audit Trail)', 62, 78);
+    }
 
     // Items Table Header
-    let y = 91;
+    let y = deptLabel ? 97 : 91;
     pdf.setFillColor(241, 245, 249);
     pdf.rect(12, y, 186, 9, 'F');
     pdf.rect(12, y, 186, 9, 'S');
@@ -309,7 +342,9 @@ export const ReceivedPdfPreviewModal: React.FC<ReceivedPdfPreviewModalProps> = (
         <div className="flex items-center space-x-2">
           <PackagePlus className="w-5 h-5 text-blue-400" />
           <span className="font-mono text-xs font-bold text-slate-100">
-            PDF Goods Received Note (GRN) — Authentic Generated PDF Viewer
+            {isBrv
+              ? 'PDF Bulk Receive Voucher (BRV) — Authentic Generated PDF Viewer'
+              : 'PDF Goods Received Note (GRN) — Authentic Generated PDF Viewer'}
           </span>
         </div>
 
@@ -404,10 +439,18 @@ export const ReceivedPdfPreviewModal: React.FC<ReceivedPdfPreviewModalProps> = (
             <CheckCircle2 className="w-7 h-7 text-blue-500 shrink-0" />
             <div>
               <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100">
-                Goods Received Note (GRN) Generated & Recorded Successfully
+                {isBrv
+                  ? 'Bulk Receive Voucher (BRV) Generated & Recorded Successfully'
+                  : 'Goods Received Note (GRN) Generated & Recorded Successfully'}
               </h3>
               <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
-                Voucher Ref: <span className="font-mono font-bold text-blue-600 dark:text-blue-400">{voucherNumber}</span> | Save Directory: <code className="font-mono text-blue-700 dark:text-blue-300 text-[11px] font-semibold">{fullSavedPath}</code>
+                Voucher Ref: <span className="font-mono font-bold text-blue-600 dark:text-blue-400">{voucherNumber}</span>
+                {deptLabel && (
+                  <>
+                    {' '}| Department: <span className="font-bold text-slate-900 dark:text-slate-100">{deptLabel}</span>
+                  </>
+                )}{' '}
+                | Save Directory: <code className="font-mono text-blue-700 dark:text-blue-300 text-[11px] font-semibold">{fullSavedPath}</code>
               </p>
             </div>
           </div>
@@ -480,7 +523,7 @@ export const ReceivedPdfPreviewModal: React.FC<ReceivedPdfPreviewModalProps> = (
 
               <div className="flex-1 p-3 flex flex-col items-center justify-center text-center bg-white">
                 <h2 className="text-sm sm:text-base font-black tracking-tight text-slate-900 uppercase">
-                  Goods / Items Received Voucher (GRN)
+                  {isBrv ? (doc?.voucherTitle || 'Bulk Receive Voucher (BRV)') : 'Goods / Items Received Voucher (GRN)'}
                 </h2>
                 <span className="text-[10px] font-mono text-slate-700 font-bold">
                   PARAMOUNT PROCUREMENT & INVENTORY CONTROL
@@ -494,9 +537,15 @@ export const ReceivedPdfPreviewModal: React.FC<ReceivedPdfPreviewModalProps> = (
             {/* Boxed Metadata Section */}
             <div className="border-2 border-slate-900 divide-y-2 divide-slate-300 text-xs font-sans">
               <div className="p-2 flex">
-                <span className="font-bold w-48 text-slate-900">GRN Voucher Ref:</span>
+                <span className="font-bold w-48 text-slate-900">{isBrv ? 'BRV Voucher Ref:' : 'GRN Voucher Ref:'}</span>
                 <span className="font-mono font-bold text-blue-700">{voucherNumber}</span>
               </div>
+              {deptLabel && (
+                <div className="p-2 flex bg-blue-50/70">
+                  <span className="font-bold w-48 text-slate-900">Target Department:</span>
+                  <span className="font-bold text-slate-900">{deptLabel}</span>
+                </div>
+              )}
               <div className="p-2 flex">
                 <span className="font-bold w-48 text-slate-900">Delivery Note Ref:</span>
                 <span className="font-mono text-slate-900">{deliveryRef}</span>

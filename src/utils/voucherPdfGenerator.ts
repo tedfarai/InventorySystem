@@ -13,7 +13,18 @@ export function buildVoucherPdf(docObj: DisplayableDocument): jsPDF {
   const isDelivery = docObj.type === 'DELIVERY';
   const isAdjustment = docObj.type === 'ADJUSTMENT';
   const isIssue = docObj.type === 'ISSUE';
-  const isIssueManager = isIssue && String((docObj.data as IssuedDocument)?.deptID || '').startsWith('MGR-');
+  const delDocData = isDelivery ? (docObj.data as ReceivedDocument) : null;
+  const issueDocData = isIssue ? (docObj.data as IssuedDocument) : null;
+  const isBrv =
+    isDelivery &&
+    (String(delDocData?.voucherNumber || '').toUpperCase().startsWith('BRV-') ||
+      Boolean(delDocData?.deptID) ||
+      Boolean(delDocData?.voucherTitle));
+  const isSiv =
+    isIssue &&
+    (String(issueDocData?.slipNumber || '').toUpperCase().startsWith('SIV-') ||
+      Boolean(issueDocData?.voucherTitle));
+  const isIssueManager = isIssue && String(issueDocData?.deptID || '').startsWith('MGR-');
     const pdf = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
@@ -61,9 +72,13 @@ export function buildVoucherPdf(docObj: DisplayableDocument): jsPDF {
     pdf.setFontSize(13);
     pdf.setFont('helvetica', 'bold');
     const docTitle = isDelivery
-      ? 'GOODS / ITEMS RECEIVED VOUCHER (GRN)'
+      ? isBrv
+        ? (delDocData?.voucherTitle || 'BULK RECEIVE VOUCHER (BRV)')
+        : 'GOODS / ITEMS RECEIVED VOUCHER (GRN)'
       : isAdjustment
       ? 'STOCK ADJUSTMENT & PHYSICAL COUNT VOUCHER'
+      : isSiv
+      ? (issueDocData?.voucherTitle || 'STOCK ISSUE VOUCHER (SIV)')
       : 'STATIONERY & CLEANING ITEM ISSUE SLIP';
     pdf.text(docTitle, 37, 21);
 
@@ -97,19 +112,29 @@ export function buildVoucherPdf(docObj: DisplayableDocument): jsPDF {
     if (isDelivery) {
       const delDoc = docObj.data as ReceivedDocument;
       pdf.setFont('helvetica', 'bold');
-      pdf.text('Voucher GRN Ref:', 16, 54);
+      pdf.text(isBrv ? 'Voucher BRV Ref:' : 'Voucher GRN Ref:', 16, 54);
       pdf.setFont('helvetica', 'normal');
       pdf.text(delDoc.voucherNumber, 62, 54);
 
       pdf.setFont('helvetica', 'bold');
-      pdf.text('Delivery Note Ref:', 16, 60);
+      pdf.text(delDoc.deptName ? 'Target Department:' : 'Delivery Note Ref:', 16, 60);
       pdf.setFont('helvetica', 'normal');
-      pdf.text(delDoc.deliveryRef || 'N/A', 62, 60);
+      pdf.text(
+        delDoc.deptName
+          ? `${delDoc.deptID || 'DEPT'} - ${delDoc.deptName}${delDoc.deptHeadName ? ` (${delDoc.deptHeadName})` : ''}`
+          : delDoc.deliveryRef || 'N/A',
+        62,
+        60
+      );
 
       pdf.setFont('helvetica', 'bold');
-      pdf.text('Received Timestamp:', 16, 66);
+      pdf.text('Supplier / Timestamp:', 16, 66);
       pdf.setFont('helvetica', 'normal');
-      pdf.text(delDoc.timestamp, 62, 66);
+      pdf.text(
+        `${delDoc.SupplierName || delDoc.supplier || 'Central Warehouse'}  |  ${delDoc.timestamp}`,
+        62,
+        66
+      );
 
       pdf.setFont('helvetica', 'bold');
       pdf.text('Receiving User / Issuer:', 16, 72);
@@ -159,7 +184,7 @@ export function buildVoucherPdf(docObj: DisplayableDocument): jsPDF {
     } else {
       const issueDoc = docObj.data as IssuedDocument;
       pdf.setFont('helvetica', 'bold');
-      pdf.text('Slip Reference:', 16, 54);
+      pdf.text(isSiv ? 'SIV Voucher Ref:' : 'Slip Reference:', 16, 54);
       pdf.setFont('helvetica', 'normal');
       pdf.text(issueDoc.slipNumber, 62, 54);
 
@@ -330,11 +355,17 @@ export async function generateVoucherPdfFile(document: DisplayableDocument): Pro
   }
 
   const { type, data } = document;
+  const isBrvFallback =
+    type === 'DELIVERY' &&
+    (String((data as ReceivedDocument).voucherNumber || '').toUpperCase().startsWith('BRV-') ||
+      Boolean((data as ReceivedDocument).deptID));
+  const isSivFallback =
+    type === 'ISSUE' && String((data as IssuedDocument).slipNumber || '').toUpperCase().startsWith('SIV-');
   const fallbackName = type === 'DELIVERY'
-    ? `Stationery_&_Cleaning_GRN_Voucher_${(data as ReceivedDocument).voucherNumber}.pdf`
+    ? `Stationery_&_Cleaning_${isBrvFallback ? 'BRV' : 'GRN'}_Voucher_${(data as ReceivedDocument).voucherNumber}.pdf`
     : type === 'ADJUSTMENT'
     ? `Stationery_&_Cleaning_Stock_Adjustment_${(data as AdjustmentDocument).voucherNumber}.pdf`
-    : `Stationery_&_Cleaning_IssueSlip_${(data as IssuedDocument).slipNumber}.pdf`;
+    : `Stationery_&_Cleaning_${isSivFallback ? 'SIV' : 'IssueSlip'}_${(data as IssuedDocument).slipNumber}.pdf`;
 
   return { blob, url, fileName: data.pdfFileName || fallbackName };
 }

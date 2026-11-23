@@ -28,6 +28,11 @@ import {
 import { analyzeSearchQuery, stemWord } from './stemmer';
 import { normalizePriceAndValue, getExchangeRate } from './currencyUtils';
 import {
+  buildItemLinearRegressionForecast,
+  ForecastWindowAnchor,
+  ItemLinearForecastReport,
+} from './stockForecastService';
+import {
   INITIAL_STOCK,
   INITIAL_ADMINS,
   INITIAL_DEPARTMENTS,
@@ -448,6 +453,36 @@ class SqliteBridge {
     }
     try {
       this.db.run('ALTER TABLE received_documents ADD COLUMN SupplierName TEXT;');
+    } catch {
+      // Column may already exist
+    }
+    try {
+      this.db.run('ALTER TABLE received_documents ADD COLUMN dept_id TEXT;');
+    } catch {
+      // Column may already exist
+    }
+    try {
+      this.db.run('ALTER TABLE received_documents ADD COLUMN dept_name TEXT;');
+    } catch {
+      // Column may already exist
+    }
+    try {
+      this.db.run('ALTER TABLE received_documents ADD COLUMN dept_head_name TEXT;');
+    } catch {
+      // Column may already exist
+    }
+    try {
+      this.db.run('ALTER TABLE received_documents ADD COLUMN dept_head_email TEXT;');
+    } catch {
+      // Column may already exist
+    }
+    try {
+      this.db.run('ALTER TABLE received_documents ADD COLUMN voucher_title TEXT;');
+    } catch {
+      // Column may already exist
+    }
+    try {
+      this.db.run('ALTER TABLE issued_documents ADD COLUMN voucher_title TEXT;');
     } catch {
       // Column may already exist
     }
@@ -1460,6 +1495,187 @@ class SqliteBridge {
     });
   }
 
+  /**
+   * Read-only parameterized lookup of a single stock item by ItemID for forecasting.
+   */
+  public async getStockItemById(itemId: string): Promise<StockItem | null> {
+    if (typeof itemId !== 'string' || !itemId.trim()) {
+      return null;
+    }
+    const sanitizedId = itemId.trim();
+    const db = await this.getDb();
+    const rate = getExchangeRate();
+
+    if (db) {
+      const stmt = db.prepare(`
+        SELECT item_id, item_name, category, qty, reorder_level, unit, SupplierName, last_supplier, last_received_date, description, unit_price, currency, base_currency
+        FROM master_stock
+        WHERE item_id = ?1
+        LIMIT 1;
+      `);
+      try {
+        stmt.bind([sanitizedId]);
+        if (!stmt.step()) return null;
+        const row = stmt.get();
+        const supp = (row[6] as string) || (row[7] as string) || undefined;
+        const qty = Number(row[3]);
+        const rawPrice = Number(row[10]);
+        const rawCurr = (row[11] as string) || 'USD';
+        const curr = (rawCurr === 'ZWG' ? 'ZWG' : 'USD') as CurrencyCode;
+        const baseCurr = ((row[12] as string) || 'USD') as CurrencyCode;
+        const price = !isNaN(rawPrice) && rawPrice > 0 ? rawPrice : undefined;
+        const pricing = normalizePriceAndValue(price || 0, qty, curr, baseCurr, rate);
+
+        return {
+          ItemID: row[0] as string,
+          ItemName: row[1] as string,
+          Category: row[2] as ItemCategory,
+          Qty: qty,
+          ReorderLevel: row[4] !== null && row[4] !== undefined ? Number(row[4]) : 0,
+          Unit: row[5] as string,
+          SupplierName: supp,
+          LastSupplier: supp,
+          LastReceivedDate: (row[8] as string) || undefined,
+          Description: (row[9] as string) || undefined,
+          UnitPrice: price,
+          Currency: curr,
+          BaseCurrency: baseCurr,
+          NormalizedUnitPrice: pricing.normalizedUnitPrice,
+          TotalValue: pricing.totalValue,
+          NormalizedTotalValue: pricing.normalizedTotalValue,
+        };
+      } finally {
+        stmt.free();
+      }
+    }
+
+    this.initFallbackStore();
+    const match = this.fallbackStore!.stock.find((s) => s.ItemID === sanitizedId);
+    return match ? { ...match } : null;
+  }
+
+  /**
+   * Read-only parameterized SQLite query returning movement logs for a specific item.
+   * Uses bound parameters to prevent SQL injection and never alters historical records.
+   */
+  public async getItemMovementLogsForForecast(
+    itemId: string,
+    sinceDateIso?: string
+  ): Promise<MovementLogEntry[]> {
+    if (typeof itemId !== 'string' || !itemId.trim()) {
+      throw new Error('A valid stock item ID is required to query movement history.');
+    }
+    const sanitizedId = itemId.trim();
+    let sanitizedSince: string | null = null;
+    if (sinceDateIso !== undefined && sinceDateIso !== null && sinceDateIso !== '') {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(sinceDateIso)) {
+        throw new Error('History start date must follow YYYY-MM-DD format.');
+      }
+      sanitizedSince = sinceDateIso;
+    }
+
+    const db = await this.getDb();
+    const rate = getExchangeRate();
+
+    if (db) {
+      const stmt = db.prepare(`
+        SELECT 
+          id, timestamp, type, item_id, item_name, qty, dept_id, dept_name, dept_head, dept_email,
+          issuer_id, issuer_name, SupplierName, doc_ref, slip_file_name, status, discrepancy_reason, discrepancy_notes, count_ref,
+          unit_price, currency, base_currency
+        FROM movement_log
+        WHERE item_id = ?1
+          AND (?2 IS NULL OR substr(timestamp, 1, 10) >= ?2)
+        ORDER BY timestamp ASC, id ASC;
+      `);
+      try {
+        stmt.bind([sanitizedId, sanitizedSince]);
+        const logs: MovementLogEntry[] = [];
+        while (stmt.step()) {
+          const row = stmt.get();
+          const qty = Number(row[5]);
+          const rawPrice = Number(row[19]);
+          const rawCurr = (row[20] as string) || 'USD';
+          const curr = (rawCurr === 'ZWG' ? 'ZWG' : 'USD') as CurrencyCode;
+          const baseCurr = ((row[21] as string) || 'USD') as CurrencyCode;
+          const price = !isNaN(rawPrice) && rawPrice > 0 ? rawPrice : undefined;
+          const pricing = normalizePriceAndValue(price || 0, Math.abs(qty), curr, baseCurr, rate);
+
+          logs.push({
+            id: row[0] as string,
+            Timestamp: row[1] as string,
+            Type: row[2] as any,
+            ItemID: row[3] as string,
+            ItemName: row[4] as string,
+            Qty: qty,
+            DeptID: row[6] as string,
+            DeptName: row[7] as string,
+            DeptHead: row[8] as string,
+            DeptEmail: row[9] as string,
+            IssuerID: row[10] as string,
+            IssuerName: row[11] as string,
+            SupplierName: (row[12] as string) || undefined,
+            DocumentRef: row[13] as string,
+            IssueSlipFileName: row[14] as string,
+            Status: row[15] as any,
+            DiscrepancyReason: row[16] as string | undefined,
+            DiscrepancyNotes: row[17] as string | undefined,
+            CountRef: row[18] as string | undefined,
+            UnitPrice: price,
+            Currency: curr,
+            BaseCurrency: baseCurr,
+            NormalizedUnitPrice: pricing.normalizedUnitPrice,
+            TotalValue: pricing.totalValue,
+            NormalizedTotalValue: pricing.normalizedTotalValue,
+          });
+        }
+        return logs;
+      } finally {
+        stmt.free();
+      }
+    }
+
+    this.initFallbackStore();
+    return this.fallbackStore!.movementLogs
+      .filter((l) => {
+        if (!l || l.ItemID !== sanitizedId) return false;
+        if (sanitizedSince && l.Timestamp) {
+          return l.Timestamp.substring(0, 10) >= sanitizedSince;
+        }
+        return true;
+      })
+      .map((l) => ({ ...l }))
+      .sort((a, b) => (a.Timestamp || '').localeCompare(b.Timestamp || ''));
+  }
+
+  /**
+   * Loads item details and historical movement logs from SQLite (read-only)
+   * and executes the OLS linear regression forecast.
+   */
+  public async loadAndForecastItem(params: {
+    itemId: string;
+    historyDays: number;
+    targetDates: string[];
+    currentDateIso?: string;
+    windowAnchor?: ForecastWindowAnchor;
+    customMinThreshold?: number | null;
+  }): Promise<ItemLinearForecastReport> {
+    const item = await this.getStockItemById(params.itemId);
+    const logs = item
+      ? await this.getItemMovementLogsForForecast(item.ItemID)
+      : [];
+
+    return buildItemLinearRegressionForecast({
+      item,
+      itemMovementLogs: logs,
+      historyDays: params.historyDays,
+      targetDates: params.targetDates,
+      currentDateIso: params.currentDateIso,
+      windowAnchor: params.windowAnchor,
+      customMinThreshold: params.customMinThreshold,
+    });
+  }
+
   public async addMovementLog(log: MovementLogEntry): Promise<void> {
     const db = await this.getDb();
     const logId = log.id || `LOG-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
@@ -1904,7 +2120,7 @@ class SqliteBridge {
     if (db) {
       const res = db.exec(`
         SELECT slip_number, timestamp, dept_id, dept_name, dept_head_name, dept_head_email,
-               issuer_id, issuer_name, items_json, pdf_file_name, folder_path, full_saved_path
+               issuer_id, issuer_name, items_json, pdf_file_name, folder_path, full_saved_path, voucher_title
         FROM issued_documents ORDER BY timestamp DESC;
       `);
       if (!res.length || !res[0].values) return [];
@@ -1918,6 +2134,7 @@ class SqliteBridge {
         }
         return {
           docType: 'ISSUE',
+          voucherTitle: (row[12] as string) || undefined,
           slipNumber: row[0] as string,
           timestamp: row[1] as string,
           deptID: row[2] as string,
@@ -1944,8 +2161,8 @@ class SqliteBridge {
       db.run(
         `INSERT OR REPLACE INTO issued_documents (
           slip_number, timestamp, dept_id, dept_name, dept_head_name, dept_head_email,
-          issuer_id, issuer_name, items_json, pdf_file_name, folder_path, full_saved_path
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+          issuer_id, issuer_name, items_json, pdf_file_name, folder_path, full_saved_path, voucher_title
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
         [
           doc.slipNumber,
           doc.timestamp,
@@ -1959,6 +2176,7 @@ class SqliteBridge {
           doc.pdfFileName || null,
           doc.folderPath || null,
           doc.fullSavedPath || null,
+          doc.voucherTitle || null,
         ]
       );
       this.persistDb();
@@ -1981,7 +2199,8 @@ class SqliteBridge {
     if (db) {
       const res = db.exec(`
         SELECT voucher_number, timestamp, delivery_ref, SupplierName, supplier, issuer_id, issuer_name, issuer_role,
-               items_json, pdf_file_name, folder_path, full_saved_path
+               items_json, pdf_file_name, folder_path, full_saved_path,
+               dept_id, dept_name, dept_head_name, dept_head_email, voucher_title
         FROM received_documents ORDER BY timestamp DESC;
       `);
       if (!res.length || !res[0].values) return [];
@@ -1996,11 +2215,16 @@ class SqliteBridge {
         const supp = (row[3] as string) || (row[4] as string) || undefined;
         return {
           docType: 'DELIVERY',
+          voucherTitle: (row[16] as string) || undefined,
           voucherNumber: row[0] as string,
           timestamp: row[1] as string,
           deliveryRef: row[2] as string,
           SupplierName: supp,
           supplier: supp,
+          deptID: (row[12] as string) || undefined,
+          deptName: (row[13] as string) || undefined,
+          deptHeadName: (row[14] as string) || undefined,
+          deptHeadEmail: (row[15] as string) || undefined,
           issuerID: row[5] as string,
           issuerName: row[6] as string,
           issuerRole: (row[7] as string) || undefined,
@@ -2023,8 +2247,9 @@ class SqliteBridge {
       db.run(
         `INSERT OR REPLACE INTO received_documents (
           voucher_number, timestamp, delivery_ref, SupplierName, supplier, issuer_id, issuer_name, issuer_role,
-          items_json, pdf_file_name, folder_path, full_saved_path
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+          items_json, pdf_file_name, folder_path, full_saved_path,
+          dept_id, dept_name, dept_head_name, dept_head_email, voucher_title
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
         [
           doc.voucherNumber,
           doc.timestamp,
@@ -2038,6 +2263,11 @@ class SqliteBridge {
           doc.pdfFileName || null,
           doc.folderPath || null,
           doc.fullSavedPath || null,
+          doc.deptID || null,
+          doc.deptName || null,
+          doc.deptHeadName || null,
+          doc.deptHeadEmail || null,
+          doc.voucherTitle || null,
         ]
       );
       this.persistDb();

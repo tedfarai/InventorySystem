@@ -726,15 +726,19 @@ export function useSqliteProcurement() {
   const handleSaveBulkDeliveries = async (
     deliveries: { itemId: string; addQty: number; supplier?: string; unitPrice?: number; currency?: CurrencyCode }[],
     deliveryNoteRef?: string,
-    defaultSupplier?: string
+    defaultSupplier?: string,
+    targetDept?: Department
   ): Promise<ReceivedDocument | undefined> => {
     if (!deliveries || deliveries.length === 0) return undefined;
 
     const nowStr = new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '');
     const dateOnly = nowStr.split(' ')[0];
     const timestampFile = new Date().toISOString().replace(/[-:]/g, '').replace(/T/, '_').substring(0, 15);
-    const voucherNumber = deliveryNoteRef || `GRN-${Math.floor(100000 + Math.random() * 900000)}`;
-    const pdfFileName = `GRN_Voucher_${voucherNumber}_${timestampFile}.pdf`;
+    const isBrv = Boolean(targetDept) || String(deliveryNoteRef || '').toUpperCase().startsWith('BRV-');
+    const voucherNumber =
+      deliveryNoteRef ||
+      `${isBrv ? 'BRV' : 'GRN'}-${Math.floor(100000 + Math.random() * 900000)}`;
+    const pdfFileName = `${isBrv ? 'BRV_Voucher' : 'GRN_Voucher'}_${voucherNumber}_${timestampFile}.pdf`;
     const folderPath = `${masterFolderPath}\\Received_Items\\`;
     const fullSavedPath = `${folderPath}${pdfFileName}`;
 
@@ -742,11 +746,16 @@ export function useSqliteProcurement() {
 
     const newReceivedDoc: ReceivedDocument = {
       docType: 'DELIVERY',
+      voucherTitle: isBrv ? 'BULK RECEIVE VOUCHER (BRV)' : undefined,
       voucherNumber,
       timestamp: nowStr,
       deliveryRef: voucherNumber,
       SupplierName: mainSupplier,
       supplier: mainSupplier,
+      deptID: targetDept?.DeptID,
+      deptName: targetDept?.DeptName,
+      deptHeadName: targetDept?.DeptHeadName,
+      deptHeadEmail: targetDept?.DeptHeadEmail,
       issuerID: currentUser ? currentUser.IssuerID : 'ADM001',
       issuerName: currentUser ? currentUser.IssuerName : 'Rachel Pickard',
       issuerRole: currentUser ? currentUser.Role : 'Procurement Manager',
@@ -784,10 +793,14 @@ export function useSqliteProcurement() {
         ItemID: d.itemId,
         ItemName: item ? item.ItemName : d.itemId,
         Qty: d.addQty,
-        DeptID: 'N/A',
-        DeptName: itemSupplier ? `Supplier: ${itemSupplier}` : 'Central Warehouse Bulk Shipment',
-        DeptHead: 'N/A',
-        DeptEmail: 'N/A',
+        DeptID: targetDept?.DeptID || 'N/A',
+        DeptName: targetDept
+          ? `${targetDept.DeptName}${itemSupplier ? ` (Supplier: ${itemSupplier})` : ''}`
+          : itemSupplier
+          ? `Supplier: ${itemSupplier}`
+          : 'Central Warehouse Bulk Shipment',
+        DeptHead: targetDept?.DeptHeadName || 'N/A',
+        DeptEmail: targetDept?.DeptHeadEmail || 'N/A',
         IssuerID: currentUser ? currentUser.IssuerID : 'ADM001',
         IssuerName: currentUser ? currentUser.IssuerName : 'Rachel Pickard',
         SupplierName: itemSupplier,
@@ -1434,12 +1447,17 @@ export function useSqliteProcurement() {
   // ===========================================================================
   const handleExecuteIssue = async (
     dept: Department,
-    cart: { ItemID: string; ItemName: string; Category: string; RequestedQty: number }[]
+    cart: { ItemID: string; ItemName: string; Category: string; RequestedQty: number }[],
+    options?: { slipPrefix?: 'SLIP' | 'SIV'; customRef?: string; voucherTitle?: string }
   ): Promise<IssuedDocument> => {
     const nowStr = new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '');
     const timestampFile = new Date().toISOString().replace(/[-:]/g, '').replace(/T/, '_').substring(0, 15);
-    const slipNumber = `SLIP-${Math.floor(1000 + Math.random() * 9000)}`;
-    const pdfFileName = `IssueSlip_${dept.DeptID.replace('-', '')}_${timestampFile}.pdf`;
+    const prefix = options?.slipPrefix || (cart.length > 1 ? 'SIV' : 'SLIP');
+    const slipNumber =
+      options?.customRef?.trim() ||
+      `${prefix}-${Math.floor(prefix === 'SIV' ? 100000 + Math.random() * 900000 : 1000 + Math.random() * 9000)}`;
+    const isSiv = prefix === 'SIV' || slipNumber.toUpperCase().startsWith('SIV-');
+    const pdfFileName = `${isSiv ? 'SIV_Voucher' : 'IssueSlip'}_${dept.DeptID.replace('-', '')}_${timestampFile}.pdf`;
     const folderPath = `${masterFolderPath}\\Issued_Items\\`;
     const fullSavedPath = `${folderPath}${pdfFileName}`;
 
@@ -1463,6 +1481,7 @@ export function useSqliteProcurement() {
 
     const newDoc: IssuedDocument = {
       docType: 'ISSUE',
+      voucherTitle: options?.voucherTitle || (isSiv ? 'STOCK ISSUE VOUCHER (SIV)' : undefined),
       slipNumber,
       timestamp: nowStr,
       deptID: dept.DeptID,
