@@ -211,12 +211,12 @@ export interface AdjustmentDocument {
   fullSavedPath: string;
 }
 
-// Role-Based User Credentials
+// Server-managed role-based user profile
 export interface AdminUser {
   IssuerID: string;        // "ADM001", "ADM002", "ADM003"
   IssuerName: string;      // "Rachel Pickard", "Mark Harrison", "Sarah Jenkins"
   Role: 'Procurement Manager' | 'Procurement Officer' | 'Procurement Clerk' | 'Audit Viewer';
-  SecretPassword: string;  // Plaintext/hash for authentication verification
+  Active: boolean;
 }
 
 // Department Master Record
@@ -313,8 +313,10 @@ CREATE TABLE IF NOT EXISTS admin_users (
   IssuerID TEXT PRIMARY KEY,
   IssuerName TEXT NOT NULL,
   Role TEXT NOT NULL,
-  SecretPassword TEXT NOT NULL
+  Active INTEGER NOT NULL DEFAULT 1
 );
+
+-- Store password salts and derived hashes separately in the server-only accounts table.
 
 CREATE TABLE IF NOT EXISTS departments (
   DeptID TEXT PRIMARY KEY,

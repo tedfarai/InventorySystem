@@ -28,9 +28,18 @@ import {
   OfflineMutation,
   CurrencyCode,
 } from '../types';
-import { DEFAULT_BACKUP_POLICY } from '../data/initialData';
+import {
+  DEFAULT_BACKUP_POLICY,
+  INITIAL_ADJUSTMENT_REQUESTS,
+  INITIAL_DEPARTMENTS,
+  INITIAL_LOGS,
+  INITIAL_MANAGERS,
+  INITIAL_STOCK,
+} from '../data/initialData';
 import { realtimeSyncService } from '../db/realtimeSyncService';
 import { getExchangeRate, normalizePriceAndValue } from '../utils/currencyUtils';
+import { authApi, InventoryApiError, inventoryApi } from '../api/inventoryApi';
+import { loadInitialFromIndexedDB } from '../db/offlineStorage';
 
 export function useSqliteProcurement() {
   const [isDbReady, setIsDbReady] = useState(false);
@@ -76,47 +85,72 @@ export function useSqliteProcurement() {
   const refreshAllFromSqlite = useCallback(async () => {
     setIsDataLoading(true);
     try {
-      const [
-        sItems,
-        mLogs,
-        aUsers,
-        dList,
-        mList,
-        iDocs,
-        rDocs,
-        adjDocs,
-        adjReqs,
-        bkpList,
-      ] = await Promise.all([
-        sqliteBridge.getAllStock(),
-        sqliteBridge.getAllMovementLogs(),
-        sqliteBridge.getAllAdmins(),
-        sqliteBridge.getAllDepartments(),
-        sqliteBridge.getAllManagers(),
-        sqliteBridge.getAllIssuedDocs(),
-        sqliteBridge.getAllReceivedDocs(),
-        sqliteBridge.getAllAdjustmentDocs(),
-        sqliteBridge.getAllAdjustmentRequests(),
-        sqliteBridge.getAllBackups(),
-      ]);
-
-      setStockItems(Array.isArray(sItems) ? sItems : []);
-      setMovementLogs(Array.isArray(mLogs) ? mLogs : []);
-      setAdmins(Array.isArray(aUsers) ? aUsers : []);
-      setDepartments(Array.isArray(dList) ? dList : []);
-      setManagers(Array.isArray(mList) ? mList : []);
-      setIssuedDocs(Array.isArray(iDocs) ? iDocs : []);
-      setReceivedDocs(Array.isArray(rDocs) ? rDocs : []);
-      setAdjustmentDocs(Array.isArray(adjDocs) ? adjDocs : []);
-      setAdjustmentRequests(Array.isArray(adjReqs) ? adjReqs : []);
-      setBackups(Array.isArray(bkpList) ? bkpList : []);
-
-      // Check if any active timed access window exists in requests
-      const validAdjReqs = Array.isArray(adjReqs) ? adjReqs : [];
-      const activeReq = validAdjReqs.find((r) => r && r.status === 'TIMED_ACCESS_GRANTED' && r.timedAccessWindow?.isActive);
-      if (activeReq && activeReq.timedAccessWindow) {
-        setActiveTimedWindow(activeReq.timedAccessWindow);
+      let state: Awaited<ReturnType<typeof inventoryApi.getState>>['state'];
+      try {
+        state = (await inventoryApi.getState()).state;
+      } catch (error) {
+        if (!(error instanceof InventoryApiError && error.status === 0)) throw error;
+        const cached = await loadInitialFromIndexedDB();
+        const hasCachedData = Object.values(cached).some((value) => Array.isArray(value) && value.length > 0);
+        if (hasCachedData) {
+          state = {
+            stockItems: cached.stockItems || [],
+            movementLogs: cached.movementLogs || [],
+            admins: cached.admins || [],
+            departments: cached.departments || [],
+            managers: cached.managers || [],
+            issuedDocs: cached.issuedDocs || [],
+            receivedDocs: cached.receivedDocs || [],
+            adjustmentDocs: cached.adjustmentDocs || [],
+            adjustmentRequests: cached.adjustmentRequests || [],
+            backups: cached.backups || [],
+          };
+        } else {
+          const [
+            stockItemsLocal, movementLogsLocal, adminsLocal, departmentsLocal, managersLocal,
+            issuedDocsLocal, receivedDocsLocal, adjustmentDocsLocal, adjustmentRequestsLocal, backupsLocal,
+          ] = await Promise.all([
+            sqliteBridge.getAllStock(),
+            sqliteBridge.getAllMovementLogs(),
+            sqliteBridge.getAllAdmins(),
+            sqliteBridge.getAllDepartments(),
+            sqliteBridge.getAllManagers(),
+            sqliteBridge.getAllIssuedDocs(),
+            sqliteBridge.getAllReceivedDocs(),
+            sqliteBridge.getAllAdjustmentDocs(),
+            sqliteBridge.getAllAdjustmentRequests(),
+            sqliteBridge.getAllBackups(),
+          ]);
+          state = {
+            stockItems: stockItemsLocal,
+            movementLogs: movementLogsLocal,
+            admins: adminsLocal,
+            departments: departmentsLocal,
+            managers: managersLocal,
+            issuedDocs: issuedDocsLocal,
+            receivedDocs: receivedDocsLocal,
+            adjustmentDocs: adjustmentDocsLocal,
+            adjustmentRequests: adjustmentRequestsLocal,
+            backups: backupsLocal,
+          };
+        }
       }
+
+      setStockItems(state.stockItems);
+      setMovementLogs(state.movementLogs);
+      setAdmins(state.admins);
+      setDepartments(state.departments);
+      setManagers(state.managers);
+      setIssuedDocs(state.issuedDocs);
+      setReceivedDocs(state.receivedDocs);
+      setAdjustmentDocs(state.adjustmentDocs);
+      setAdjustmentRequests(state.adjustmentRequests);
+      setBackups(state.backups);
+      const activeReq = state.adjustmentRequests.find((request) =>
+        request.status === 'TIMED_ACCESS_GRANTED' && request.timedAccessWindow?.isActive
+      );
+      setActiveTimedWindow(activeReq?.timedAccessWindow || null);
+      setDbError(null);
     } catch (err: any) {
       console.error('[useSqliteProcurement] Refresh error:', err);
       setDbError(err.message || 'Error querying SQLite database');
@@ -147,7 +181,7 @@ export function useSqliteProcurement() {
       try {
         await realtimeSyncService.initialize({
           onStockChange: (items) => {
-            if (mounted && Array.isArray(items) && items.length > 0) {
+            if (mounted && Array.isArray(items)) {
               setStockItems(items);
             }
           },
@@ -157,17 +191,17 @@ export function useSqliteProcurement() {
             }
           },
           onAdminsChange: (adminsList) => {
-            if (mounted && Array.isArray(adminsList) && adminsList.length > 0) {
+            if (mounted && Array.isArray(adminsList)) {
               setAdmins(adminsList);
             }
           },
           onDeptsChange: (depts) => {
-            if (mounted && Array.isArray(depts) && depts.length > 0) {
+            if (mounted && Array.isArray(depts)) {
               setDepartments(depts);
             }
           },
           onManagersChange: (mgrs) => {
-            if (mounted && Array.isArray(mgrs) && mgrs.length > 0) {
+            if (mounted && Array.isArray(mgrs)) {
               setManagers(mgrs);
             }
           },
@@ -329,6 +363,7 @@ export function useSqliteProcurement() {
       };
 
       await sqliteBridge.addBackup(newSnapshot);
+      await realtimeSyncService.saveBackupSnapshot(newSnapshot, currentUser || undefined);
       setBackups((prev) => [newSnapshot, ...prev.filter((b) => b.id !== newSnapshot.id)]);
       if (type !== 'TRANSACTION') {
         await refreshAllFromSqlite();
@@ -355,27 +390,30 @@ export function useSqliteProcurement() {
       if (!snapshot || !snapshot.payload) {
         throw new Error('Invalid snapshot payload format.');
       }
+      if (!currentUser) throw new Error('Sign in before restoring a server backup.');
       await handleCreateBackup('PRE_RESTORE', `Safety snapshot before restoring ${snapshot.fileName}`);
-      await sqliteBridge.restoreFromPayload(snapshot.payload);
+      await realtimeSyncService.restoreFullBackup(snapshot.payload, currentUser);
       await refreshAllFromSqlite();
     },
-    [handleCreateBackup, refreshAllFromSqlite]
+    [currentUser, handleCreateBackup, refreshAllFromSqlite]
   );
 
   const handleDeleteBackup = useCallback(
     async (snapId: string) => {
       await sqliteBridge.deleteBackup(snapId);
+      await realtimeSyncService.deleteBackupSnapshot(snapId, currentUser || undefined);
       await refreshAllFromSqlite();
     },
-    [refreshAllFromSqlite]
+    [currentUser, refreshAllFromSqlite]
   );
 
   const handlePruneBackups = useCallback(
     async (retentionDays = 30) => {
       await sqliteBridge.pruneBackups(retentionDays);
+      await realtimeSyncService.pruneBackupSnapshots(retentionDays, currentUser || undefined);
       await refreshAllFromSqlite();
     },
-    [refreshAllFromSqlite]
+    [currentUser, refreshAllFromSqlite]
   );
 
   const handleImportBackup = useCallback(
@@ -385,20 +423,36 @@ export function useSqliteProcurement() {
       if (!payload.stockItems || !payload.movementLogs) {
         return false;
       }
+      if (!currentUser) throw new Error('Sign in before importing inventory data.');
       await handleCreateBackup('PRE_RESTORE', 'Safety snapshot before importing external backup file');
-      await sqliteBridge.restoreFromPayload(payload);
+      await realtimeSyncService.restoreFullBackup(payload, currentUser);
       await refreshAllFromSqlite();
       return true;
     },
-    [handleCreateBackup, refreshAllFromSqlite]
+    [currentUser, handleCreateBackup, refreshAllFromSqlite]
   );
 
   const handleResetData = useCallback(async () => {
+    if (currentUser?.IssuerID !== 'ADM001') {
+      throw new Error('Only the superior administrator may reset server inventory data.');
+    }
+    await realtimeSyncService.importInventoryState({
+      stockItems: INITIAL_STOCK,
+      movementLogs: INITIAL_LOGS,
+      departments: INITIAL_DEPARTMENTS,
+      managers: INITIAL_MANAGERS,
+      issuedDocs: [],
+      receivedDocs: [],
+      adjustmentDocs: [],
+      adjustmentRequests: INITIAL_ADJUSTMENT_REQUESTS,
+      backups: [],
+    });
     await sqliteBridge.resetAllData();
+    await authApi.logout();
     setActiveTimedWindow(null);
     setCurrentUser(null);
     await refreshAllFromSqlite();
-  }, [refreshAllFromSqlite]);
+  }, [currentUser, refreshAllFromSqlite]);
 
   // ===========================================================================
   // BACKGROUND BACKUP & TIMED EXPIRATION HEARTBEAT
@@ -461,6 +515,7 @@ export function useSqliteProcurement() {
                   : `[Timed Access Session Expired at ${new Date().toLocaleTimeString()}]`,
               };
               await sqliteBridge.updateAdjustmentRequest(updated);
+              await realtimeSyncService.updateAdjustmentRequest(updated, currentUser || undefined);
             }
           }
           await refreshAllFromSqlite();
@@ -474,10 +529,11 @@ export function useSqliteProcurement() {
   // ===========================================================================
   // ADMIN USERS CRUD (Optimistic)
   // ===========================================================================
-  const handleAddAdmin = async (newAdmin: AdminUser) => {
-    setAdmins((prev) => [...prev, newAdmin]);
+  const handleAddAdmin = async (newAdmin: AdminUser, password: string) => {
     try {
-      await sqliteBridge.addAdmin(newAdmin);
+      const created = await authApi.createUser(newAdmin, password);
+      await sqliteBridge.addAdmin(created);
+      setAdmins((prev) => [...prev.filter((admin) => admin.IssuerID !== created.IssuerID), created]);
     } catch (e) {
       await refreshAllFromSqlite();
       throw e;
@@ -485,9 +541,10 @@ export function useSqliteProcurement() {
   };
 
   const handleUpdateAdmin = async (updatedAdmin: AdminUser) => {
-    setAdmins((prev) => prev.map((a) => (a.IssuerID === updatedAdmin.IssuerID ? updatedAdmin : a)));
     try {
-      await sqliteBridge.updateAdmin(updatedAdmin);
+      const updated = await authApi.updateUser(updatedAdmin);
+      await sqliteBridge.updateAdmin(updated);
+      setAdmins((prev) => prev.map((admin) => (admin.IssuerID === updated.IssuerID ? updated : admin)));
     } catch (e) {
       await refreshAllFromSqlite();
       throw e;
@@ -495,22 +552,27 @@ export function useSqliteProcurement() {
   };
 
   const handleDeleteAdmin = async (issuerId: string) => {
-    setAdmins((prev) => prev.filter((a) => a.IssuerID !== issuerId));
     try {
+      await authApi.deleteUser(issuerId);
       await sqliteBridge.deleteAdmin(issuerId);
+      setAdmins((prev) => prev.filter((admin) => admin.IssuerID !== issuerId));
     } catch (e) {
       await refreshAllFromSqlite();
       throw e;
     }
   };
 
+  const handleResetAdminPassword = async (issuerId: string, password: string) => {
+    await authApi.resetPassword(issuerId, password);
+  };
+
   // ===========================================================================
   // DEPARTMENTS CRUD (Optimistic)
   // ===========================================================================
   const handleAddDepartment = async (dept: Department) => {
-    setDepartments((prev) => [...prev, dept]);
     try {
       await sqliteBridge.addDepartment(dept);
+      await realtimeSyncService.saveDepartment(dept);
     } catch (e) {
       await refreshAllFromSqlite();
       throw e;
@@ -518,9 +580,9 @@ export function useSqliteProcurement() {
   };
 
   const handleUpdateDepartment = async (updatedDept: Department) => {
-    setDepartments((prev) => prev.map((d) => (d.DeptID === updatedDept.DeptID ? updatedDept : d)));
     try {
       await sqliteBridge.updateDepartment(updatedDept);
+      await realtimeSyncService.saveDepartment(updatedDept);
     } catch (e) {
       await refreshAllFromSqlite();
       throw e;
@@ -528,9 +590,9 @@ export function useSqliteProcurement() {
   };
 
   const handleDeleteDepartment = async (deptId: string) => {
-    setDepartments((prev) => prev.filter((d) => d.DeptID !== deptId));
     try {
       await sqliteBridge.deleteDepartment(deptId);
+      await realtimeSyncService.deleteDepartment(deptId);
     } catch (e) {
       await refreshAllFromSqlite();
       throw e;
@@ -541,9 +603,9 @@ export function useSqliteProcurement() {
   // MANAGERS CRUD (Optimistic)
   // ===========================================================================
   const handleAddManager = async (mgr: Manager) => {
-    setManagers((prev) => [...prev, mgr]);
     try {
       await sqliteBridge.addManager(mgr);
+      await realtimeSyncService.saveManager(mgr);
     } catch (e) {
       await refreshAllFromSqlite();
       throw e;
@@ -551,9 +613,9 @@ export function useSqliteProcurement() {
   };
 
   const handleUpdateManager = async (updatedMgr: Manager) => {
-    setManagers((prev) => prev.map((m) => (m.ManagerID === updatedMgr.ManagerID ? updatedMgr : m)));
     try {
       await sqliteBridge.updateManager(updatedMgr);
+      await realtimeSyncService.saveManager(updatedMgr);
     } catch (e) {
       await refreshAllFromSqlite();
       throw e;
@@ -561,9 +623,9 @@ export function useSqliteProcurement() {
   };
 
   const handleDeleteManager = async (mgrId: string) => {
-    setManagers((prev) => prev.filter((m) => m.ManagerID !== mgrId));
     try {
       await sqliteBridge.deleteManager(mgrId);
+      await realtimeSyncService.deleteManager(mgrId);
     } catch (e) {
       await refreshAllFromSqlite();
       throw e;
@@ -611,9 +673,9 @@ export function useSqliteProcurement() {
   };
 
   const handleDeleteStockItem = async (itemId: string) => {
-    setStockItems((prev) => prev.filter((s) => s.ItemID !== itemId));
     try {
       await sqliteBridge.deleteStockItem(itemId);
+      await realtimeSyncService.deleteStockItem(itemId, currentUser || undefined);
     } catch (e) {
       await refreshAllFromSqlite();
       throw e;
@@ -1664,6 +1726,7 @@ export function useSqliteProcurement() {
     handleAddAdmin,
     handleUpdateAdmin,
     handleDeleteAdmin,
+    handleResetAdminPassword,
     handleAddDepartment,
     handleUpdateDepartment,
     handleDeleteDepartment,

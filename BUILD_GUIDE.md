@@ -137,13 +137,8 @@ For automated assembly on Windows computers:
 
 ## 6. SECURITY HARDENING RECOMMENDATIONS
 
-1. **Password Protection for Admin Config Sheet**:
-   - Plaintext passwords in `Admin_Config` Column D should be set to `xlSheetVeryHidden` so they cannot be unhidden from the Excel right-click menu:
-     ```vba
-     ThisWorkbook.Sheets("Admin_Config").Visible = xlSheetVeryHidden
-     ```
-2. **Password Hashing (Recommended Enhancement)**:
-   - Instead of storing plaintext passwords (`Superior1234`), store a SHA-256 hash or salted hash string in Column D and verify `SHA256(sInputPassword) = StoredHash`.
-3. **Lock VBA Project**:
+1. **Server-Managed Authentication**:
+   - Do not store credentials in workbook sheets or rely on hidden sheets/VBA for access control. Use the Express server's scrypt-hashed credentials and authenticated session API for the inventory PWA. See `SERVER_SETUP.md`.
+2. **Lock VBA Project**:
    - In VBE, go to **Tools > VBAProject Properties > Protection**.
    - Check **Lock project for viewing** and set a password to prevent unauthorized users from viewing source code or credentials.

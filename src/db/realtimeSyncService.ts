@@ -43,10 +43,13 @@ import {
 } from './crdtLwwEngine';
 import { detectPlatform } from '../utils/platformDetector';
 import { sqliteBridge } from '../utils/sqliteBridge';
+import { InventoryApiError, inventoryApi } from '../api/inventoryApi';
+import type { InventoryState } from '../api/inventoryApi';
 
 export type SyncMessage =
   | { type: 'STOCK_CHANGED'; payload: StockItem[]; issuer?: AdminUser; mutationId?: string }
   | { type: 'STOCK_ITEM_UPDATED'; payload: StockItem; issuer?: AdminUser; mutationId?: string }
+  | { type: 'STOCK_ITEM_DELETED'; payload: string; issuer?: AdminUser; mutationId?: string }
   | {
       type: 'ISSUE_TRANSACTION';
       payload: {
@@ -92,6 +95,8 @@ class RealtimeSyncService {
   private channel: BroadcastChannel | null = null;
   private presenceTimer: any = null;
   private queueDrainTimer: any = null;
+  private serverRefreshTimer: any = null;
+  private serverRevision = 0;
   private currentPresenceId: string | null = null;
   private isInitialized = false;
   private clientId = getLocalClientId();
@@ -109,6 +114,7 @@ class RealtimeSyncService {
   private cachedBackups: BackupSnapshot[] = [];
   private cachedPresences: Map<string, UserPresence> = new Map();
   private cachedPendingMutations: OfflineMutation[] = [];
+  private serverCommitQueue: Promise<void> = Promise.resolve();
 
   // Active Callbacks
   private onStockChangeCb?: (items: StockItem[]) => void;
@@ -181,6 +187,18 @@ class RealtimeSyncService {
       this.cachedBackups = localState.backups || [];
       this.cachedPendingMutations = localState.pendingMutations || [];
 
+      if (navigator.onLine && this.cachedPendingMutations.length === 0) {
+        try {
+          const remote = await inventoryApi.getState();
+          this.serverRevision = remote.revision;
+          this.setCachedState(remote.state);
+          await this.persistCurrentState();
+        } catch (error) {
+          if (!(error instanceof InventoryApiError && error.status === 0)) throw error;
+          console.info('[RealtimeSyncService] Server unavailable; using the last local snapshot.');
+        }
+      }
+
       // Initial notifications
       if (this.onStockChangeCb) this.onStockChangeCb(this.cachedStock);
       if (this.onLogsChangeCb) this.onLogsChangeCb(this.cachedLogs);
@@ -215,6 +233,11 @@ class RealtimeSyncService {
           this.drainPendingMutations();
         }
       }, 10000);
+      this.serverRefreshTimer = setInterval(() => {
+        if (navigator.onLine && this.cachedPendingMutations.length === 0) {
+          void this.refreshServerState();
+        }
+      }, 15000);
 
       this.isInitialized = true;
       this.updateSyncStatus(navigator.onLine ? 'CONNECTED' : 'OFFLINE');
@@ -235,6 +258,22 @@ class RealtimeSyncService {
   private updateSyncStatus(status: CloudSyncStatus) {
     if (this.onSyncStatusCb) {
       this.onSyncStatusCb(status);
+    }
+  }
+
+  private async refreshServerState(): Promise<void> {
+    try {
+      const remote = await inventoryApi.getState();
+      if (remote.revision <= this.serverRevision || this.cachedPendingMutations.length > 0) return;
+      this.serverRevision = remote.revision;
+      this.setCachedState(remote.state);
+      await this.persistCurrentState();
+    } catch (error) {
+      if (error instanceof InventoryApiError && error.status === 0) {
+        this.updateSyncStatus('OFFLINE');
+        return;
+      }
+      console.warn('[RealtimeSyncService] Server refresh failed:', error);
     }
   }
 
@@ -308,6 +347,13 @@ class RealtimeSyncService {
         }
         if (this.onStockChangeCb) this.onStockChangeCb(this.cachedStock);
         await this.persistCurrentState();
+        break;
+      }
+
+      case 'STOCK_ITEM_DELETED': {
+        this.cachedStock = this.cachedStock.filter((item) => item.ItemID !== msg.payload);
+        this.persistCurrentState();
+        this.onStockChangeCb?.(this.cachedStock);
         break;
       }
 
@@ -489,6 +535,95 @@ class RealtimeSyncService {
     }
   }
 
+  private setCachedState(state: Awaited<ReturnType<typeof inventoryApi.getState>>['state']) {
+    this.cachedStock = state.stockItems;
+    this.cachedLogs = state.movementLogs;
+    this.cachedAdmins = state.admins;
+    this.cachedDepts = state.departments;
+    this.cachedManagers = state.managers;
+    this.cachedIssuedDocs = state.issuedDocs;
+    this.cachedReceivedDocs = state.receivedDocs;
+    this.cachedAdjDocs = state.adjustmentDocs;
+    this.cachedAdjReqs = state.adjustmentRequests;
+    this.cachedBackups = state.backups;
+
+    this.onStockChangeCb?.(this.cachedStock);
+    this.onLogsChangeCb?.(this.cachedLogs);
+    this.onAdminsChangeCb?.(this.cachedAdmins);
+    this.onDeptsChangeCb?.(this.cachedDepts);
+    this.onManagersChangeCb?.(this.cachedManagers);
+    this.onIssuedDocsChangeCb?.(this.cachedIssuedDocs);
+    this.onReceivedDocsChangeCb?.(this.cachedReceivedDocs);
+    this.onAdjDocsChangeCb?.(this.cachedAdjDocs);
+    this.onAdjReqsChangeCb?.(this.cachedAdjReqs);
+    this.onBackupsChangeCb?.(this.cachedBackups);
+  }
+
+  private commitServerState(): Promise<boolean> {
+    const operation = this.serverCommitQueue.then(async () => {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) return false;
+      try {
+        const result = await inventoryApi.commitState({
+          stockItems: this.cachedStock,
+          movementLogs: this.cachedLogs,
+          admins: this.cachedAdmins,
+          departments: this.cachedDepts,
+          managers: this.cachedManagers,
+          issuedDocs: this.cachedIssuedDocs,
+          receivedDocs: this.cachedReceivedDocs,
+          adjustmentDocs: this.cachedAdjDocs,
+          adjustmentRequests: this.cachedAdjReqs,
+          backups: this.cachedBackups,
+        });
+        this.serverRevision = result.revision;
+        this.setCachedState(result.state);
+        await this.persistCurrentState();
+        return true;
+      } catch (error) {
+        if (error instanceof InventoryApiError && error.status === 0) return false;
+        if (error instanceof InventoryApiError && error.status === 409) throw error;
+        if (navigator.onLine) {
+          const remote = await inventoryApi.getState();
+          this.setCachedState(remote.state);
+          await this.persistCurrentState();
+        }
+        throw error;
+      }
+    });
+    this.serverCommitQueue = operation.then(() => undefined, () => undefined);
+    return operation;
+  }
+
+  private async commitOrQueueOffline(mutation: OfflineMutation): Promise<void> {
+    if (await this.commitServerState()) return;
+    await enqueueOfflineMutation(mutation);
+    this.cachedPendingMutations.push(mutation);
+    this.onPendingMutationsChangeCb?.(this.cachedPendingMutations);
+  }
+
+  private createOfflineMutation(
+    type: OfflineMutation['type'],
+    payload: unknown,
+    issuer?: AdminUser,
+  ): OfflineMutation {
+    const { iso, timestampMs } = generateMonotonicTimestamp();
+    return {
+      id: `mut_${timestampMs}_${Math.random().toString(36).substring(2, 6)}`,
+      type,
+      timestamp: timestampMs,
+      isoTimestamp: iso,
+      clientId: this.clientId,
+      issuerId: issuer?.IssuerID || 'local',
+      issuerName: issuer?.IssuerName || 'Admin',
+      issuerRole: issuer?.Role,
+      userRole: issuer?.Role,
+      version: 1,
+      payload,
+      status: 'PENDING',
+      retryCount: 0,
+    };
+  }
+
   // ===========================================================================
   // REAL-TIME PRESENCE & HEARTBEAT
   // ===========================================================================
@@ -609,9 +744,7 @@ class RealtimeSyncService {
       status: 'PENDING',
       retryCount: 0,
     };
-    await enqueueOfflineMutation(mutation);
-    this.cachedPendingMutations.push(mutation);
-    if (this.onPendingMutationsChangeCb) this.onPendingMutationsChangeCb(this.cachedPendingMutations);
+    await this.commitOrQueueOffline(mutation);
 
     // 4. Broadcast live update to peers
     this.broadcastMessage({ type: 'STOCK_ITEM_UPDATED', payload: updated, issuer, mutationId });
@@ -661,9 +794,7 @@ class RealtimeSyncService {
       status: 'PENDING',
       retryCount: 0,
     };
-    await enqueueOfflineMutation(mutation);
-    this.cachedPendingMutations.push(mutation);
-    if (this.onPendingMutationsChangeCb) this.onPendingMutationsChangeCb(this.cachedPendingMutations);
+    await this.commitOrQueueOffline(mutation);
 
     this.broadcastMessage({ type: 'STOCK_CHANGED', payload: updatedBatch, issuer, mutationId });
 
@@ -676,6 +807,15 @@ class RealtimeSyncService {
         userRole: issuer.Role,
       });
     }
+  }
+
+  async deleteStockItem(itemId: string, issuer?: AdminUser) {
+    this.cachedStock = this.cachedStock.filter((item) => item.ItemID !== itemId);
+    this.onStockChangeCb?.(this.cachedStock);
+    await this.persistCurrentState();
+    const mutation = this.createOfflineMutation('STOCK_DELETE', itemId, issuer);
+    await this.commitOrQueueOffline(mutation);
+    this.broadcastMessage({ type: 'STOCK_ITEM_DELETED', payload: itemId, issuer, mutationId: mutation.id });
   }
 
   async saveIssueSlipTransaction(params: {
@@ -740,9 +880,7 @@ class RealtimeSyncService {
       status: 'PENDING',
       retryCount: 0,
     };
-    await enqueueOfflineMutation(mutation);
-    this.cachedPendingMutations.push(mutation);
-    if (this.onPendingMutationsChangeCb) this.onPendingMutationsChangeCb(this.cachedPendingMutations);
+    await this.commitOrQueueOffline(mutation);
 
     // 4. Broadcast live
     this.broadcastMessage({
@@ -826,9 +964,7 @@ class RealtimeSyncService {
       status: 'PENDING',
       retryCount: 0,
     };
-    await enqueueOfflineMutation(mutation);
-    this.cachedPendingMutations.push(mutation);
-    if (this.onPendingMutationsChangeCb) this.onPendingMutationsChangeCb(this.cachedPendingMutations);
+    await this.commitOrQueueOffline(mutation);
 
     this.broadcastMessage({
       type: 'DELIVERY_TRANSACTION',
@@ -909,9 +1045,7 @@ class RealtimeSyncService {
       status: 'PENDING',
       retryCount: 0,
     };
-    await enqueueOfflineMutation(mutation);
-    this.cachedPendingMutations.push(mutation);
-    if (this.onPendingMutationsChangeCb) this.onPendingMutationsChangeCb(this.cachedPendingMutations);
+    await this.commitOrQueueOffline(mutation);
 
     this.broadcastMessage({
       type: 'ADJUSTMENT_TRANSACTION',
@@ -938,6 +1072,7 @@ class RealtimeSyncService {
     this.cachedAdjReqs = mergeAdjustmentRequests(this.cachedAdjReqs, [req]);
     if (this.onAdjReqsChangeCb) this.onAdjReqsChangeCb(this.cachedAdjReqs);
     await this.persistCurrentState();
+    await this.commitOrQueueOffline(this.createOfflineMutation('ADJUSTMENT_REQUEST', req, issuer));
 
     this.broadcastMessage({ type: 'ADJUSTMENT_REQUEST', payload: req, issuer });
 
@@ -955,6 +1090,7 @@ class RealtimeSyncService {
     this.cachedAdjReqs = mergeAdjustmentRequests(this.cachedAdjReqs, [req]);
     if (this.onAdjReqsChangeCb) this.onAdjReqsChangeCb(this.cachedAdjReqs);
     await this.persistCurrentState();
+    await this.commitOrQueueOffline(this.createOfflineMutation('ADJUSTMENT_REQUEST', req, reviewer));
 
     this.broadcastMessage({ type: 'ADJUSTMENT_REQUEST', payload: req, issuer: reviewer });
 
@@ -978,7 +1114,15 @@ class RealtimeSyncService {
     ].sort((a, b) => a.DeptID.localeCompare(b.DeptID));
     if (this.onDeptsChangeCb) this.onDeptsChangeCb(this.cachedDepts);
     await this.persistCurrentState();
+    await this.commitOrQueueOffline(this.createOfflineMutation('DEPARTMENT_UPDATE', dept));
     this.broadcastMessage({ type: 'DEPARTMENT_CHANGED', payload: dept });
+  }
+
+  async deleteDepartment(deptId: string) {
+    this.cachedDepts = this.cachedDepts.filter((dept) => dept.DeptID !== deptId);
+    this.onDeptsChangeCb?.(this.cachedDepts);
+    await this.persistCurrentState();
+    await this.commitOrQueueOffline(this.createOfflineMutation('DEPARTMENT_UPDATE', { deletedId: deptId }));
   }
 
   async saveManager(mgr: Manager) {
@@ -988,7 +1132,15 @@ class RealtimeSyncService {
     ].sort((a, b) => a.ManagerID.localeCompare(b.ManagerID));
     if (this.onManagersChangeCb) this.onManagersChangeCb(this.cachedManagers);
     await this.persistCurrentState();
+    await this.commitOrQueueOffline(this.createOfflineMutation('MANAGER_UPDATE', mgr));
     this.broadcastMessage({ type: 'MANAGER_CHANGED', payload: mgr });
+  }
+
+  async deleteManager(managerId: string) {
+    this.cachedManagers = this.cachedManagers.filter((manager) => manager.ManagerID !== managerId);
+    this.onManagersChangeCb?.(this.cachedManagers);
+    await this.persistCurrentState();
+    await this.commitOrQueueOffline(this.createOfflineMutation('MANAGER_UPDATE', { deletedId: managerId }));
   }
 
   async saveAdminUser(admin: AdminUser) {
@@ -1001,10 +1153,13 @@ class RealtimeSyncService {
     this.broadcastMessage({ type: 'ADMIN_CHANGED', payload: admin });
   }
 
-  async saveBackupSnapshot(backup: BackupSnapshot) {
+  async saveBackupSnapshot(backup: BackupSnapshot, issuer?: AdminUser) {
     this.cachedBackups = [backup, ...this.cachedBackups.filter((b) => b.id !== backup.id)];
     if (this.onBackupsChangeCb) this.onBackupsChangeCb(this.cachedBackups);
     await this.persistCurrentState();
+    if (issuer?.IssuerID === 'ADM001') {
+      await this.commitOrQueueOffline(this.createOfflineMutation('BACKUP_UPDATE', backup, issuer));
+    }
     this.broadcastMessage({ type: 'BACKUP_CREATED', payload: backup });
 
     this.broadcastEvent({
@@ -1015,26 +1170,23 @@ class RealtimeSyncService {
     });
   }
 
-  async restoreFullBackup(payload: BackupSnapshot['payload'], restorer: AdminUser) {
-    this.cachedStock = payload.stockItems || [];
-    this.cachedLogs = payload.movementLogs || [];
-    this.cachedDepts = payload.departments || [];
-    this.cachedManagers = payload.managers || [];
-    this.cachedAdmins = payload.admins || [];
-    if (payload.issuedDocs) this.cachedIssuedDocs = payload.issuedDocs;
-    if (payload.receivedDocs) this.cachedReceivedDocs = payload.receivedDocs;
-    if (payload.adjustmentDocs) this.cachedAdjDocs = payload.adjustmentDocs;
-
-    if (this.onStockChangeCb) this.onStockChangeCb(this.cachedStock);
-    if (this.onLogsChangeCb) this.onLogsChangeCb(this.cachedLogs);
-    if (this.onDeptsChangeCb) this.onDeptsChangeCb(this.cachedDepts);
-    if (this.onManagersChangeCb) this.onManagersChangeCb(this.cachedManagers);
-    if (this.onAdminsChangeCb) this.onAdminsChangeCb(this.cachedAdmins);
-    if (this.onIssuedDocsChangeCb) this.onIssuedDocsChangeCb(this.cachedIssuedDocs);
-    if (this.onReceivedDocsChangeCb) this.onReceivedDocsChangeCb(this.cachedReceivedDocs);
-    if (this.onAdjDocsChangeCb) this.onAdjDocsChangeCb(this.cachedAdjDocs);
-
+  async deleteBackupSnapshot(snapshotId: string, issuer?: AdminUser) {
+    this.cachedBackups = this.cachedBackups.filter((backup) => backup.id !== snapshotId);
+    this.onBackupsChangeCb?.(this.cachedBackups);
     await this.persistCurrentState();
+    await this.commitOrQueueOffline(this.createOfflineMutation('BACKUP_UPDATE', { deletedId: snapshotId }, issuer));
+  }
+
+  async pruneBackupSnapshots(retentionDays: number, issuer?: AdminUser) {
+    const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+    this.cachedBackups = this.cachedBackups.filter((backup) => new Date(backup.timestamp).getTime() >= cutoff);
+    this.onBackupsChangeCb?.(this.cachedBackups);
+    await this.persistCurrentState();
+    await this.commitOrQueueOffline(this.createOfflineMutation('BACKUP_UPDATE', { retentionDays }, issuer));
+  }
+
+  async restoreFullBackup(payload: BackupSnapshot['payload'], restorer: AdminUser) {
+    await this.importInventoryState(payload);
     this.broadcastMessage({ type: 'BACKUP_RESTORED', payload, restorer });
 
     this.broadcastEvent({
@@ -1046,24 +1198,35 @@ class RealtimeSyncService {
     });
   }
 
+  async importInventoryState(state: Partial<InventoryState>) {
+    const result = await inventoryApi.importState(state);
+    this.serverRevision = result.revision;
+    this.setCachedState(result.state);
+    await this.persistCurrentState();
+    await clearAllMutations();
+    this.cachedPendingMutations = [];
+    this.onPendingMutationsChangeCb?.([]);
+  }
+
   // ===========================================================================
   // PWA BACKGROUND SYNC & MUTATION QUEUE DRAINER
   // ===========================================================================
 
   async drainPendingMutations(): Promise<number> {
     const mutations = await getPendingMutations();
-    if (mutations.length === 0) return 0;
+    if (mutations.length === 0 || !navigator.onLine) return 0;
 
     this.updateSyncStatus('DRAINING');
-    let drainedCount = 0;
+    try {
+      if (!(await this.commitServerState())) {
+        this.updateSyncStatus('OFFLINE');
+        return 0;
+      }
 
-    for (const mut of mutations) {
-      try {
-        // 1. Replay into SQLite database to ensure physical counts & document tables are guaranteed consistent
-        await sqliteBridge.replayMutation(mut);
-
-        // 2. Replay mutation across mesh to connected peers
-        if (mut.type === 'STOCK_UPDATE') {
+      for (const mut of mutations) {
+        if (mut.type === 'STOCK_DELETE') {
+          this.broadcastMessage({ type: 'STOCK_ITEM_DELETED', payload: mut.payload });
+        } else if (mut.type === 'STOCK_UPDATE') {
           this.broadcastMessage({ type: 'STOCK_ITEM_UPDATED', payload: mut.payload });
         } else if (mut.type === 'STOCK_BATCH') {
           this.broadcastMessage({ type: 'STOCK_CHANGED', payload: mut.payload });
@@ -1082,13 +1245,12 @@ class RealtimeSyncService {
         } else if (mut.type === 'ADMIN_UPDATE') {
           this.broadcastMessage({ type: 'ADMIN_CHANGED', payload: mut.payload });
         }
-
-        // 3. Mark processed and remove from persistent sync-queue
         await removeMutationFromQueue(mut.id);
-        drainedCount++;
-      } catch (e) {
-        console.warn('[RealtimeSyncService] Mutation drain failed:', e);
       }
+    } catch (error) {
+      console.warn('[RealtimeSyncService] Mutation drain failed:', error);
+      this.updateSyncStatus('ERROR');
+      return 0;
     }
 
     this.cachedPendingMutations = await getPendingMutations();
@@ -1098,6 +1260,7 @@ class RealtimeSyncService {
 
     this.updateSyncStatus('CONNECTED');
 
+    const drainedCount = mutations.length;
     if (drainedCount > 0) {
       this.broadcastEvent({
         type: 'QUEUE_DRAINED',
@@ -1116,6 +1279,7 @@ class RealtimeSyncService {
   cleanup() {
     this.stopPresenceHeartbeat();
     if (this.queueDrainTimer) clearInterval(this.queueDrainTimer);
+    if (this.serverRefreshTimer) clearInterval(this.serverRefreshTimer);
     if (this.channel) {
       this.channel.close();
       this.channel = null;

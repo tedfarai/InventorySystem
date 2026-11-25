@@ -1,14 +1,14 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { Suspense, lazy, useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { flushSync } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { ExcelSimulator } from './components/simulator/ExcelSimulator';
-import { AuditLogAnalyticsView } from './components/audit/AuditLogAnalyticsView';
-import { ElectronSuiteView } from './components/electron/ElectronSuiteView';
+const ExcelSimulator = lazy(() => import('./components/simulator/ExcelSimulator').then((module) => ({ default: module.ExcelSimulator })));
+const AuditLogAnalyticsView = lazy(() => import('./components/audit/AuditLogAnalyticsView').then((module) => ({ default: module.AuditLogAnalyticsView })));
+const ElectronSuiteView = lazy(() => import('./components/electron/ElectronSuiteView').then((module) => ({ default: module.ElectronSuiteView })));
 import { DesktopWindowFrame } from './components/electron/DesktopWindowFrame';
-import { VbaCodeHub } from './components/vba/VbaCodeHub';
-import { SetupGuide } from './components/guide/SetupGuide';
-import { ExportCenter } from './components/export/ExportCenter';
-import { StyleGuide } from './components/styleguide/StyleGuide';
+const VbaCodeHub = lazy(() => import('./components/vba/VbaCodeHub').then((module) => ({ default: module.VbaCodeHub })));
+const SetupGuide = lazy(() => import('./components/guide/SetupGuide').then((module) => ({ default: module.SetupGuide })));
+const ExportCenter = lazy(() => import('./components/export/ExportCenter').then((module) => ({ default: module.ExportCenter })));
+const StyleGuide = lazy(() => import('./components/styleguide/StyleGuide').then((module) => ({ default: module.StyleGuide })));
 import { DocumentViewerModal, DisplayableDocument } from './components/simulator/DocumentViewerModal';
 import { MovementLogEntry, IssuedDocument, ReceivedDocument, AdjustmentDocument, AdminUser } from './types';
 import { useSqliteProcurement } from './hooks/useSqliteProcurement';
@@ -26,9 +26,10 @@ import { LandingLoginPage } from './components/layout/LandingLoginPage';
 import { StickyTopHeader } from './components/layout/StickyTopHeader';
 import { SidebarAccordionNav, SidebarAction } from './components/layout/SidebarAccordionNav';
 import { AccountDetailsModal } from './components/auth/AccountDetailsModal';
-import { ExecutiveDashboardView } from './components/dashboard/ExecutiveDashboardView';
+const ExecutiveDashboardView = lazy(() => import('./components/dashboard/ExecutiveDashboardView').then((module) => ({ default: module.ExecutiveDashboardView })));
 import { UsageTrendProvider } from './context/UsageTrendContext';
 import { BackupRemindersModal } from './components/simulator/BackupRemindersModal';
+import { authApi } from './api/inventoryApi';
 import {
   BackupReminderSettings,
   loadBackupReminderSettings,
@@ -258,6 +259,7 @@ function AppContent() {
     handleAddAdmin,
     handleUpdateAdmin,
     handleDeleteAdmin,
+    handleResetAdminPassword,
     handleAddDepartment,
     handleUpdateDepartment,
     handleDeleteDepartment,
@@ -280,6 +282,30 @@ function AppContent() {
     isDataLoading,
     refreshAllFromSqlite,
   } = useSqliteProcurement();
+
+  const handleLogout = useCallback(async () => {
+    try {
+      await authApi.logout();
+    } catch (error) {
+      if (!(error instanceof Error && 'status' in error && error.status === 0)) throw error;
+    }
+    setCurrentUser(null);
+    showToast('Session Ended', 'info', 'Logged out successfully');
+  }, [setCurrentUser, showToast]);
+
+  useEffect(() => {
+    let active = true;
+    authApi.getSession()
+      .then((user) => {
+        if (active && user) setCurrentUser(user);
+      })
+      .catch((error) => {
+        console.error('[App] Could not restore the server session:', error);
+      });
+    return () => {
+      active = false;
+    };
+  }, [setCurrentUser]);
 
   // Low stock counter for indicators
   const safeStockItems = Array.isArray(stockItems) ? stockItems : [];
@@ -699,10 +725,7 @@ function AppContent() {
       activeTab={activeTab}
       setActiveTab={setActiveTab}
       currentUser={currentUser ? { id: currentUser.IssuerID, name: currentUser.IssuerName } : null}
-      onLogout={() => {
-        setCurrentUser(null);
-        showToast('Session Ended', 'info', 'Logged out successfully');
-      }}
+      onLogout={() => { void handleLogout(); }}
       onResetData={handleResetData}
       stockCount={safeStockItems.length}
       movementCount={movementLogs?.length || 0}
@@ -800,9 +823,8 @@ function AppContent() {
           onClose={() => setIsSidebarOpen(false)}
           currentUser={currentUser}
           onLogout={() => {
-            setCurrentUser(null);
+            void handleLogout();
             setIsSidebarOpen(false);
-            showToast('Session Ended', 'info', 'Logged out successfully');
           }}
           onOpenLogin={() => {
             setIsSidebarOpen(false);
@@ -818,6 +840,7 @@ function AppContent() {
 
         {/* Main Application Content Area */}
         <main className={`flex-1 w-full px-2 sm:px-4 lg:px-6 ${isMasterStockView ? 'py-1 pb-0' : 'py-2 sm:py-3'}`}>
+          <Suspense fallback={<div className="flex min-h-48 items-center justify-center gap-2 text-slate-500" role="status"><Loader2 className="h-5 w-5 animate-spin" />Loading view…</div>}>
           {activeTab === 'dashboard' && (
             <ExecutiveDashboardView
               stockItems={stockItems}
@@ -885,6 +908,7 @@ function AppContent() {
               onDeleteManager={handleDeleteManager}
               onAddAdmin={handleAddAdmin}
               onUpdateAdmin={handleUpdateAdmin}
+              onResetAdminPassword={handleResetAdminPassword}
               onDeleteAdmin={handleDeleteAdmin}
               backups={backups}
               backupPolicy={backupPolicy}
@@ -934,6 +958,7 @@ function AppContent() {
               departments={departments}
             />
           )}
+          </Suspense>
 
           {/* Audit Log Document Viewer Modal (Requisition/GRN/Adj Form with Print Preview & Official Logo) */}
           {selectedAuditMovementDoc && (
@@ -976,7 +1001,12 @@ function AppContent() {
             isOpen={isAccountModalOpen}
             currentUser={currentUser}
             onClose={() => setIsAccountModalOpen(false)}
-            onUpdateAdmin={handleUpdateAdmin}
+            onChangePassword={async (currentPassword, newPassword) => {
+              await authApi.changePassword(currentPassword, newPassword);
+              setCurrentUser(null);
+              setIsAccountModalOpen(false);
+              setIsLoginModalOpen(true);
+            }}
             onShowToast={(title, type) => showToast(title, type)}
           />
 
@@ -1033,10 +1063,11 @@ function AppContent() {
               <div className="rounded-2xl overflow-hidden shadow-2xl border border-slate-700/80 bg-slate-950">
                 <LandingLoginPage
                   admins={admins}
-                  onSuccess={(admin) => {
-                    setCurrentUser(admin);
+                  onSuccess={async (admin, password) => {
+                    const authenticatedUser = await authApi.login(admin.IssuerID, password);
+                    setCurrentUser(authenticatedUser);
                     setIsLoginModalOpen(false);
-                    showToast(`Welcome, ${admin.IssuerName}`, 'success', `Authenticated as ${admin.Role}`);
+                    showToast(`Welcome, ${authenticatedUser.IssuerName}`, 'success', `Authenticated as ${authenticatedUser.Role}`);
                   }}
                   isOffline={isOffline}
                   onOpenInstallModal={() => setIsInstallModalOpen(true)}

@@ -9,7 +9,7 @@ import {
   Filter,
   X,
 } from 'lucide-react';
-import { ReorderItemAnalysis, ReorderReportSummary } from '../../utils/reorderReportPdfGenerator';
+import type { ReorderItemAnalysis, ReorderReportSummary } from '../../utils/reorderInventoryAnalysis';
 
 interface LowStockWarningOverlayProps {
   summary: ReorderReportSummary;

@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 import { AdminUser, CurrencyCode, ItemCategory, StockItem } from '../types';
 import { getPexGreenLogoDataUrl } from '../components/brand/brandLogoData';
-import { ReorderItemAnalysis } from './reorderReportPdfGenerator';
+import type { ReorderItemAnalysis } from './reorderInventoryAnalysis';
 import { convertCurrency, formatCurrency, getExchangeRate } from './currencyUtils';
 
 export interface PurchaseRequisitionLineItem {

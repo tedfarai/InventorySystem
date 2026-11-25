@@ -22,7 +22,7 @@ interface AccountDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentUser: AdminUser | null;
-  onUpdateAdmin: (updatedAdmin: AdminUser) => Promise<void>;
+  onChangePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   onShowToast: (title: string, type: 'success' | 'error' | 'info') => void;
 }
 
@@ -30,7 +30,7 @@ export const AccountDetailsModal: React.FC<AccountDetailsModalProps> = ({
   isOpen,
   onClose,
   currentUser,
-  onUpdateAdmin,
+  onChangePassword,
   onShowToast,
 }) => {
   const [currentPassword, setCurrentPassword] = useState('');
@@ -69,13 +69,8 @@ export const AccountDetailsModal: React.FC<AccountDetailsModalProps> = ({
       return;
     }
 
-    if (trimmedCurrent !== currentUser.SecretPassword) {
-      setErrorMsg('Current password is incorrect. Please re-enter.');
-      return;
-    }
-
-    if (!trimmedNew || trimmedNew.length < 4) {
-      setErrorMsg('New password must be at least 4 characters long.');
+    if (!trimmedNew || trimmedNew.length < 12) {
+      setErrorMsg('New password must be at least 12 characters long.');
       return;
     }
 
@@ -91,12 +86,7 @@ export const AccountDetailsModal: React.FC<AccountDetailsModalProps> = ({
 
     try {
       setIsSubmitting(true);
-      const updatedUser: AdminUser = {
-        ...currentUser,
-        SecretPassword: trimmedNew,
-      };
-
-      await onUpdateAdmin(updatedUser);
+      await onChangePassword(trimmedCurrent, trimmedNew);
       setSuccessMsg('Account password changed successfully.');
       onShowToast('Account Password Updated', 'success');
       setCurrentPassword('');
@@ -283,7 +273,7 @@ export const AccountDetailsModal: React.FC<AccountDetailsModalProps> = ({
                     type={showNewPass ? 'text' : 'password'}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Enter new password (min 4 chars)..."
+                    placeholder="Enter new password (min 12 chars)..."
                     className="w-full px-3.5 py-2.5 pl-10 pr-10 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
                   />
                   <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />

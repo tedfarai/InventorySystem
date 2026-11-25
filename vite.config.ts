@@ -103,7 +103,6 @@ export default defineConfig(() => ({
         manualChunks: {
           'vendor-charts': ['recharts', 'd3'],
           'vendor-icons': ['lucide-react'],
-          'vendor-xlsx': ['xlsx'],
           'vendor-pdf': ['jspdf'],
           'vendor-motion': ['motion'],
           'vendor-db': ['idb', 'sql.js'],

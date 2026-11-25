@@ -221,6 +221,22 @@ class SqliteBridge {
       if (!Array.isArray(this.fallbackStore.adjustmentDocs)) this.fallbackStore.adjustmentDocs = [];
       if (!Array.isArray(this.fallbackStore.adjustmentRequests)) this.fallbackStore.adjustmentRequests = JSON.parse(JSON.stringify(INITIAL_ADJUSTMENT_REQUESTS));
       if (!Array.isArray(this.fallbackStore.backups)) this.fallbackStore.backups = JSON.parse(JSON.stringify(INITIAL_BACKUPS));
+      this.fallbackStore.admins = this.fallbackStore.admins.map((admin) => {
+        const safeAdmin = { ...admin } as AdminUser & { SecretPassword?: string };
+        delete safeAdmin.SecretPassword;
+        return safeAdmin;
+      });
+      this.fallbackStore.backups = this.fallbackStore.backups.map((backup) => ({
+        ...backup,
+        payload: {
+          ...backup.payload,
+          admins: (backup.payload?.admins || []).map((admin) => {
+            const safeAdmin = { ...admin } as AdminUser & { SecretPassword?: string };
+            delete safeAdmin.SecretPassword;
+            return safeAdmin;
+          }),
+        },
+      }));
       this.persistFallback();
     }
   }
@@ -420,6 +436,24 @@ class SqliteBridge {
       );
     `);
 
+    // Older browser databases stored plaintext account passwords and backup copies.
+    this.db.run("UPDATE admin_users SET secret_password = '' WHERE secret_password <> '';");
+    const savedBackups = this.db.exec('SELECT id, payload_json FROM backup_snapshots;');
+    if (savedBackups.length && savedBackups[0].values) {
+      for (const [id, payloadText] of savedBackups[0].values) {
+        if (typeof payloadText !== 'string') continue;
+        try {
+          const payload = JSON.parse(payloadText);
+          if (Array.isArray(payload?.admins)) {
+            payload.admins = payload.admins.map(({ SecretPassword: _secret, ...admin }: AdminUser & { SecretPassword?: string }) => admin);
+            this.db.run('UPDATE backup_snapshots SET payload_json = ? WHERE id = ?', [JSON.stringify(payload), id as string]);
+          }
+        } catch (error) {
+          console.warn('[SQLite Bridge] Skipped an unreadable legacy backup during credential cleanup:', error);
+        }
+      }
+    }
+
     // Indices
     this.db.run('CREATE INDEX IF NOT EXISTS idx_stock_cat ON master_stock(category);');
     this.db.run('CREATE INDEX IF NOT EXISTS idx_movement_ts ON movement_log(timestamp DESC);');
@@ -610,7 +644,7 @@ class SqliteBridge {
           'INSERT OR REPLACE INTO admin_users (issuer_id, issuer_name, role, secret_password, active) VALUES (?, ?, ?, ?, ?);'
         );
         for (const adm of INITIAL_ADMINS) {
-          adminStmt.run([adm.IssuerID, adm.IssuerName, adm.Role, adm.SecretPassword, adm.Active ? 1 : 0]);
+          adminStmt.run([adm.IssuerID, adm.IssuerName, adm.Role, '', adm.Active ? 1 : 0]);
         }
         adminStmt.free();
       }
@@ -1916,15 +1950,14 @@ class SqliteBridge {
     const db = await this.getDb();
     if (db) {
       const res = db.exec(
-        'SELECT issuer_id, issuer_name, role, secret_password, active FROM admin_users ORDER BY issuer_id ASC;'
+        'SELECT issuer_id, issuer_name, role, active FROM admin_users ORDER BY issuer_id ASC;'
       );
       if (!res.length || !res[0].values) return [];
       return res[0].values.map((row) => ({
         IssuerID: row[0] as string,
         IssuerName: row[1] as string,
         Role: row[2] as string,
-        SecretPassword: row[3] as string,
-        Active: Boolean(row[4]),
+        Active: Boolean(row[3]),
       }));
     }
 
@@ -1937,7 +1970,7 @@ class SqliteBridge {
     if (db) {
       db.run(
         'INSERT INTO admin_users (issuer_id, issuer_name, role, secret_password, active) VALUES (?, ?, ?, ?, ?);',
-        [admin.IssuerID, admin.IssuerName, admin.Role, admin.SecretPassword, admin.Active ? 1 : 0]
+        [admin.IssuerID, admin.IssuerName, admin.Role, '', admin.Active ? 1 : 0]
       );
       this.persistDb();
       return;
@@ -1953,7 +1986,7 @@ class SqliteBridge {
     if (db) {
       db.run(
         'UPDATE admin_users SET issuer_name = ?, role = ?, secret_password = ?, active = ? WHERE issuer_id = ?;',
-        [admin.IssuerName, admin.Role, admin.SecretPassword, admin.Active ? 1 : 0, admin.IssuerID]
+        [admin.IssuerName, admin.Role, '', admin.Active ? 1 : 0, admin.IssuerID]
       );
       this.persistDb();
       return;
@@ -2640,7 +2673,7 @@ class SqliteBridge {
             'INSERT OR REPLACE INTO admin_users (issuer_id, issuer_name, role, secret_password, active) VALUES (?, ?, ?, ?, ?);'
           );
           for (const adm of payload.admins) {
-            stmt.run([adm.IssuerID, adm.IssuerName, adm.Role, adm.SecretPassword, adm.Active ? 1 : 0]);
+            stmt.run([adm.IssuerID, adm.IssuerName, adm.Role, '', adm.Active ? 1 : 0]);
           }
           stmt.free();
         }

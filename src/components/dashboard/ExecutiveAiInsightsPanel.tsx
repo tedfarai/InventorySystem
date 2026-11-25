@@ -16,11 +16,12 @@ import {
   ShieldAlert,
   Zap,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import {
   ExecutiveAnalyticsSummary,
 } from '../../utils/predictiveAnalytics';
 import { StockItem, MovementLogEntry } from '../../types';
+import { addJsonDataToWorksheet, downloadExcelWorkbook } from '../../utils/pwaExport';
 
 interface ExecutiveAiInsightsPanelProps {
   stockItems: StockItem[];
@@ -111,10 +112,13 @@ export const ExecutiveAiInsightsPanel: React.FC<ExecutiveAiInsightsPanelProps> =
       'AI Recommendation': p.recommendationReason,
     }));
 
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'AI Demand Forecast');
-    XLSX.writeFile(wb, `Paramount_Stock_AI_Forecast_${new Date().toISOString().substring(0, 10)}.xlsx`);
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('AI Demand Forecast');
+    addJsonDataToWorksheet(worksheet, data);
+    const fileName = `Paramount_Stock_AI_Forecast_${new Date().toISOString().substring(0, 10)}.xlsx`;
+    void downloadExcelWorkbook(workbook, fileName).catch((err) => {
+      console.error('AI forecast export failed:', err);
+    });
   };
 
   // Generate or regenerate AI Executive Procurement Memo via server-side Gemini endpoint

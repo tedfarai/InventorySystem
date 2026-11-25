@@ -74,7 +74,6 @@ export interface AdminUser {
   IssuerID: string;
   IssuerName: string;
   Role: string;
-  SecretPassword: string;
   Active: boolean;
 }
 
@@ -354,13 +353,15 @@ export interface OfflineMutation {
   type:
     | 'STOCK_UPDATE'
     | 'STOCK_BATCH'
+    | 'STOCK_DELETE'
     | 'ISSUE_TRANSACTION'
     | 'DELIVERY_TRANSACTION'
     | 'ADJUSTMENT_TRANSACTION'
     | 'ADJUSTMENT_REQUEST'
     | 'DEPARTMENT_UPDATE'
     | 'MANAGER_UPDATE'
-    | 'ADMIN_UPDATE';
+    | 'ADMIN_UPDATE'
+    | 'BACKUP_UPDATE';
   timestamp: number;
   isoTimestamp: string;
   clientId: string;

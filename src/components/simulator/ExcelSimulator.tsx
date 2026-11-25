@@ -87,9 +87,7 @@ import { BulkBatchUpdateModal } from './BulkBatchUpdateModal';
 import { BulkDeleteConfirmationModal } from './BulkDeleteConfirmationModal';
 import { BulkDeliveryConfirmationModal, BulkDeliveryReviewItem } from './BulkDeliveryConfirmationModal';
 import { BulkIssueVoucherModal } from './BulkIssueVoucherModal';
-import { ReorderReportModal } from './ReorderReportModal';
 import { LowStockWarningOverlay } from './LowStockWarningOverlay';
-import { PurchaseRequisitionModal } from './PurchaseRequisitionModal';
 import { StockItemContextMenuModal } from './StockItemContextMenuModal';
 import {
   TableViewOptionsMenu,
@@ -103,9 +101,13 @@ import { useWriteGuard } from '../../hooks/useWriteGuard';
 import { SearchHighlightText } from '../common/SearchHighlightText';
 import { formatCurrency, convertCurrency, getExchangeRate } from '../../utils/currencyUtils';
 import { UsageTrendIndicator } from '../common/UsageTrendIndicator';
-import { generateVoucherPdfFile } from '../../utils/voucherPdfGenerator';
 import type { VoucherPdfFile } from '../../utils/voucherPdfGenerator';
-import { analyzeReorderInventory, ReorderItemAnalysis } from '../../utils/reorderReportPdfGenerator';
+import { analyzeReorderInventory } from '../../utils/reorderInventoryAnalysis';
+import type { ReorderItemAnalysis } from '../../utils/reorderInventoryAnalysis';
+import { authApi } from '../../api/inventoryApi';
+
+const ReorderReportModal = React.lazy(() => import('./ReorderReportModal').then((module) => ({ default: module.ReorderReportModal })));
+const PurchaseRequisitionModal = React.lazy(() => import('./PurchaseRequisitionModal').then((module) => ({ default: module.PurchaseRequisitionModal })));
 
 interface ExcelSimulatorProps {
   masterFolderPath: string;
@@ -160,8 +162,9 @@ interface ExcelSimulatorProps {
   onAddManager?: (mgr: Manager) => void;
   onUpdateManager?: (mgr: Manager) => void;
   onDeleteManager?: (mgrId: string) => void;
-  onAddAdmin?: (admin: AdminUser) => void;
-  onUpdateAdmin?: (admin: AdminUser) => void;
+  onAddAdmin?: (admin: AdminUser, password: string) => Promise<void>;
+  onUpdateAdmin?: (admin: AdminUser) => Promise<void>;
+  onResetAdminPassword?: (issuerId: string, password: string) => Promise<void>;
   onDeleteAdmin?: (issuerId: string) => void;
   backups?: BackupSnapshot[];
   backupPolicy?: BackupProtocolPolicy;
@@ -219,6 +222,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
   onDeleteManager,
   onAddAdmin,
   onUpdateAdmin,
+  onResetAdminPassword,
   onDeleteAdmin,
   backups = [],
   backupPolicy = {
@@ -682,8 +686,9 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
     }
   };
 
-  const handleLoginSuccess = (user: AdminUser) => {
-    setCurrentUser(user);
+  const handleLoginSuccess = async (user: AdminUser, password: string) => {
+    const authenticatedUser = await authApi.login(user.IssuerID, password);
+    setCurrentUser(authenticatedUser);
     setActiveSheet('Master_Stock');
     setActiveModal('navigation');
   };
@@ -702,6 +707,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
   const handleOpenIssueDocument = async (doc: IssuedDocument): Promise<VoucherPdfFile> => {
     const displayableDocument: DisplayableDocument = { type: 'ISSUE', data: doc };
     try {
+      const { generateVoucherPdfFile } = await import('../../utils/voucherPdfGenerator');
       const pdfFile = await generateVoucherPdfFile(displayableDocument);
       if (activeDocPdfFile) URL.revokeObjectURL(activeDocPdfFile.url);
       setActiveDocPdfFile(pdfFile);
@@ -717,6 +723,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
 
   const handleOpenMovementDocument = async (document: DisplayableDocument) => {
     try {
+      const { generateVoucherPdfFile } = await import('../../utils/voucherPdfGenerator');
       const pdfFile = await generateVoucherPdfFile(document);
       if (selectedMovementPdfFile) URL.revokeObjectURL(selectedMovementPdfFile.url);
       setSelectedMovementPdfFile(pdfFile);
@@ -2390,7 +2397,6 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                         <th className="p-2.5 border-r border-slate-200 dark:border-slate-700">Issuer Work ID</th>
                         <th className="p-2.5 border-r border-slate-200 dark:border-slate-700">Issuer Name</th>
                         <th className="p-2.5 border-r border-slate-200 dark:border-slate-700">Role</th>
-                        <th className="p-2.5">Masked Secret Password</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-800 dark:text-slate-200">
@@ -2408,9 +2414,6 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
                             <td className="p-2.5 font-mono font-bold text-amber-700 dark:text-amber-400 border-r border-slate-200 dark:border-slate-800">{adm.IssuerID}</td>
                             <td className="p-2.5 font-bold border-r border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100">{adm.IssuerName}</td>
                             <td className="p-2.5 text-slate-600 dark:text-slate-400 border-r border-slate-200 dark:border-slate-800">{adm.Role}</td>
-                            <td className="p-2.5 font-mono text-teal-700 dark:text-teal-400 font-bold">
-                              •••••••• ({adm.SecretPassword})
-                            </td>
                           </motion.tr>
                         ))}
                       </AnimatePresence>
@@ -2850,6 +2853,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
           admins={admins}
           onAddAdmin={onAddAdmin}
           onUpdateAdmin={onUpdateAdmin}
+          onResetPassword={onResetAdminPassword}
           onDeleteAdmin={onDeleteAdmin}
           onClose={() => setActiveModal('none')}
         />
@@ -2857,15 +2861,17 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
 
       {/* Stock Reorder & Safety Threshold Report Modal */}
       {activeModal === 'reorderReport' && (
-        <ReorderReportModal
-          stockItems={stockItems}
-          currentUser={currentUser}
-          masterFolderPath={masterFolderPath}
-          onClose={() => setActiveModal('none')}
-          onBulkRestock={(items) => {
-            handleTriggerBulkRestock(items, 'GRN');
-          }}
-        />
+        <React.Suspense fallback={null}>
+          <ReorderReportModal
+            stockItems={stockItems}
+            currentUser={currentUser}
+            masterFolderPath={masterFolderPath}
+            onClose={() => setActiveModal('none')}
+            onBulkRestock={(items) => {
+              handleTriggerBulkRestock(items, 'GRN');
+            }}
+          />
+        </React.Suspense>
       )}
 
       {/* Automated Low Stock Warning UI Overlay (Visible on Master Stock Sheet) */}
@@ -2895,16 +2901,18 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
 
       {/* Purchase Requisition Modal Triggered from Low Stock Warning Overlay */}
       {requisitionPreviewItems && requisitionPreviewItems.length > 0 && (
-        <PurchaseRequisitionModal
-          itemsAnalysis={requisitionPreviewItems}
-          currentUser={currentUser}
-          masterFolderPath={masterFolderPath}
-          resolveSupplier={getLastSupplierForItem}
-          onProceedToBulkRestock={(items) => {
-            handleTriggerBulkRestock(items, 'GRN');
-          }}
-          onClose={() => setRequisitionPreviewItems(null)}
-        />
+        <React.Suspense fallback={null}>
+          <PurchaseRequisitionModal
+            itemsAnalysis={requisitionPreviewItems}
+            currentUser={currentUser}
+            masterFolderPath={masterFolderPath}
+            resolveSupplier={getLastSupplierForItem}
+            onProceedToBulkRestock={(items) => {
+              handleTriggerBulkRestock(items, 'GRN');
+            }}
+            onClose={() => setRequisitionPreviewItems(null)}
+          />
+        </React.Suspense>
       )}
 
       {/* Backup & Disaster Recovery Center Modal (Strictly Superior Admin ADM001 Only) */}

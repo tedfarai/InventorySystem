@@ -230,17 +230,12 @@ Public Sub SetupSystemWorksheets()
     wsAdmin.Cells.Clear
     
     ' Issuer Admins Table (A:D)
-    wsAdmin.Range("A1:D1").Value = Array("IssuerID", "IssuerName", "Role", "SecretPassword")
+    wsAdmin.Range("A1:D1").Value = Array("IssuerID", "IssuerName", "Role", "ServerManagedOnly")
     wsAdmin.Range("A1:D1").Font.Bold = True
     wsAdmin.Range("A1:D1").Interior.Color = RGB(142, 68, 173)
     wsAdmin.Range("A1:D1").Font.Color = RGB(255, 255, 255)
     
-    wsAdmin.Range("A2:D2").Value = Array("ADM001", "Rachel Pickard", "Chief Procurement Officer", "Superior1234")
-    wsAdmin.Range("A3:D3").Value = Array("ADM002", "Loveness Mawisire", "Master Inventory Controller", "Micky1234Master")
-    wsAdmin.Range("A4:D4").Value = Array("ADM003", "Lyda Gurupira", "Senior Storekeeper", "Master1234")
-    wsAdmin.Range("A5:D5").Value = Array("ADM004", "Caeser Joe", "Assistant Inventory Officer", "Second1234")
-    wsAdmin.Range("A6:D6").Value = Array("ADM005", "Farai Mandoreba", "Procurement Specialist", "Procurement1234")
-    wsAdmin.Range("A7:D7").Value = Array("ADM006", "Bianca Mpakairi", "System Administrator", "Admin1234!")
+    ' Do not seed local password credentials; configure accounts in the server-backed PWA.
     
     ' Departments Reference Table (F:I) — Complete Directory (DEPT-101 to DEPT-106)
     wsAdmin.Range("F1:I1").Value = Array("DeptID", "DeptName", "DeptHeadName", "DeptHeadEmail")
@@ -1326,17 +1321,12 @@ Sub SetupSystemWorksheets()
     wsAdmin.Cells.Clear
     
     ' Issuer Admins Table (A:D)
-    wsAdmin.Range("A1:D1").Value = Array("IssuerID", "IssuerName", "Role", "SecretPassword")
+    wsAdmin.Range("A1:D1").Value = Array("IssuerID", "IssuerName", "Role", "ServerManagedOnly")
     wsAdmin.Range("A1:D1").Font.Bold = True
     wsAdmin.Range("A1:D1").Interior.Color = RGB(142, 68, 173)
     wsAdmin.Range("A1:D1").Font.Color = RGB(255, 255, 255)
     
-    wsAdmin.Range("A2:D2").Value = Array("ADM001", "Rachel Pickard", "Chief Procurement Officer", "Superior1234")
-    wsAdmin.Range("A3:D3").Value = Array("ADM002", "Loveness Mawisire", "Master Inventory Controller", "Micky1234Master")
-    wsAdmin.Range("A4:D4").Value = Array("ADM003", "Lyda Gurupira", "Senior Storekeeper", "Master1234")
-    wsAdmin.Range("A5:D5").Value = Array("ADM004", "Caeser Joe", "Assistant Inventory Officer", "Second1234")
-    wsAdmin.Range("A6:D6").Value = Array("ADM005", "Farai Mandoreba", "Procurement Specialist", "Procurement1234")
-    wsAdmin.Range("A7:D7").Value = Array("ADM006", "Bianca Mpakairi", "System Administrator", "Admin1234!")
+    ' Do not seed local password credentials; configure accounts in the server-backed PWA.
     
     ' Departments Reference Table (F:I) — Complete Directory (DEPT-101 to DEPT-106)
     wsAdmin.Range("F1:I1").Value = Array("DeptID", "DeptName", "DeptHeadName", "DeptHeadEmail")
@@ -1418,37 +1408,9 @@ try {
     $sheetAdmin.Cells.Item(1,1).Value2 = "IssuerID"
     $sheetAdmin.Cells.Item(1,2).Value2 = "IssuerName"
     $sheetAdmin.Cells.Item(1,3).Value2 = "Role"
-    $sheetAdmin.Cells.Item(1,4).Value2 = "SecretPassword"
-    
-    $sheetAdmin.Cells.Item(2,1).Value2 = "ADM001"
-    $sheetAdmin.Cells.Item(2,2).Value2 = "Rachel Pickard"
-    $sheetAdmin.Cells.Item(2,3).Value2 = "Chief Procurement Officer"
-    $sheetAdmin.Cells.Item(2,4).Value2 = "Superior1234"
+    $sheetAdmin.Cells.Item(1,4).Value2 = "ServerManagedOnly"
 
-    $sheetAdmin.Cells.Item(3,1).Value2 = "ADM002"
-    $sheetAdmin.Cells.Item(3,2).Value2 = "Loveness Mawisire"
-    $sheetAdmin.Cells.Item(3,3).Value2 = "Master Inventory Controller"
-    $sheetAdmin.Cells.Item(3,4).Value2 = "Micky1234Master"
-
-    $sheetAdmin.Cells.Item(4,1).Value2 = "ADM003"
-    $sheetAdmin.Cells.Item(4,2).Value2 = "Lyda Gurupira"
-    $sheetAdmin.Cells.Item(4,3).Value2 = "Senior Storekeeper"
-    $sheetAdmin.Cells.Item(4,4).Value2 = "Master1234"
-
-    $sheetAdmin.Cells.Item(5,1).Value2 = "ADM004"
-    $sheetAdmin.Cells.Item(5,2).Value2 = "Caeser Joe"
-    $sheetAdmin.Cells.Item(5,3).Value2 = "Assistant Inventory Officer"
-    $sheetAdmin.Cells.Item(5,4).Value2 = "Second1234"
-
-    $sheetAdmin.Cells.Item(6,1).Value2 = "ADM005"
-    $sheetAdmin.Cells.Item(6,2).Value2 = "Farai Mandoreba"
-    $sheetAdmin.Cells.Item(6,3).Value2 = "Procurement Specialist"
-    $sheetAdmin.Cells.Item(6,4).Value2 = "Procurement1234"
-
-    $sheetAdmin.Cells.Item(7,1).Value2 = "ADM006"
-    $sheetAdmin.Cells.Item(7,2).Value2 = "Bianca Mpakairi"
-    $sheetAdmin.Cells.Item(7,3).Value2 = "System Administrator"
-    $sheetAdmin.Cells.Item(7,4).Value2 = "Admin1234!"
+    # Do not seed local password credentials; configure accounts in the server-backed PWA.
 
     # Departments Table (F:I)
     $sheetAdmin.Cells.Item(1,6).Value2 = "DeptID"
