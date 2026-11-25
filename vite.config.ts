@@ -88,6 +88,7 @@ export default defineConfig(() => ({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,txt,woff2,wasm}'],
+        globIgnores: ['**/sql-wasm-inline-*.js'],
         maximumFileSizeToCacheInBytes: 15 * 1024 * 1024,
         importScripts: ['sw-custom.js'],
         navigateFallback: '/index.html',
