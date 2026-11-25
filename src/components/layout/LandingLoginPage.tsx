@@ -24,15 +24,13 @@ import {
 import { AdminUser } from '../../types';
 import { ParamountLogo } from '../brand/ParamountLogo';
 import { OfflineStatusBadge } from '../pwa/OfflineStatusBadge';
-import { OfflinePasswordRecoveryModal } from '../auth/OfflinePasswordRecoveryModal';
 
 interface LandingLoginPageProps {
   admins: AdminUser[];
-  onSuccess: (admin: AdminUser) => void;
+  onSuccess: (admin: AdminUser, password: string) => Promise<void> | void;
   isOffline?: boolean;
   onOpenInstallModal?: () => void;
   isInstallable?: boolean;
-  onUpdateAdmin?: (admin: AdminUser) => Promise<void>;
 }
 
 export const LandingLoginPage: React.FC<LandingLoginPageProps> = ({
@@ -41,7 +39,6 @@ export const LandingLoginPage: React.FC<LandingLoginPageProps> = ({
   isOffline = false,
   onOpenInstallModal,
   isInstallable = false,
-  onUpdateAdmin,
 }) => {
   const [selectedAdmin, setSelectedAdmin] = useState<AdminUser | null>(null);
   const [password, setPassword] = useState('');
@@ -49,9 +46,8 @@ export const LandingLoginPage: React.FC<LandingLoginPageProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [attempts, setAttempts] = useState(0);
   const [errorMsg, setErrorMsg] = useState('');
-  const [isRecoveryModalOpen, setIsRecoveryModalOpen] = useState(false);
-  const [recoveryTargetUser, setRecoveryTargetUser] = useState<AdminUser | null>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const passwordInputRef = useRef<HTMLInputElement>(null);
 
@@ -82,7 +78,7 @@ export const LandingLoginPage: React.FC<LandingLoginPageProps> = ({
     setErrorMsg('');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
 
@@ -98,22 +94,23 @@ export const LandingLoginPage: React.FC<LandingLoginPageProps> = ({
       return;
     }
 
-    if (selectedAdmin.SecretPassword === trimmedPass && selectedAdmin.Active) {
-      onSuccess(selectedAdmin);
-    } else {
+    if (!selectedAdmin.Active) {
+      setErrorMsg('This account is inactive. Contact the superior administrator.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await onSuccess(selectedAdmin, trimmedPass);
+      setAttempts(0);
+    } catch (error) {
       const nextAttempts = attempts + 1;
       setAttempts(nextAttempts);
-      if (nextAttempts >= 4) {
-        setErrorMsg('Maximum login attempts exceeded. Security lockout engaged.');
-      } else {
-        setErrorMsg(
-          `Incorrect password for ${selectedAdmin.IssuerName || 'user'}. (${4 - nextAttempts} attempt${
-            4 - nextAttempts === 1 ? '' : 's'
-          } remaining)`
-        );
-        setPassword('');
-        passwordInputRef.current?.focus();
-      }
+      setErrorMsg(error instanceof Error ? error.message : 'Sign-in failed.');
+      setPassword('');
+      passwordInputRef.current?.focus();
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -513,11 +510,11 @@ export const LandingLoginPage: React.FC<LandingLoginPageProps> = ({
                         <button
                           id="btn-submit-login"
                           type="submit"
-                          disabled={attempts >= 4}
+                          disabled={isSubmitting || attempts >= 5}
                           className="w-full sm:flex-1 flex items-center justify-center space-x-2 py-3 px-6 text-xs sm:text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-400 rounded-xl shadow-md transition cursor-pointer"
                         >
                           <KeyRound className="w-4 h-4" />
-                          <span>Log In</span>
+                          <span>{isSubmitting ? 'Signing in…' : 'Log In'}</span>
                         </button>
                         <button
                           id="btn-cancel-user-selection"
@@ -529,22 +526,9 @@ export const LandingLoginPage: React.FC<LandingLoginPageProps> = ({
                         </button>
                       </div>
 
-                      {/* Prominent Forgot Your Password Button */}
                       <div className="pt-3 border-t border-slate-200 dark:border-slate-800">
-                        <button
-                          id="btn-user-forgot-password"
-                          type="button"
-                          onClick={() => {
-                            setRecoveryTargetUser(selectedAdmin);
-                            setIsRecoveryModalOpen(true);
-                          }}
-                          className="w-full py-2.5 px-4 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50/80 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer"
-                        >
-                          <KeyRound className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                          <span>Forgot Your Password?</span>
-                        </button>
                         <p className="text-[10px] text-center text-slate-400 mt-1.5">
-                          Recover credentials via security questions or offline emergency bypass key.
+                          Forgot your password? Contact the superior administrator to reset it securely.
                         </p>
                       </div>
                     </form>
@@ -555,29 +539,6 @@ export const LandingLoginPage: React.FC<LandingLoginPageProps> = ({
           </div>
         </div>
       </main>
-
-      {/* Offline Password Recovery Modal */}
-      {isRecoveryModalOpen && (
-        <OfflinePasswordRecoveryModal
-          isOpen={isRecoveryModalOpen}
-          onClose={() => setIsRecoveryModalOpen(false)}
-          admins={safeAdmins}
-          preSelectedUser={recoveryTargetUser || selectedAdmin}
-          onUpdateAdmin={
-            onUpdateAdmin ||
-            (async (u) => {
-              const idx = safeAdmins.findIndex((a) => a.IssuerID === u.IssuerID);
-              if (idx >= 0) safeAdmins[idx] = u;
-            })
-          }
-          onRecoverySuccess={(updatedUser, newPass) => {
-            setPassword(newPass);
-            setSelectedAdmin(updatedUser);
-            setIsRecoveryModalOpen(false);
-            setErrorMsg('');
-          }}
-        />
-      )}
 
     </div>
   );

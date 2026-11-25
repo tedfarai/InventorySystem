@@ -401,7 +401,7 @@ export const SetupGuide: React.FC = () => {
                   <tr><td className="py-1">TextBox</td><td className="font-bold text-blue-600 dark:text-blue-400">txtIssuerID</td><td>Text = ""</td><td>Input Issuer Work ID (e.g. ADM007)</td></tr>
                   <tr><td className="py-1">TextBox</td><td className="font-bold text-blue-600 dark:text-blue-400">txtIssuerName</td><td>Text = ""</td><td>Input Full Name</td></tr>
                   <tr><td className="py-1">TextBox</td><td className="font-bold text-blue-600 dark:text-blue-400">txtRole</td><td>Text = ""</td><td>Input Official Role</td></tr>
-                  <tr><td className="py-1">TextBox</td><td className="font-bold text-blue-600 dark:text-blue-400">txtSecretPassword</td><td>PasswordChar = "*"</td><td>Input Secret Password (masked)</td></tr>
+                  <tr><td className="py-1">Authentication</td><td className="font-bold text-blue-600 dark:text-blue-400">Server-managed</td><td>HTTP-only session cookie</td><td>Do not store credentials in the workbook</td></tr>
                   <tr><td className="py-1">CommandButton</td><td className="font-bold text-emerald-600 dark:text-emerald-400">btnAdd / btnUpdate / btnDelete</td><td>Caption = "Add / Update / Delete"</td><td>Executes account CRUD on Admin_Config!A:D</td></tr>
                   <tr><td className="py-1">CommandButton</td><td className="font-bold text-slate-600 dark:text-slate-400">btnClose</td><td>Caption = "Close"</td><td>Unloads form</td></tr>
                 </tbody>

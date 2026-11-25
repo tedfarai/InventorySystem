@@ -11,7 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import { AdminUser, StockItem } from '../../types';
-import { ReorderItemAnalysis } from '../../utils/reorderReportPdfGenerator';
+import type { ReorderItemAnalysis } from '../../utils/reorderInventoryAnalysis';
 import {
   buildPurchaseRequisition,
   createPurchaseRequisitionPdfBlob,

@@ -87,7 +87,7 @@ The system automates:
 | **TextBox** | \`txtIssuerID\` | \`Text = ""\` | Issuer Work ID |
 | **TextBox** | \`txtIssuerName\` | \`Text = ""\` | Full Name |
 | **TextBox** | \`txtRole\` | \`Text = ""\` | Official Role |
-| **TextBox** | \`txtSecretPassword\` | \`PasswordChar = "*"\` | Secret Password |
+| Authentication | Server-managed session | HTTP-only cookie | Never store credentials in the workbook |
 | **CommandButton** | \`btnAdd / btnUpdate / btnDelete\` | \`Caption = "Add / Update / Delete"\` | Executes CRUD on \`Admin_Config\` |
 | **CommandButton** | \`btnClose\` | \`Caption = "Close"\` | Unloads form |
 
@@ -142,18 +142,8 @@ There are **two easy ways** to attach event code handlers to controls:
 
 ---
 
-### 3. AUTHORIZED ISSUER ACCOUNTS & CREDENTIALS
-Configure or verify the following credentials in the \`Admin_Config\` sheet (Columns A to D):
-
-| Issuer ID | Full Name | Official Role | Login Password | Status |
-| :--- | :--- | :--- | :--- | :--- |
-| **ADM001** | Rachel Pickard | Procurement Manager | \`Superior1234\` | Active |
-| **ADM002** | Loveness Mawisire | Master Inventory Controller | \`Micky1234Master\` | Active |
-| **ADM003** | Lyda Gurupira | Inventory Controller | \`Master1234\` | Active |
-| **ADM004** | Caeser Joe | Procurement Supervisor | \`Second1234\` | Active |
-| **ADM005** | Farai Mandoreba | Procurement Assistant | \`Procurement1234\` | Active |
-| **ADM006** | Bianca Mpakairi | Administrator | \`Admin1234!\` | Active |
-| **ADM007** | Farai Peter | Procurement Assistant | \`Assistant1234\` | Active |
+### 3. SERVER-MANAGED ACCOUNTS
+Do not store passwords in an Excel worksheet or use seeded credentials in generated VBA. The inventory PWA authenticates against the Express server; provision its first administrator with \`INITIAL_ADMIN_PASSWORD\` and manage users through the authenticated administration screen. See \`SERVER_SETUP.md\`.
 
 ---
 
@@ -243,27 +233,8 @@ export function generateSetupGuideHTML(): string {
     <p><em>Comprehensive instructions for assembling, testing, locking, and operating the macro-enabled workbook.</em></p>
     <hr />
     
-    <h2>1. Authorized Issuer Accounts & Login Credentials</h2>
-    <table>
-      <thead>
-        <tr>
-          <th>Issuer ID</th>
-          <th>Full Name</th>
-          <th>Role</th>
-          <th>Password</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr><td><strong>ADM001</strong></td><td>Rachel Pickard</td><td>Procurement Manager</td><td><code>Superior1234</code></td><td>Active</td></tr>
-        <tr><td><strong>ADM002</strong></td><td>Loveness Mawisire</td><td>Master Inventory Controller</td><td><code>Micky1234Master</code></td><td>Active</td></tr>
-        <tr><td><strong>ADM003</strong></td><td>Lyda Gurupira</td><td>Inventory Controller</td><td><code>Master1234</code></td><td>Active</td></tr>
-        <tr><td><strong>ADM004</strong></td><td>Caeser Joe</td><td>Procurement Supervisor</td><td><code>Second1234</code></td><td>Active</td></tr>
-        <tr><td><strong>ADM005</strong></td><td>Farai Mandoreba</td><td>Procurement Assistant</td><td><code>Procurement1234</code></td><td>Active</td></tr>
-        <tr><td><strong>ADM006</strong></td><td>Bianca Mpakairi</td><td>Administrator</td><td><code>Admin1234!</code></td><td>Active</td></tr>
-        <tr><td><strong>ADM007</strong></td><td>Farai Peter</td><td>Procurement Assistant</td><td><code>Assistant1234</code></td><td>Active</td></tr>
-      </tbody>
-    </table>
+    <h2>1. Server-Managed Accounts</h2>
+    <p>Do not store passwords in an Excel worksheet or use seeded credentials in generated VBA. The inventory PWA authenticates against the Express server; provision its first administrator with <code>INITIAL_ADMIN_PASSWORD</code> and manage users through the authenticated administration screen. See <code>SERVER_SETUP.md</code>.</p>
 
     <h2>2. Excel Macro Security Configuration</h2>
     <p>Path: <strong>File ➔ Options ➔ Trust Center ➔ Trust Center Settings ➔ Macro Settings</strong></p>

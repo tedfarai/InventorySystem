@@ -43,8 +43,9 @@ import {
   Target,
   RotateCcw,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { StockItem, MovementLogEntry, ItemCategory } from '../../types';
+import { addJsonDataToWorksheet, downloadExcelWorkbook } from '../../utils/pwaExport';
 import {
   ForecastModelType,
   FORECAST_MODELS,
@@ -237,12 +238,14 @@ export const ExecutiveDemandForecastingView: React.FC<ExecutiveDemandForecasting
       'Primary Dept Requester': f.topDepartment,
     }));
 
-    const worksheet = XLSX.utils.json_to_sheet(rows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Upcoming_Month_Forecast');
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Upcoming_Month_Forecast');
+    addJsonDataToWorksheet(worksheet, rows);
 
     const fileName = `Paramount_Demand_Forecast_${forecastSummary.upcomingMonthKey}.xlsx`;
-    XLSX.writeFile(workbook, fileName);
+    void downloadExcelWorkbook(workbook, fileName).catch((err) => {
+      console.error('Demand forecast export failed:', err);
+    });
   };
 
   // Category Colors

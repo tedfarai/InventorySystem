@@ -424,15 +424,8 @@ export const INITIAL_STOCK: StockItem[] = [
   },
 ];
 
-export const INITIAL_ADMINS: AdminUser[] = [
-  { IssuerID: 'ADM001', IssuerName: 'Rachel Pickard', Role: 'Procurement Manager', SecretPassword: 'Superior1234', Active: true },
-  { IssuerID: 'ADM004', IssuerName: 'Caeser Joe', Role: 'Procurement Supervisor', SecretPassword: 'Second1234', Active: true },
-  { IssuerID: 'ADM005', IssuerName: 'Farai Mandoreba', Role: 'Procurement Assistant', SecretPassword: 'Procurement1234', Active: true },
-  { IssuerID: 'ADM006', IssuerName: 'Bianca Mpakairi', Role: 'Administrator', SecretPassword: 'Admin1234!', Active: true },
-  { IssuerID: 'ADM002', IssuerName: 'Loveness Mawisire', Role: 'Master Inventory Controller', SecretPassword: 'Micky1234Master', Active: true },
-  { IssuerID: 'ADM003', IssuerName: 'Lyda Gurupira', Role: 'Inventory Controller', SecretPassword: 'Master1234', Active: true },
-  { IssuerID: 'ADM007', IssuerName: 'Farai Peter', Role: 'Procurement Assistant', SecretPassword: 'Assistant1234', Active: true },
-];
+// User accounts are created on the server from deployment secrets and never seeded in client code.
+export const INITIAL_ADMINS: AdminUser[] = [];
 
 export const INITIAL_DEPARTMENTS: Department[] = [
   { DeptID: 'DEPT-101', DeptName: 'Human Resources & Talent', DeptHeadName: 'Elena Rostova', DeptHeadEmail: 'elena.rostova@company.com' },

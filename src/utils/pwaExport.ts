@@ -6,18 +6,57 @@
  * ===============================================================================
  */
 
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
+
+const EXCEL_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+export function addJsonDataToWorksheet(
+  worksheet: ExcelJS.Worksheet,
+  data: object[],
+  startRow = 1,
+  startColumn = 1
+): void {
+  const headers = Array.from(new Set(data.flatMap((row) => Object.keys(row))));
+  if (headers.length === 0) return;
+
+  headers.forEach((header, index) => {
+    worksheet.getCell(startRow, startColumn + index).value = header;
+  });
+
+  data.forEach((row, rowIndex) => {
+    const values = row as Record<string, any>;
+    headers.forEach((header, columnIndex) => {
+      worksheet.getCell(startRow + rowIndex + 1, startColumn + columnIndex).value =
+        values[header] ?? null;
+    });
+  });
+}
+
+export async function downloadExcelWorkbook(workbook: ExcelJS.Workbook, fileName: string): Promise<void> {
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: EXCEL_MIME_TYPE });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
 
 /**
  * Exports tabular data to standard Microsoft Excel (.xlsx) file
  */
 export function exportTableToExcel(data: any[], sheetName: string, fileName: string): void {
   try {
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, sheetName.substring(0, 31)); // Excel limit is 31 chars for sheet name
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet(sheetName.substring(0, 31)); // Excel limit is 31 chars for sheet name
+    addJsonDataToWorksheet(worksheet, data);
     const cleanFileName = `${fileName.replace(/[/\\?%*:|"<>]/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`;
-    XLSX.writeFile(wb, cleanFileName);
+    void downloadExcelWorkbook(workbook, cleanFileName).catch((err) => {
+      console.error('[pwaExport] Excel export error:', err);
+    });
   } catch (err) {
     console.error('[pwaExport] Excel export error:', err);
   }
@@ -31,13 +70,15 @@ export function exportMultiSheetExcel(
   fileName: string
 ): void {
   try {
-    const wb = XLSX.utils.book_new();
+    const workbook = new ExcelJS.Workbook();
     sheets.forEach(({ name, data }) => {
-      const ws = XLSX.utils.json_to_sheet(data);
-      XLSX.utils.book_append_sheet(wb, ws, name.substring(0, 31));
+      const worksheet = workbook.addWorksheet(name.substring(0, 31));
+      addJsonDataToWorksheet(worksheet, data);
     });
     const cleanFileName = `${fileName.replace(/[/\\?%*:|"<>]/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`;
-    XLSX.writeFile(wb, cleanFileName);
+    void downloadExcelWorkbook(workbook, cleanFileName).catch((err) => {
+      console.error('[pwaExport] Multi-sheet Excel export error:', err);
+    });
   } catch (err) {
     console.error('[pwaExport] Multi-sheet Excel export error:', err);
   }

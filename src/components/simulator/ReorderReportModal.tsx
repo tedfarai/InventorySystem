@@ -21,12 +21,9 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { StockItem, AdminUser } from '../../types';
-import {
-  analyzeReorderInventory,
-  generateReorderReportPdf,
-  ReorderReportSummary,
-  ReorderItemAnalysis,
-} from '../../utils/reorderReportPdfGenerator';
+import { generateReorderReportPdf } from '../../utils/reorderReportPdfGenerator';
+import { analyzeReorderInventory } from '../../utils/reorderInventoryAnalysis';
+import type { ReorderReportSummary, ReorderItemAnalysis } from '../../utils/reorderInventoryAnalysis';
 import { DraggableResizableModal } from '../common/DraggableResizableModal';
 import { UsageTrendIndicator } from '../common/UsageTrendIndicator';
 

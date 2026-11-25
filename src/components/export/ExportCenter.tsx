@@ -7,8 +7,8 @@ import { generateAiMasterPrompt, downloadAiMasterPromptFile } from '../../utils/
 import { downloadStyleGuideFile } from '../../utils/styleGuideGenerator';
 import { downloadSystemDesignFile, getSystemDesignMarkdown } from '../../utils/systemDesignGenerator';
 import { exportAllDataToJSON } from '../../db/offlineStorage';
-import { downloadJsonFile } from '../../utils/pwaExport';
-import * as XLSX from 'xlsx';
+import { addJsonDataToWorksheet, downloadExcelWorkbook, downloadJsonFile } from '../../utils/pwaExport';
+import ExcelJS from 'exceljs';
 
 interface ExportCenterProps {
   stockItems?: StockItem[];
@@ -59,9 +59,9 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({
     setTimeout(() => setCopiedDesignMd(false), 3000);
   };
 
-  // Generate real pre-formatted Excel workbook using SheetJS
+  // Generate the pre-formatted Excel workbook
   const handleDownloadExcelWorkbook = () => {
-    const wb = XLSX.utils.book_new();
+    const workbook = new ExcelJS.Workbook();
 
     // 1. Master_Stock Sheet
     const stockData = safeStockItems.map((item) => ({
@@ -70,8 +70,8 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({
       Category: item.Category,
       Qty: item.Qty,
     }));
-    const wsStock = XLSX.utils.json_to_sheet(stockData);
-    XLSX.utils.book_append_sheet(wb, wsStock, 'Master_Stock');
+    const wsStock = workbook.addWorksheet('Master_Stock');
+    addJsonDataToWorksheet(wsStock, stockData);
 
     // 2. Movement_Log Sheet
     const logData = safeMovementLogs.map((log) => ({
@@ -84,17 +84,16 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({
       DeptHead: log.DeptHead,
       IssuerID: log.IssuerID,
     }));
-    const wsLog = XLSX.utils.json_to_sheet(logData);
-    XLSX.utils.book_append_sheet(wb, wsLog, 'Movement_Log');
+    const wsLog = workbook.addWorksheet('Movement_Log');
+    addJsonDataToWorksheet(wsLog, logData);
 
     // 3. Admin_Config Sheet
     const adminData = safeAdmins.map((adm) => ({
       IssuerID: adm.IssuerID,
       IssuerName: adm.IssuerName,
       Role: adm.Role,
-      SecretPassword: adm.SecretPassword,
     }));
-    const wsAdmin = XLSX.utils.json_to_sheet(adminData);
+    const wsAdmin = workbook.addWorksheet('Admin_Config');
 
     // Append department lookup table to Admin_Config
     const deptData = safeDepartments.map((d) => ({
@@ -104,11 +103,13 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({
       DeptHeadEmail: d.DeptHeadEmail,
     }));
 
-    XLSX.utils.sheet_add_json(wsAdmin, deptData, { origin: 'F1' });
-    XLSX.utils.book_append_sheet(wb, wsAdmin, 'Admin_Config');
+    addJsonDataToWorksheet(wsAdmin, adminData);
+    addJsonDataToWorksheet(wsAdmin, deptData, 1, 6);
 
     // Download file
-    XLSX.writeFile(wb, 'Stationery_&_Cleaning_System.xlsx');
+    void downloadExcelWorkbook(workbook, 'Stationery_&_Cleaning_System.xlsx').catch((err) => {
+      console.error('Excel workbook export failed:', err);
+    });
   };
 
   // Download PowerShell Script

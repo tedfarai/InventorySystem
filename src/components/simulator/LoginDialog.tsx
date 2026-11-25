@@ -19,7 +19,7 @@ import { DraggableResizableModal } from '../common/DraggableResizableModal';
 
 interface LoginDialogProps {
   admins: AdminUser[];
-  onSuccess: (admin: AdminUser) => void;
+  onSuccess: (admin: AdminUser, password: string) => Promise<void> | void;
   onCancel: () => void;
 }
 
@@ -63,7 +63,7 @@ export const LoginDialog: React.FC<LoginDialogProps> = ({ admins, onSuccess, onC
     }, 50);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
 
@@ -81,15 +81,21 @@ export const LoginDialog: React.FC<LoginDialogProps> = ({ admins, onSuccess, onC
       return;
     }
 
-    if (targetAdmin.SecretPassword === trimmedPass && targetAdmin.Active) {
-      onSuccess(targetAdmin);
-    } else {
+    if (!targetAdmin.Active) {
+      setErrorMsg('This account is inactive. Contact the superior administrator.');
+      return;
+    }
+
+    try {
+      await onSuccess(targetAdmin, trimmedPass);
+      setAttempts(0);
+    } catch (error) {
       const nextAttempts = attempts + 1;
       setAttempts(nextAttempts);
       if (nextAttempts >= 3) {
-        setErrorMsg('Maximum login attempts (3) exceeded. Security lockout engaged.');
+        setErrorMsg(error instanceof Error ? error.message : 'Sign-in failed.');
       } else {
-        setErrorMsg(`Incorrect password for ${targetAdmin.IssuerName}. (${3 - nextAttempts} attempt${3 - nextAttempts === 1 ? '' : 's'} remaining)`);
+        setErrorMsg(error instanceof Error ? error.message : 'Sign-in failed.');
         setPassword('');
         passwordInputRef.current?.focus();
       }

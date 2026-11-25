@@ -6,8 +6,9 @@ import { DraggableResizableModal } from '../common/DraggableResizableModal';
 interface UserManagementModalProps {
   currentUser: AdminUser | null;
   admins: AdminUser[];
-  onAddAdmin?: (admin: AdminUser) => void;
-  onUpdateAdmin?: (admin: AdminUser) => void;
+  onAddAdmin?: (admin: AdminUser, password: string) => Promise<void>;
+  onUpdateAdmin?: (admin: AdminUser) => Promise<void>;
+  onResetPassword?: (issuerId: string, password: string) => Promise<void>;
   onDeleteAdmin?: (issuerId: string) => void;
   onClose: () => void;
 }
@@ -17,6 +18,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
   admins,
   onAddAdmin,
   onUpdateAdmin,
+  onResetPassword,
   onDeleteAdmin,
   onClose,
 }) => {
@@ -29,9 +31,10 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
     IssuerID: '',
     IssuerName: '',
     Role: 'Procurement Assistant',
-    SecretPassword: '',
     Active: true,
   });
+  const [password, setPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formError, setFormError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -95,6 +98,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
   const handleStartEdit = (admin: AdminUser) => {
     setEditingId(admin.IssuerID);
     setFormData({ ...admin });
+    setPassword('');
     setFormError('');
     setSuccessMsg('');
   };
@@ -106,50 +110,58 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
       IssuerID: '',
       IssuerName: '',
       Role: 'Procurement Assistant',
-      SecretPassword: '',
       Active: true,
     });
+    setPassword('');
     setFormError('');
   };
 
   // Handle Submit Form (Create or Update)
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
     setSuccessMsg('');
 
-    if (!formData.IssuerID.trim() || !formData.IssuerName.trim() || !formData.SecretPassword.trim()) {
-      setFormError('Please fill in Work ID, User Name, and Secret Password.');
+    if (!formData.IssuerID.trim() || !formData.IssuerName.trim() || (!editingId && password.length < 12)) {
+      setFormError(editingId ? 'Please fill in Work ID and User Name.' : 'Enter a password with at least 12 characters.');
       return;
     }
 
-    if (editingId) {
-      // Update existing
-      if (onUpdateAdmin) {
-        onUpdateAdmin(formData);
+    setIsSubmitting(true);
+    try {
+      if (editingId) {
+        await onUpdateAdmin?.(formData);
+        if (password) {
+          if (password.length < 12) {
+            setFormError('New password must be at least 12 characters long.');
+            return;
+          }
+          await onResetPassword?.(editingId, password);
+        }
         setSuccessMsg(`User '${formData.IssuerName}' updated successfully.`);
-      }
-      setEditingId(null);
-    } else {
-      // Check duplicate ID
-      if (admins.some((a) => a.IssuerID.toLowerCase() === formData.IssuerID.trim().toLowerCase())) {
-        setFormError(`Issuer Work ID '${formData.IssuerID}' already exists.`);
-        return;
-      }
-      if (onAddAdmin) {
-        onAddAdmin({ ...formData, IssuerID: formData.IssuerID.trim().toUpperCase() });
+        setEditingId(null);
+      } else {
+        if (admins.some((a) => a.IssuerID.toLowerCase() === formData.IssuerID.trim().toLowerCase())) {
+          setFormError(`Issuer Work ID '${formData.IssuerID}' already exists.`);
+          return;
+        }
+        await onAddAdmin?.({ ...formData, IssuerID: formData.IssuerID.trim().toUpperCase() }, password);
         setSuccessMsg(`New user '${formData.IssuerName}' created successfully.`);
       }
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'User change failed.');
+      return;
+    } finally {
+      setIsSubmitting(false);
     }
 
-    // Reset Form
     setFormData({
       IssuerID: '',
       IssuerName: '',
       Role: 'Procurement Assistant',
-      SecretPassword: '',
       Active: true,
     });
+    setPassword('');
   };
 
   // Toggle Active/Blocked Status
@@ -301,13 +313,13 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
 
               <div>
                 <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Secret Password
+                  {editingId ? 'Reset Password (optional)' : 'Initial Password'}
                 </label>
                 <input
                   type="password"
-                  value={formData.SecretPassword}
-                  onChange={(e) => setFormData({ ...formData, SecretPassword: e.target.value })}
-                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={editingId ? 'Leave blank to keep current password' : 'At least 12 characters'}
                   autoComplete="new-password"
                   className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-xs font-mono text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-amber-500"
                 />
@@ -327,7 +339,8 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
 
               <button
                 type="submit"
-                className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-lg shadow transition"
+                disabled={isSubmitting}
+                className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-lg shadow transition disabled:opacity-60"
               >
                 {editingId ? 'Save Changes' : 'Create User'}
               </button>
@@ -346,7 +359,6 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                     <th className="p-2.5 border-r border-slate-700">Work ID</th>
                     <th className="p-2.5 border-r border-slate-700">User Name</th>
                     <th className="p-2.5 border-r border-slate-700">Role</th>
-                    <th className="p-2.5 border-r border-slate-700">Password</th>
                     <th className="p-2.5 border-r border-slate-700 text-center">Status</th>
                     <th className="p-2.5 text-center">CRUD Actions</th>
                   </tr>
@@ -371,9 +383,6 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                         </td>
                         <td className="p-2.5 text-slate-600 dark:text-slate-400 border-r border-slate-200 dark:border-slate-800">
                           {adm.Role}
-                        </td>
-                        <td className="p-2.5 font-mono text-emerald-600 dark:text-emerald-400 font-bold border-r border-slate-200 dark:border-slate-800">
-                          {adm.SecretPassword}
                         </td>
                         <td className="p-2.5 text-center border-r border-slate-200 dark:border-slate-800">
                           <button

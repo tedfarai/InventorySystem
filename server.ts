@@ -5,6 +5,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type, ThinkingLevel } from '@google/genai';
+import { InventoryBackend, verifyUser } from './server/inventoryBackend';
+import type { AdminUser } from './src/types';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -198,8 +200,216 @@ function sanitizeCategoryPayload(raw: unknown): SanitizedCategoryPayload | null 
 }
 
 async function startServer() {
+  const inventory = await InventoryBackend.open();
   const app = express();
-  app.use(express.json({ limit: '1mb' }));
+  app.use(express.json({ limit: '10mb' }));
+  app.use('/api', (_req: Request, res: Response, next) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    next();
+  });
+
+  const readSessionToken = (req: Request): string | null => {
+    const cookieHeader = req.headers.cookie || '';
+    const pair = cookieHeader.split(';').map((part) => part.trim()).find((part) => part.startsWith('inventory_session='));
+    if (!pair) return null;
+    try {
+      return decodeURIComponent(pair.slice('inventory_session='.length));
+    } catch {
+      return null;
+    }
+  };
+  const authenticatedUser = (req: Request): AdminUser | null => inventory.getSession(readSessionToken(req));
+  const requireUser = (req: Request, res: Response): AdminUser | null => {
+    const user = authenticatedUser(req);
+    if (!verifyUser(user)) {
+      res.status(401).json({ error: 'Authentication required.' });
+      return null;
+    }
+    return user;
+  };
+  const requireSuperiorAdmin = (req: Request, res: Response): AdminUser | null => {
+    const user = requireUser(req, res);
+    if (!user) return null;
+    if (user.IssuerID !== 'ADM001') {
+      res.status(403).json({ error: 'Only the superior administrator may perform this action.' });
+      return null;
+    }
+    return user;
+  };
+  const requireSameOrigin = (req: Request, res: Response): boolean => {
+    const origin = req.get('origin');
+    if (!origin) return true;
+    try {
+      if (new URL(origin).host === req.get('host')) return true;
+    } catch {
+      // Reject malformed origins.
+    }
+    res.status(403).json({ error: 'Cross-origin request rejected.' });
+    return false;
+  };
+  const sessionCookie = (token: string, maxAgeSeconds: number) => {
+    const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
+    return `inventory_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAgeSeconds}${secure}`;
+  };
+
+  app.get('/api/auth/users', (_req: Request, res: Response) => {
+    res.json({ users: inventory.listUsers().filter((user) => user.Active) });
+  });
+
+  app.get('/api/auth/session', (req: Request, res: Response) => {
+    const user = authenticatedUser(req);
+    if (!user) {
+      res.status(401).json({ error: 'No active session.' });
+      return;
+    }
+    res.json({ user });
+  });
+
+  app.post('/api/auth/login', async (req: Request, res: Response) => {
+    if (!requireSameOrigin(req, res)) return;
+    const issuerId = typeof req.body?.issuerId === 'string' ? req.body.issuerId : '';
+    const password = typeof req.body?.password === 'string' ? req.body.password : '';
+    if (!issuerId || !password) {
+      res.status(400).json({ error: 'User ID and password are required.' });
+      return;
+    }
+    try {
+      const session = await inventory.login(issuerId, password, req.ip || 'unknown');
+      res.setHeader('Set-Cookie', sessionCookie(session.token, 12 * 60 * 60));
+      res.json({ user: session.user, expiresAt: session.expiresAt });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Sign-in failed.';
+      res.status(message.startsWith('Too many') ? 429 : 401).json({ error: message });
+    }
+  });
+
+  app.post('/api/auth/logout', async (req: Request, res: Response) => {
+    if (!requireSameOrigin(req, res)) return;
+    await inventory.logout(readSessionToken(req));
+    res.setHeader('Set-Cookie', sessionCookie('', 0));
+    res.status(204).end();
+  });
+
+  app.post('/api/auth/password', async (req: Request, res: Response) => {
+    if (!requireSameOrigin(req, res)) return;
+    const user = requireUser(req, res);
+    if (!user) return;
+    if (typeof req.body?.currentPassword !== 'string' || typeof req.body?.newPassword !== 'string') {
+      res.status(400).json({ error: 'Current and new passwords are required.' });
+      return;
+    }
+    try {
+      await inventory.changePassword(user, req.body.currentPassword, req.body.newPassword);
+      res.setHeader('Set-Cookie', sessionCookie('', 0));
+      res.status(204).end();
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Password update failed.' });
+    }
+  });
+
+  app.post('/api/admin/users', async (req: Request, res: Response) => {
+    if (!requireSameOrigin(req, res)) return;
+    if (!requireSuperiorAdmin(req, res)) return;
+    const { issuerId, issuerName, role, password } = req.body || {};
+    if (![issuerId, issuerName, role, password].every((value) => typeof value === 'string' && value.trim())) {
+      res.status(400).json({ error: 'User ID, name, role, and initial password are required.' });
+      return;
+    }
+    const user: AdminUser = {
+      IssuerID: issuerId.trim().toUpperCase(),
+      IssuerName: issuerName.trim(),
+      Role: role.trim(),
+      Active: true,
+    };
+    try {
+      await inventory.addUser(user, password);
+      res.status(201).json({ user });
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Could not create user.' });
+    }
+  });
+
+  app.patch('/api/admin/users/:issuerId', async (req: Request, res: Response) => {
+    if (!requireSameOrigin(req, res)) return;
+    if (!requireSuperiorAdmin(req, res)) return;
+    const { issuerName, role, active } = req.body || {};
+    if (typeof issuerName !== 'string' || typeof role !== 'string' || typeof active !== 'boolean') {
+      res.status(400).json({ error: 'Name, role, and active status are required.' });
+      return;
+    }
+    try {
+      const user: AdminUser = {
+        IssuerID: req.params.issuerId.toUpperCase(),
+        IssuerName: issuerName.trim(),
+        Role: role.trim(),
+        Active: active,
+      };
+      await inventory.updateUser(user);
+      const updated = inventory.getUser(user.IssuerID);
+      if (!updated) {
+        res.status(404).json({ error: 'User not found.' });
+        return;
+      }
+      res.json({ user: updated });
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Could not update user.' });
+    }
+  });
+
+  app.delete('/api/admin/users/:issuerId', async (req: Request, res: Response) => {
+    if (!requireSameOrigin(req, res)) return;
+    if (!requireSuperiorAdmin(req, res)) return;
+    try {
+      await inventory.deleteUser(req.params.issuerId.toUpperCase());
+      res.status(204).end();
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Could not delete user.' });
+    }
+  });
+
+  app.post('/api/admin/users/:issuerId/password', async (req: Request, res: Response) => {
+    if (!requireSameOrigin(req, res)) return;
+    if (!requireSuperiorAdmin(req, res)) return;
+    if (typeof req.body?.password !== 'string') {
+      res.status(400).json({ error: 'A new password is required.' });
+      return;
+    }
+    try {
+      await inventory.replacePassword(req.params.issuerId.toUpperCase(), req.body.password);
+      res.status(204).end();
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Could not reset password.' });
+    }
+  });
+
+  app.get('/api/state', (_req: Request, res: Response) => {
+    res.json(inventory.getState());
+  });
+
+  app.put('/api/state', async (req: Request, res: Response) => {
+    if (!requireSameOrigin(req, res)) return;
+    const user = requireUser(req, res);
+    if (!user) return;
+    try {
+      const result = await inventory.commitState(user, req.body?.expectedRevision, req.body?.state);
+      res.json(result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not commit inventory state.';
+      res.status(message.startsWith('Inventory changed') ? 409 : 403).json({ error: message });
+    }
+  });
+
+  app.post('/api/state/import', async (req: Request, res: Response) => {
+    if (!requireSameOrigin(req, res)) return;
+    const user = requireSuperiorAdmin(req, res);
+    if (!user) return;
+    try {
+      res.json(await inventory.importState(user, req.body?.state));
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Import failed.' });
+    }
+  });
 
   app.get('/api/health', (_req: Request, res: Response) => {
     res.json({

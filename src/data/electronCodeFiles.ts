@@ -167,7 +167,6 @@ function initDatabase() {
             issuer_id TEXT PRIMARY KEY,
             issuer_name TEXT NOT NULL,
             role TEXT NOT NULL,
-            secret_password TEXT NOT NULL,
             is_active INTEGER NOT NULL DEFAULT 1,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
           );
@@ -318,21 +317,6 @@ function seedInitialDataIfEmpty() {
       stockItems.forEach((item) => insertStock.run(item));
       insertStock.finalize();
 
-      const insertAdmins = db.prepare(
-        'INSERT INTO admin_users (issuer_id, issuer_name, role, secret_password, is_active) VALUES (?, ?, ?, ?, ?)'
-      );
-      const admins = [
-        ['ADM001', 'Rachel Pickard', 'Procurement Manager', 'Superior1234', 1],
-        ['ADM004', 'Caeser Joe', 'Procurement Supervisor', 'Second1234', 1],
-        ['ADM005', 'Farai Mandoreba', 'Procurement Assistant', 'Procurement1234', 1],
-        ['ADM006', 'Bianca Mpakairi', 'Administrator', 'Admin1234!', 1],
-        ['ADM002', 'Loveness Mawisire', 'Master Inventory Controller', 'Micky1234Master', 1],
-        ['ADM003', 'Lyda Gurupira', 'Inventory Controller', 'Master1234', 1],
-        ['ADM007', 'Farai Peter', 'Procurement Assistant', 'Assistant1234', 1]
-      ];
-      admins.forEach((adm) => insertAdmins.run(adm));
-      insertAdmins.finalize();
-
       const insertDepts = db.prepare(
         'INSERT INTO departments (dept_id, dept_name, head_name, head_email) VALUES (?, ?, ?, ?)'
       );
@@ -446,35 +430,10 @@ function generateTxnId(prefix) {
 // ===============================================================================
 function setupIpcHandlers() {
   // A. AUTHENTICATION & SESSION (Replaces frmLogin.frm & modSecurity.bas)
-  ipcMain.handle('auth:login', async (event, { workId, password }) => {
-    try {
-      const cleanId = String(workId || '').trim();
-      const cleanPass = String(password || '').trim();
-
-      const user = await dbGet(
-        'SELECT issuer_id, issuer_name, role, is_active FROM admin_users WHERE UPPER(issuer_id) = UPPER(?) AND secret_password = ?',
-        [cleanId, cleanPass]
-      );
-
-      if (!user) {
-        return { success: false, error: 'Invalid Work ID or Secret Password. Access Denied.' };
-      }
-      if (!user.is_active) {
-        return { success: false, error: 'User account is deactivated. Contact Rachel Pickard.' };
-      }
-
-      currentSessionUser = {
-        id: user.issuer_id,
-        name: user.issuer_name,
-        role: user.role,
-        isSuperiorAdmin: user.issuer_id.toUpperCase() === 'ADM001'
-      };
-
-      return { success: true, user: currentSessionUser };
-    } catch (err) {
-      return { success: false, error: err.message };
-    }
-  });
+  ipcMain.handle('auth:login', async () => ({
+    success: false,
+    error: 'Local Electron authentication is disabled. Use the server-backed inventory PWA.',
+  }));
 
   ipcMain.handle('auth:getCurrentUser', () => currentSessionUser);
 
@@ -798,7 +757,7 @@ function setupIpcHandlers() {
       if (!currentSessionUser || !currentSessionUser.isSuperiorAdmin) {
         return { success: false, error: 'Restricted to Rachel Pickard (ADM001).' };
       }
-      const rows = await dbAll('SELECT issuer_id as IssuerID, issuer_name as IssuerName, role as Role, secret_password as SecretPassword, is_active as Active FROM admin_users ORDER BY issuer_id ASC');
+      const rows = await dbAll('SELECT issuer_id as IssuerID, issuer_name as IssuerName, role as Role, is_active as Active FROM admin_users ORDER BY issuer_id ASC');
       return { success: true, data: rows };
     } catch (err) {
       return { success: false, error: err.message };
@@ -1706,17 +1665,9 @@ CREATE TABLE movement_log (
 
 ---
 
-## 🔑 Default Authenticated Issuer Credentials
+## Server-Managed Authentication
 
-| Issuer ID | Name | Role | Secret Password |
-| :--- | :--- | :--- | :--- |
-| **ADM001** | Rachel Pickard | Procurement Manager (Superior Admin) | \`Superior1234\` |
-| **ADM004** | Caeser Joe | Procurement Supervisor | \`Second1234\` |
-| **ADM005** | Farai Mandoreba | Procurement Assistant | \`Procurement1234\` |
-| **ADM006** | Bianca Mpakairi | Administrator | \`Admin1234!\` |
-| **ADM002** | Loveness Mawisire | Master Inventory Controller | \`Micky1234Master\` |
-| **ADM003** | Lyda Gurupira | Inventory Controller | \`Master1234\` |
-| **ADM007** | Farai Peter | Procurement Assistant | \`Assistant1234\` |
+This legacy Electron template does not seed local passwords. Use the server-backed inventory PWA and provision its initial administrator through the documented environment configuration.
 
 ---
 `;
