@@ -51,28 +51,29 @@ export const PreviewConfirmationModal: React.FC<PreviewConfirmationModalProps> =
   const handleExecute = async () => {
     if (activeCart.length === 0 || isProcessing) return;
     setIsProcessing(true);
+    setIsCompleted(false);
     setExecutionError(null);
     setProgressPercent(25);
     setStepStatus('1/4 Validating stock levels in Master_Stock...');
-    await new Promise((r) => setTimeout(r, 120));
+    await new Promise((r) => setTimeout(r, 80));
 
-    setProgressPercent(50);
+    setProgressPercent(55);
     setStepStatus('2/4 Deducting quantities & appending Movement_Log...');
-    await new Promise((r) => setTimeout(r, 120));
+    await new Promise((r) => setTimeout(r, 80));
 
-    setProgressPercent(75);
-    setStepStatus('3/4 Generating PDF Issue Slip...');
-    await new Promise((r) => setTimeout(r, 120));
-
-    setProgressPercent(100);
-    setIsCompleted(true);
-    setStepStatus('4/4 Opening PDF Issue Slip Preview...');
-    await new Promise((r) => setTimeout(r, 100));
+    setProgressPercent(80);
+    setStepStatus('3/4 Generating PDF Issue Slip & committing transaction...');
 
     try {
       await onConfirmExecute(activeCart, dept);
+      setProgressPercent(100);
+      setIsCompleted(true);
+      setStepStatus('4/4 Opening PDF Issue Slip Preview...');
     } catch (err: any) {
       console.error('Error during issue confirmation:', err);
+      setIsCompleted(false);
+      setProgressPercent(0);
+      setStepStatus('Execution paused — review error below');
       setExecutionError(err?.message || 'Error occurred while finalizing issue slip preview. Please retry.');
       setIsProcessing(false);
     }

@@ -25,7 +25,8 @@ export function buildVoucherPdf(docObj: DisplayableDocument): jsPDF {
     (String(issueDocData?.slipNumber || '').toUpperCase().startsWith('SIV-') ||
       Boolean(issueDocData?.voucherTitle));
   const isIssueManager = isIssue && String(issueDocData?.deptID || '').startsWith('MGR-');
-    const pdf = new jsPDF({
+  const JsPdfCtor = typeof jsPDF === 'function' ? jsPDF : (jsPDF as unknown as { jsPDF: typeof jsPDF }).jsPDF;
+    const pdf = new JsPdfCtor({
       orientation: 'portrait',
       unit: 'mm',
       format: 'a4',
@@ -370,7 +371,11 @@ export async function generateVoucherPdfFile(document: DisplayableDocument): Pro
   return { blob, url, fileName: data.pdfFileName || fallbackName };
 }
 
-export function printPdfFromUrl(url: string): void {
+export interface PrintPdfOptions {
+  onPrintFallback?: () => void;
+}
+
+export function printPdfFromUrl(url: string, options?: PrintPdfOptions): void {
   let parsedUrl: URL;
   try {
     parsedUrl = new URL(url);
@@ -381,9 +386,83 @@ export function printPdfFromUrl(url: string): void {
     throw new Error('Cannot print: the generated PDF URL is not a Blob URL.');
   }
 
+  // Prefer a hidden same-origin iframe first so sandboxed/popup-blocked environments can still print cleanly
+  if (typeof document !== 'undefined' && document.body) {
+    try {
+      const iframe = document.createElement('iframe');
+      iframe.setAttribute('aria-hidden', 'true');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      iframe.style.opacity = '0';
+      iframe.style.pointerEvents = 'none';
+
+      let cleaned = false;
+      let printed = false;
+      const cleanup = () => {
+        if (cleaned) return;
+        cleaned = true;
+        if (iframe.parentNode) {
+          iframe.parentNode.removeChild(iframe);
+        }
+      };
+
+      const triggerIframePrint = () => {
+        if (printed) return;
+        printed = true;
+        try {
+          const win = iframe.contentWindow;
+          if (!win || typeof win.print !== 'function') {
+            throw new Error('PDF print frame unavailable');
+          }
+          win.focus();
+          win.print();
+          window.setTimeout(cleanup, 60_000);
+        } catch {
+          cleanup();
+          if (options?.onPrintFallback) {
+            options.onPrintFallback();
+          } else {
+            const printWindow = window.open(url, '_blank');
+            if (printWindow) {
+              printWindow.focus();
+              printWindow.print();
+            } else {
+              window.print();
+            }
+          }
+        }
+      };
+
+      iframe.addEventListener('load', () => {
+        window.setTimeout(triggerIframePrint, 150);
+      }, { once: true });
+
+      iframe.src = url;
+      document.body.appendChild(iframe);
+
+      // Safety fallback in case browser PDF viewer plugin does not emit iframe load promptly
+      window.setTimeout(() => {
+        if (!printed) {
+          triggerIframePrint();
+        }
+      }, 900);
+      return;
+    } catch {
+      // Fall through to window.open / fallback below
+    }
+  }
+
   const printWindow = window.open(url, '_blank');
   if (!printWindow) {
-    throw new Error('The PDF print window was blocked. Allow pop-ups and try again.');
+    if (options?.onPrintFallback) {
+      options.onPrintFallback();
+      return;
+    }
+    throw new Error('The PDF print window was blocked. Allow pop-ups or use Print-Friendly voucher view.');
   }
 
   let hasPrinted = false;
@@ -396,3 +475,46 @@ export function printPdfFromUrl(url: string): void {
   printWindow.addEventListener('load', printWhenReady, { once: true });
   window.setTimeout(printWhenReady, 800);
 }
+
+export interface OpenPdfTabResult {
+  opened: boolean;
+  usedDownloadFallback: boolean;
+  error?: string;
+}
+
+export function openPdfInNewTab(url: string, fallbackFileName?: string): OpenPdfTabResult {
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(url);
+  } catch {
+    return { opened: false, usedDownloadFallback: false, error: 'Generated PDF URL is invalid.' };
+  }
+  if (parsedUrl.protocol !== 'blob:') {
+    return { opened: false, usedDownloadFallback: false, error: 'Generated PDF URL is not a Blob URL.' };
+  }
+
+  const win = window.open(url, '_blank');
+  if (win) {
+    win.focus();
+    return { opened: true, usedDownloadFallback: false };
+  }
+
+  if (fallbackFileName && typeof document !== 'undefined') {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fallbackFileName;
+    link.click();
+    return {
+      opened: false,
+      usedDownloadFallback: true,
+      error: 'Pop-up tabs are blocked in this preview frame — downloaded the PDF file instead.',
+    };
+  }
+
+  return {
+    opened: false,
+    usedDownloadFallback: false,
+    error: 'Pop-up tabs are blocked. Use Download PDF or Print instead.',
+  };
+}
+

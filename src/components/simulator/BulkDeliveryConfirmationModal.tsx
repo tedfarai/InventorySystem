@@ -98,6 +98,7 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
   const [executionStatus, setExecutionStatus] = useState('');
   const [progressPercent, setProgressPercent] = useState(0);
   const [isCompleted, setIsCompleted] = useState(false);
+  const [executionError, setExecutionError] = useState<string | null>(null);
 
   const selectedDepartment = departments.find((d) => d.DeptID === selectedDeptId);
   const availableToAdd = allStockItems.filter(
@@ -181,22 +182,18 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
   const handleFinalSubmit = async () => {
     if (!confirmedCheck || safeItemsList.length === 0 || isProcessing) return;
     setIsProcessing(true);
-    setProgressPercent(20);
-    setExecutionStatus('1/3 Validating delivery batch items against Master_Stock...');
-    await new Promise((r) => setTimeout(r, 180));
+    setIsCompleted(false);
+    setExecutionError(null);
+    setProgressPercent(25);
+    setExecutionStatus('1/4 Validating delivery batch items against Master_Stock...');
+    await new Promise((r) => setTimeout(r, 90));
 
-    setProgressPercent(60);
-    setExecutionStatus(`2/3 Appending movement logs & creating single ${voucherPrefix} document...`);
-    await new Promise((r) => setTimeout(r, 180));
+    setProgressPercent(55);
+    setExecutionStatus(`2/4 Appending movement logs & creating single ${voucherPrefix} document...`);
+    await new Promise((r) => setTimeout(r, 90));
 
-    setProgressPercent(90);
-    setExecutionStatus('3/3 Autosaving workbook state (.xlsm) & updating directory...');
-    await new Promise((r) => setTimeout(r, 180));
-
-    setProgressPercent(100);
-    setIsCompleted(true);
-    setExecutionStatus(`4/4 Finalizing ${voucherLabel} & opening PDF viewer...`);
-    await new Promise((r) => setTimeout(r, 150));
+    setProgressPercent(80);
+    setExecutionStatus(`3/4 Committing stock updates & compiling ${voucherPrefix} PDF...`);
 
     const finalBatch = safeItemsList.map((item) => ({
       ...item,
@@ -206,8 +203,16 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
     try {
       const confirmAction = onConfirm ?? onConfirmDelivery ?? (() => Promise.resolve());
       await confirmAction(deliveryNoteRef, finalBatch, vendorSupplier, selectedDepartment);
-    } catch (err) {
+      setProgressPercent(100);
+      setIsCompleted(true);
+      setExecutionStatus(`4/4 Finalizing ${voucherLabel} & opening PDF viewer...`);
+    } catch (err: any) {
       console.error('Error during bulk delivery execution:', err);
+      setIsCompleted(false);
+      setProgressPercent(0);
+      setExecutionStatus('');
+      setExecutionError(err?.message || `Error finalizing ${voucherLabel}. Please retry.`);
+      setIsProcessing(false);
     }
   };
 
@@ -655,6 +660,22 @@ export const BulkDeliveryConfirmationModal: React.FC<BulkDeliveryConfirmationMod
                       <span>Single {voucherPrefix} Document &amp; Stock Commit Completed!</span>
                     </div>
                   )}
+                </div>
+              )}
+
+              {executionError && (
+                <div className="bg-rose-500/10 border border-rose-500/40 p-3.5 rounded-xl flex items-center justify-between text-xs text-rose-700 dark:text-rose-300">
+                  <div className="flex items-center space-x-2">
+                    <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                    <span>{executionError}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleFinalSubmit}
+                    className="px-3 py-1.5 text-xs font-bold bg-rose-600 text-white rounded-lg hover:bg-rose-500 transition cursor-pointer shrink-0 ml-2"
+                  >
+                    Retry
+                  </button>
                 </div>
               )}
             </div>

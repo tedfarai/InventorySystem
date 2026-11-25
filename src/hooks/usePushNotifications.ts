@@ -57,12 +57,24 @@ export function usePushNotifications() {
     };
 
     // Prefer Service Worker showNotification (works on Android Chrome, iOS standalone, and desktop PWA)
-    if ('serviceWorker' in navigator) {
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
       try {
-        const registration = await navigator.serviceWorker.ready;
-        if (registration && registration.showNotification) {
-          await registration.showNotification(title, options);
-          return;
+        const existingReg = navigator.serviceWorker.getRegistration
+          ? await navigator.serviceWorker.getRegistration()
+          : undefined;
+        if (existingReg) {
+          let timerId: ReturnType<typeof setTimeout> | undefined;
+          const registration = await Promise.race<ServiceWorkerRegistration | null>([
+            navigator.serviceWorker.ready,
+            new Promise<null>((resolve) => {
+              timerId = setTimeout(() => resolve(null), 350);
+            }),
+          ]);
+          if (timerId !== undefined) clearTimeout(timerId);
+          if (registration && registration.showNotification) {
+            await registration.showNotification(title, options);
+            return;
+          }
         }
       } catch {
         // Fall back to window Notification

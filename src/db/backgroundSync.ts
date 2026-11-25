@@ -55,14 +55,30 @@ export async function drainSyncQueue(
 }
 
 export function registerBackgroundSync(): void {
-  if (!('serviceWorker' in navigator)) return;
-  navigator.serviceWorker.ready
-    .then(async (registration) => {
-      if ('sync' in registration) {
-        await (registration as ServiceWorkerRegistration & {
-          sync: { register: (tag: string) => Promise<void> };
-        }).sync.register('sync-documents');
-      }
-    })
-    .catch((error) => console.warn('[BackgroundSync] Registration failed:', error));
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+  if (typeof window === 'undefined' || !('SyncManager' in window)) return;
+
+  const attemptSync = async () => {
+    const existingReg = navigator.serviceWorker.getRegistration
+      ? await navigator.serviceWorker.getRegistration()
+      : undefined;
+    if (!existingReg) return;
+
+    let timerId: ReturnType<typeof setTimeout> | undefined;
+    const registration = await Promise.race<ServiceWorkerRegistration | null>([
+      navigator.serviceWorker.ready,
+      new Promise<null>((resolve) => {
+        timerId = setTimeout(() => resolve(null), 500);
+      }),
+    ]);
+    if (timerId !== undefined) clearTimeout(timerId);
+
+    if (registration && 'sync' in registration) {
+      await (registration as ServiceWorkerRegistration & {
+        sync: { register: (tag: string) => Promise<void> };
+      }).sync.register('sync-documents');
+    }
+  };
+
+  attemptSync().catch((error) => console.warn('[BackgroundSync] Registration failed:', error));
 }

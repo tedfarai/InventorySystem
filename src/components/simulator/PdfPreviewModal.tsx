@@ -3,7 +3,6 @@ import {
   FileText,
   Download,
   CheckCircle2,
-  ShieldCheck,
   Printer,
   FolderCheck,
   Check,
@@ -17,14 +16,19 @@ import { IssuedDocument } from '../../types';
 import { getPexGreenLogoDataUrl, PEX_GREEN_LOGO_PUBLIC_PATH } from '../brand/brandLogoData';
 import { DraggableResizableModal } from '../common/DraggableResizableModal';
 import jsPDF from 'jspdf';
-import { printPdfFromUrl } from '../../utils/voucherPdfGenerator';
+import { openPdfInNewTab, printPdfFromUrl } from '../../utils/voucherPdfGenerator';
 
 interface PdfPreviewModalProps {
   doc: IssuedDocument;
   onClose: () => void;
+  zIndex?: string;
 }
 
-export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({ doc, onClose }) => {
+export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({
+  doc,
+  onClose,
+  zIndex = 'z-50',
+}) => {
   const [activeTab, setActiveTab] = useState<'visual' | 'livePdf'>('livePdf');
   const [isPrintFriendly, setIsPrintFriendly] = useState(false);
   const [hasAutoSaved, setHasAutoSaved] = useState(false);
@@ -263,24 +267,52 @@ export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({ doc, onClose }
   };
 
   const handleOpenPdfNewTab = () => {
-    if (pdfBlobUrl) {
-      window.open(pdfBlobUrl, '_blank');
-    } else {
+    if (!pdfBlobUrl) {
       handleDownloadPdf();
+      return;
+    }
+    const saveFileName = doc.pdfFileName || `IssueSlip_${deptId.replace(/[^a-zA-Z0-9]/g, '')}_${slipNumber}.pdf`;
+    const result = openPdfInNewTab(pdfBlobUrl, saveFileName);
+    if (!result.opened && result.error) {
+      setPdfPrintError(result.error);
+    } else {
+      setPdfPrintError(null);
     }
   };
 
   const handlePrintNow = () => {
+    if (activeTab === 'visual') {
+      window.print();
+      return;
+    }
     if (!pdfBlobUrl) {
-      setPdfPrintError('The generated PDF is not ready to print yet.');
+      setActiveTab('visual');
+      setTimeout(() => window.print(), 120);
       return;
     }
     try {
       setPdfPrintError(null);
-      printPdfFromUrl(pdfBlobUrl);
+      printPdfFromUrl(pdfBlobUrl, {
+        onPrintFallback: () => {
+          setActiveTab('visual');
+          setTimeout(() => window.print(), 120);
+        },
+      });
     } catch (error) {
       setPdfPrintError(error instanceof Error ? error.message : 'Unable to print the generated PDF.');
     }
+  };
+
+  const handleNativeSaveAsPdf = handlePrintNow;
+
+  const handleTogglePrintFriendly = () => {
+    setIsPrintFriendly((prev) => {
+      const next = !prev;
+      if (next) {
+        setActiveTab('visual');
+      }
+      return next;
+    });
   };
 
   const digitalSignatureStamp = `${timestamp}-${issuerId}`;
@@ -289,46 +321,104 @@ export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({ doc, onClose }
     <DraggableResizableModal
       onClose={onClose}
       modalId="pdf-preview-modal"
+      zIndex={zIndex}
+      backdropClassName="printable-document-modal"
       className="bg-slate-100 dark:bg-slate-900 rounded-xl shadow-2xl border-2 border-emerald-600/80 w-full max-w-4xl overflow-hidden printable-document my-auto flex flex-col"
     >
       {/* Header bar */}
       <div
         data-drag-handle="true"
-        className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between border-b border-slate-700 no-print cursor-grab active:cursor-grabbing select-none shrink-0"
+        className="bg-slate-900 text-white px-4 py-2.5 flex items-center justify-between border-b border-slate-700 no-print cursor-grab active:cursor-grabbing select-none shrink-0"
       >
-        <div className="flex items-center space-x-2">
-          <FileText className="w-5 h-5 text-emerald-400" />
-          <span className="font-mono text-xs font-bold text-slate-100">
+        <div className="flex items-center space-x-2 min-w-0 pr-24">
+          <FileText className="w-5 h-5 text-emerald-400 shrink-0" />
+          <span className="font-mono text-xs font-bold text-slate-100 truncate">
             Stationery Requisition Issue Form — Authentic Generated PDF Viewer
           </span>
         </div>
 
-        <div className="flex items-center space-x-2">
-          {/* View Tab Switcher */}
-          <div className="flex bg-slate-800 p-0.5 rounded-lg border border-slate-700 text-xs">
-            <button
-              type="button"
-              onClick={() => setActiveTab('livePdf')}
-              className={`px-3 py-1 rounded-md font-semibold transition ${
-                activeTab === 'livePdf'
-                  ? 'bg-emerald-600 text-white shadow'
-                  : 'text-slate-300 hover:text-white'
-              }`}
-            >
-              Live PDF Preview
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('visual')}
-              className={`px-3 py-1 rounded-md font-semibold transition ${
-                activeTab === 'visual'
-                  ? 'bg-emerald-600 text-white shadow'
-                  : 'text-slate-300 hover:text-white'
-              }`}
-            >
-              Document Voucher View
-            </button>
-          </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-slate-400 hover:text-white text-xs font-bold px-2 py-0.5 rounded hover:bg-slate-800 cursor-pointer shrink-0"
+          title="Close PDF Preview"
+          aria-label="Close PDF Preview"
+        >
+          ✕
+        </button>
+      </div>
+
+      {/* Dedicated Printing & Preview Command Bar */}
+      <div className="bg-slate-800/95 text-white px-4 py-2 flex flex-wrap items-center justify-between gap-2 border-b border-slate-700 no-print shrink-0">
+        <div className="flex bg-slate-900 p-0.5 rounded-lg border border-slate-700 text-xs">
+          <button
+            type="button"
+            onClick={() => setActiveTab('livePdf')}
+            className={`px-3 py-1 rounded-md font-semibold transition cursor-pointer ${
+              activeTab === 'livePdf'
+                ? 'bg-emerald-600 text-white shadow'
+                : 'text-slate-300 hover:text-white'
+            }`}
+          >
+            Live PDF Preview
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('visual')}
+            className={`px-3 py-1 rounded-md font-semibold transition cursor-pointer ${
+              activeTab === 'visual'
+                ? 'bg-emerald-600 text-white shadow'
+                : 'text-slate-300 hover:text-white'
+            }`}
+          >
+            Document Voucher View
+          </button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            onClick={handleTogglePrintFriendly}
+            className={`px-2.5 py-1 text-xs font-bold rounded flex items-center gap-1.5 border transition cursor-pointer ${
+              isPrintFriendly && activeTab === 'visual'
+                ? 'bg-amber-400 text-slate-950 border-amber-300 shadow'
+                : 'bg-slate-900 text-slate-200 hover:text-white border-slate-600'
+            }`}
+            title="Switch to high-contrast Print-Friendly requisition form"
+          >
+            <Eye className="w-3.5 h-3.5" />
+            <span>Print-Friendly</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleNativeSaveAsPdf}
+            className="px-2.5 py-1 text-xs font-bold rounded flex items-center gap-1.5 bg-teal-600 hover:bg-teal-500 text-white shadow transition cursor-pointer"
+            title="Open browser Print / Save as PDF dialog"
+          >
+            <FileDown className="w-3.5 h-3.5" />
+            <span>Save as PDF</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handlePrintNow}
+            className="px-2.5 py-1 text-xs font-bold rounded flex items-center gap-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 shadow transition cursor-pointer"
+            title="Print requisition form"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            <span>Print</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleOpenPdfNewTab}
+            className="px-2.5 py-1 text-xs font-bold rounded flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white shadow transition cursor-pointer"
+            title="Open PDF in new browser tab"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            <span>Open in Tab</span>
+          </button>
 
           <button
             type="button"
@@ -337,34 +427,7 @@ export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({ doc, onClose }
             title="Download authentic PDF file"
           >
             <Download className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Download PDF</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleOpenPdfNewTab}
-            className="px-2.5 py-1 text-xs font-bold rounded flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white shadow transition cursor-pointer"
-            title="Open PDF in new window"
-          >
-            <ExternalLink className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Open in Tab</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handlePrintNow}
-            className="px-2.5 py-1 text-xs font-bold rounded flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 transition cursor-pointer"
-            title="Print requisition form"
-          >
-            <Printer className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Print</span>
-          </button>
-
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-white text-xs font-bold px-2 py-0.5 rounded hover:bg-slate-800 cursor-pointer"
-          >
-            ✕
+            <span>Download PDF</span>
           </button>
         </div>
       </div>
@@ -586,6 +649,7 @@ export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({ doc, onClose }
         {/* Action buttons */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-200 dark:border-slate-700 no-print">
           <button
+            type="button"
             onClick={onClose}
             className="w-full sm:w-auto px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-xl transition text-center cursor-pointer"
           >
@@ -593,6 +657,30 @@ export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({ doc, onClose }
           </button>
 
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+            <button
+              type="button"
+              onClick={handleTogglePrintFriendly}
+              className={`flex items-center justify-center space-x-1.5 px-3.5 py-2 text-xs font-bold rounded-xl border transition cursor-pointer ${
+                isPrintFriendly && activeTab === 'visual'
+                  ? 'bg-amber-400 text-slate-950 border-amber-300 shadow'
+                  : 'bg-slate-800 text-slate-200 hover:text-white border-slate-600'
+              }`}
+              title="Switch to high-contrast Print-Friendly document view"
+            >
+              <Eye className="w-4 h-4" />
+              <span>Print-Friendly</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleNativeSaveAsPdf}
+              className="flex-1 sm:flex-initial flex items-center justify-center space-x-1.5 px-4 py-2 text-xs font-bold text-white bg-teal-600 hover:bg-teal-500 rounded-xl shadow transition cursor-pointer"
+              title="Open browser print dialog to Save as PDF"
+            >
+              <FileDown className="w-4 h-4" />
+              <span>Save as PDF</span>
+            </button>
+
             <button
               type="button"
               onClick={handlePrintNow}

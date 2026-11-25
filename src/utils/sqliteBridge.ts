@@ -754,12 +754,13 @@ class SqliteBridge {
   }
 
   private uint8ArrayToBase64(bytes: Uint8Array): string {
-    let binary = '';
-    const len = bytes.byteLength;
-    for (let i = 0; i < len; i++) {
-      binary += String.fromCharCode(bytes[i]);
+    const chunkSize = 0x8000;
+    const chunks: string[] = [];
+    for (let i = 0; i < bytes.byteLength; i += chunkSize) {
+      const sub = bytes.subarray(i, Math.min(i + chunkSize, bytes.byteLength));
+      chunks.push(String.fromCharCode(...sub));
     }
-    return window.btoa(binary);
+    return window.btoa(chunks.join(''));
   }
 
   private base64ToUint8Array(base64: string): Uint8Array {

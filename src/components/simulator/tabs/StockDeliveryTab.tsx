@@ -366,8 +366,11 @@ export const StockDeliveryTab: React.FC<StockDeliveryTabProps> = ({
           }
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error in bulk delivery execution:', err);
+      const message = err?.message || 'Unable to record delivery in Master_Stock.';
+      setErrorMsg(message);
+      throw err;
     }
 
     // Resilient fallback so the user is guaranteed to view and print their GRV PDF

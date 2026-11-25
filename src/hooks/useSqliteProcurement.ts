@@ -268,6 +268,28 @@ export function useSqliteProcurement() {
   // ===========================================================================
   // BACKUP & DISASTER RECOVERY
   // ===========================================================================
+  const runBoundedSecondary = useCallback(
+    async (task: () => Promise<unknown>, label: string, timeoutMs = 2500): Promise<void> => {
+      let timerId: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await Promise.race([
+          task().catch((err) => {
+            console.warn(`[useSqliteProcurement] Secondary task (${label}) failed non-fatally:`, err);
+          }),
+          new Promise<void>((resolve) => {
+            timerId = setTimeout(() => {
+              console.warn(`[useSqliteProcurement] Secondary task (${label}) timed out after ${timeoutMs}ms; continuing.`);
+              resolve();
+            }, timeoutMs);
+          }),
+        ]);
+      } finally {
+        if (timerId !== undefined) clearTimeout(timerId);
+      }
+    },
+    []
+  );
+
   const handleCreateBackup = useCallback(
     async (type: BackupType, description: string): Promise<BackupSnapshot> => {
       const now = new Date();
@@ -307,7 +329,10 @@ export function useSqliteProcurement() {
       };
 
       await sqliteBridge.addBackup(newSnapshot);
-      await refreshAllFromSqlite();
+      setBackups((prev) => [newSnapshot, ...prev.filter((b) => b.id !== newSnapshot.id)]);
+      if (type !== 'TRANSACTION') {
+        await refreshAllFromSqlite();
+      }
       return newSnapshot;
     },
     [
@@ -705,17 +730,21 @@ export function useSqliteProcurement() {
       }
       await sqliteBridge.addReceivedDoc(newReceivedDoc);
       await sqliteBridge.addMovementLog(newLog);
-      await handleCreateBackup('TRANSACTION', `Automatic Snapshot: Delivery (GRN) ${voucherNumber} for ${item.ItemID}`);
 
-      // Multi-Client Real-time Write
-      if (currentUser) {
-        await realtimeSyncService.saveDeliveryTransaction({
-          stockUpdates: [{ ...item, Qty: newQty, LastSupplier: finalSupplier, LastReceivedDate: dateOnly, UnitPrice: finalUnitPrice, Currency: finalCurrency }],
-          receivedDoc: newReceivedDoc,
-          movementLogs: [newLog],
-          issuer: currentUser,
-        });
-      }
+      await runBoundedSecondary(
+        async () => {
+          await handleCreateBackup('TRANSACTION', `Automatic Snapshot: Delivery (GRN) ${voucherNumber} for ${item.ItemID}`);
+          if (currentUser) {
+            await realtimeSyncService.saveDeliveryTransaction({
+              stockUpdates: [{ ...item, Qty: newQty, LastSupplier: finalSupplier, LastReceivedDate: dateOnly, UnitPrice: finalUnitPrice, Currency: finalCurrency }],
+              receivedDoc: newReceivedDoc,
+              movementLogs: [newLog],
+              issuer: currentUser,
+            });
+          }
+        },
+        `GRN-${voucherNumber}`
+      );
     } catch (err) {
       console.error('[useSqliteProcurement] Delivery save error:', err);
       await refreshAllFromSqlite();
@@ -861,34 +890,40 @@ export function useSqliteProcurement() {
       }
       await sqliteBridge.addReceivedDoc(newReceivedDoc);
       await sqliteBridge.addBulkMovementLogs(newLogs);
-      await handleCreateBackup('TRANSACTION', `Automatic Snapshot: Bulk Delivery (GRN) ${voucherNumber} (${deliveries.length} items)`);
 
-      // Mesh Write-through
-      if (currentUser) {
-        const updatedStocks = deliveries
-          .map((d) => {
-            const match = stockItems.find((s) => s.ItemID === d.itemId);
-            const itemSupplier = d.supplier || mainSupplier || match?.LastSupplier;
-            const itemPrice = d.unitPrice && d.unitPrice > 0 ? d.unitPrice : match?.UnitPrice;
-            return match
-              ? {
-                  ...match,
-                  Qty: match.Qty + d.addQty,
-                  LastSupplier: itemSupplier,
-                  LastReceivedDate: dateOnly,
-                  UnitPrice: itemPrice,
-                }
-              : null;
-          })
-          .filter(Boolean) as StockItem[];
+      await runBoundedSecondary(
+        async () => {
+          await handleCreateBackup('TRANSACTION', `Automatic Snapshot: Bulk Delivery (GRN) ${voucherNumber} (${deliveries.length} items)`);
 
-        await realtimeSyncService.saveDeliveryTransaction({
-          stockUpdates: updatedStocks,
-          receivedDoc: newReceivedDoc,
-          movementLogs: newLogs,
-          issuer: currentUser,
-        });
-      }
+          // Mesh Write-through
+          if (currentUser) {
+            const updatedStocks = deliveries
+              .map((d) => {
+                const match = stockItems.find((s) => s.ItemID === d.itemId);
+                const itemSupplier = d.supplier || mainSupplier || match?.LastSupplier;
+                const itemPrice = d.unitPrice && d.unitPrice > 0 ? d.unitPrice : match?.UnitPrice;
+                return match
+                  ? {
+                      ...match,
+                      Qty: match.Qty + d.addQty,
+                      LastSupplier: itemSupplier,
+                      LastReceivedDate: dateOnly,
+                      UnitPrice: itemPrice,
+                    }
+                  : null;
+              })
+              .filter(Boolean) as StockItem[];
+
+            await realtimeSyncService.saveDeliveryTransaction({
+              stockUpdates: updatedStocks,
+              receivedDoc: newReceivedDoc,
+              movementLogs: newLogs,
+              issuer: currentUser,
+            });
+          }
+        },
+        `BULK-GRN-${voucherNumber}`
+      );
     } catch (err) {
       console.error('[useSqliteProcurement] Bulk delivery save error:', err);
       await refreshAllFromSqlite();
@@ -1144,23 +1179,29 @@ export function useSqliteProcurement() {
       if (updatedReq) {
         await sqliteBridge.updateAdjustmentRequest(updatedReq);
       }
-      await handleCreateBackup(
-        'TRANSACTION',
-        `Automatic Snapshot: Stock Adjustment ${voucherNumber} for ${item.ItemID} (${adjData.reasonLabel})`
-      );
 
-      // Mesh Multi-Client Write-through
-      if (currentUser) {
-        await realtimeSyncService.saveAdjustmentTransaction({
-          stockUpdates: [{ ...item, Qty: adjData.physicalQty }],
-          adjDoc: newAdjustmentDoc,
-          movementLogs: [newLog],
-          issuer: currentUser,
-        });
-        if (updatedReq) {
-          await realtimeSyncService.updateAdjustmentRequest(updatedReq, currentUser);
-        }
-      }
+      await runBoundedSecondary(
+        async () => {
+          await handleCreateBackup(
+            'TRANSACTION',
+            `Automatic Snapshot: Stock Adjustment ${voucherNumber} for ${item.ItemID} (${adjData.reasonLabel})`
+          );
+
+          // Mesh Multi-Client Write-through
+          if (currentUser) {
+            await realtimeSyncService.saveAdjustmentTransaction({
+              stockUpdates: [{ ...item, Qty: adjData.physicalQty }],
+              adjDoc: newAdjustmentDoc,
+              movementLogs: [newLog],
+              issuer: currentUser,
+            });
+            if (updatedReq) {
+              await realtimeSyncService.updateAdjustmentRequest(updatedReq, currentUser);
+            }
+          }
+        },
+        `ADJ-${voucherNumber}`
+      );
     } catch (err) {
       console.error('[useSqliteProcurement] Adjustment save error:', err);
       await refreshAllFromSqlite();
@@ -1322,28 +1363,34 @@ export function useSqliteProcurement() {
       await sqliteBridge.addAdjustmentDoc(newAdjustmentDoc);
       await sqliteBridge.addBulkMovementLogs(newLogs);
       await sqliteBridge.updateAdjustmentRequest(updatedReq);
-      await handleCreateBackup(
-        'TRANSACTION',
-        `Automatic Snapshot: Batch Adjustment ${voucherNumber} (${req.items.length} items authorized by Superior Admin)`
+
+      await runBoundedSecondary(
+        async () => {
+          await handleCreateBackup(
+            'TRANSACTION',
+            `Automatic Snapshot: Batch Adjustment ${voucherNumber} (${req.items.length} items authorized by Superior Admin)`
+          );
+
+          // Multi-Client Mesh Write-through
+          if (currentUser) {
+            const updatedStocks = req.items
+              .map((it) => {
+                const match = stockItems.find((s) => s.ItemID === it.ItemID);
+                return match ? { ...match, Qty: it.ProposedPhysicalQty } : null;
+              })
+              .filter(Boolean) as StockItem[];
+
+            await realtimeSyncService.saveAdjustmentTransaction({
+              stockUpdates: updatedStocks,
+              adjDoc: newAdjustmentDoc,
+              movementLogs: newLogs,
+              issuer: currentUser,
+            });
+            await realtimeSyncService.updateAdjustmentRequest(updatedReq, currentUser);
+          }
+        },
+        `ADJ-AUTH-${voucherNumber}`
       );
-
-      // Multi-Client Mesh Write-through
-      if (currentUser) {
-        const updatedStocks = req.items
-          .map((it) => {
-            const match = stockItems.find((s) => s.ItemID === it.ItemID);
-            return match ? { ...match, Qty: it.ProposedPhysicalQty } : null;
-          })
-          .filter(Boolean) as StockItem[];
-
-        await realtimeSyncService.saveAdjustmentTransaction({
-          stockUpdates: updatedStocks,
-          adjDoc: newAdjustmentDoc,
-          movementLogs: newLogs,
-          issuer: currentUser,
-        });
-        await realtimeSyncService.updateAdjustmentRequest(updatedReq, currentUser);
-      }
     } catch (err) {
       console.error('[useSqliteProcurement] Approve and execute error:', err);
       await refreshAllFromSqlite();
@@ -1523,24 +1570,30 @@ export function useSqliteProcurement() {
       }
       await sqliteBridge.addBulkMovementLogs(newLogs);
       await sqliteBridge.addIssuedDoc(newDoc);
-      await handleCreateBackup('TRANSACTION', `Automatic Snapshot: Requisition Issue ${slipNumber} to ${dept.DeptName}`);
 
-      // Multi-Client Mesh Write-through
-      if (currentUser) {
-        const updatedStocks = cart
-          .map((c) => {
-            const match = stockItems.find((s) => s.ItemID === c.ItemID);
-            return match ? { ...match, Qty: Math.max(0, match.Qty - c.RequestedQty) } : null;
-          })
-          .filter(Boolean) as StockItem[];
+      await runBoundedSecondary(
+        async () => {
+          await handleCreateBackup('TRANSACTION', `Automatic Snapshot: Requisition Issue ${slipNumber} to ${dept.DeptName}`);
 
-        await realtimeSyncService.saveIssueSlipTransaction({
-          stockUpdates: updatedStocks,
-          issueDoc: newDoc,
-          movementLogs: newLogs,
-          issuer: currentUser,
-        });
-      }
+          // Multi-Client Mesh Write-through
+          if (currentUser) {
+            const updatedStocks = cart
+              .map((c) => {
+                const match = stockItems.find((s) => s.ItemID === c.ItemID);
+                return match ? { ...match, Qty: Math.max(0, match.Qty - c.RequestedQty) } : null;
+              })
+              .filter(Boolean) as StockItem[];
+
+            await realtimeSyncService.saveIssueSlipTransaction({
+              stockUpdates: updatedStocks,
+              issueDoc: newDoc,
+              movementLogs: newLogs,
+              issuer: currentUser,
+            });
+          }
+        },
+        `ISSUE-${slipNumber}`
+      );
     } catch (err) {
       console.error('[useSqliteProcurement] Issue execution error:', err);
       await refreshAllFromSqlite();

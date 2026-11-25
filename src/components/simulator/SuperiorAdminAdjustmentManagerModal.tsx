@@ -39,10 +39,10 @@ interface SuperiorAdminAdjustmentManagerModalProps {
   stockItems: StockItem[];
   requests: StockAdjustmentRequest[];
   activeTimedWindow?: TimedAccessWindow | null;
-  onApproveAndExecuteRequest: (requestId: string, adminNotes: string) => void;
-  onGrantTimedAccess: (requestId: string, durationMinutes: number, adminNotes: string) => void;
-  onRevokeTimedAccess: (requestId: string) => void;
-  onRejectRequest: (requestId: string, adminNotes: string) => void;
+  onApproveAndExecuteRequest: (requestId: string, adminNotes: string) => void | Promise<unknown>;
+  onGrantTimedAccess: (requestId: string, durationMinutes: number, adminNotes: string) => void | Promise<void>;
+  onRevokeTimedAccess: (requestId: string) => void | Promise<void>;
+  onRejectRequest: (requestId: string, adminNotes: string) => void | Promise<void>;
 }
 
 export const SuperiorAdminAdjustmentManagerModal: React.FC<SuperiorAdminAdjustmentManagerModalProps> = ({
@@ -75,6 +75,7 @@ export const SuperiorAdminAdjustmentManagerModal: React.FC<SuperiorAdminAdjustme
   const [rejectNotes, setRejectNotes] = useState<string>('Physical count requires secondary audit verification before authorization.');
 
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
+  const [isExecutingDirect, setIsExecutingDirect] = useState(false);
 
   if (!isOpen) return null;
 
@@ -126,13 +127,22 @@ export const SuperiorAdminAdjustmentManagerModal: React.FC<SuperiorAdminAdjustme
   const pendingCount = safeRequests.filter((r) => r?.status === 'PENDING').length;
   const activeTimedCount = safeRequests.filter((r) => r?.status === 'TIMED_ACCESS_GRANTED' && r?.timedAccessWindow?.isActive).length;
 
-  const handleConfirmDirectExecution = () => {
-    if (!executeModalRequest) return;
-    onApproveAndExecuteRequest(executeModalRequest.id, executionNotes);
-    setActionFeedback(`Request #${executeModalRequest.id} authorized & executed directly into Master_Stock!`);
-    setExecuteModalRequest(null);
-    setSelectedRequest(null);
-    setTimeout(() => setActionFeedback(null), 4500);
+  const handleConfirmDirectExecution = async () => {
+    if (!executeModalRequest || isExecutingDirect) return;
+    const reqId = executeModalRequest.id;
+    setIsExecutingDirect(true);
+    try {
+      await onApproveAndExecuteRequest(reqId, executionNotes);
+      setActionFeedback(`Request #${reqId} authorized & executed directly into Master_Stock! Opening PDF voucher...`);
+      setExecuteModalRequest(null);
+      setSelectedRequest(null);
+      setTimeout(() => setActionFeedback(null), 4500);
+    } catch (err: any) {
+      console.error('Error during direct adjustment execution:', err);
+      setActionFeedback(err?.message || `Failed to authorize request #${reqId}.`);
+    } finally {
+      setIsExecutingDirect(false);
+    }
   };
 
   const handleConfirmGrantTimedAccess = () => {
@@ -602,18 +612,20 @@ export const SuperiorAdminAdjustmentManagerModal: React.FC<SuperiorAdminAdjustme
             <div className="p-4 bg-slate-100 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex justify-end space-x-2 shrink-0">
               <button
                 type="button"
+                disabled={isExecutingDirect}
                 onClick={() => setExecuteModalRequest(null)}
-                className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 text-xs font-semibold cursor-pointer"
+                className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 text-xs font-semibold cursor-pointer disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 type="button"
+                disabled={isExecutingDirect}
                 onClick={handleConfirmDirectExecution}
-                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5 cursor-pointer"
+                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5 cursor-pointer"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                <span>Authorize & Execute into Master_Stock</span>
+                <span>{isExecutingDirect ? 'Executing & Generating PDF...' : 'Authorize & Execute into Master_Stock'}</span>
               </button>
             </div>
           </DraggableResizableModal>

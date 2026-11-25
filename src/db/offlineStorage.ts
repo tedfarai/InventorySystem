@@ -323,25 +323,46 @@ export async function syncAllToIndexedDB(payload: FullProcurementPayload): Promi
 // OFFLINE MUTATION QUEUE & PWA BACKGROUND SYNC MANAGEMENT
 // =============================================================================
 
+const SW_READY_TIMEOUT_MS = 350;
+
+async function tryRegisterBackgroundSync(): Promise<void> {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+  if (typeof window === 'undefined' || !('SyncManager' in window)) return;
+  try {
+    const existingReg = navigator.serviceWorker.getRegistration
+      ? await navigator.serviceWorker.getRegistration()
+      : undefined;
+    if (!existingReg) return;
+
+    let timerId: ReturnType<typeof setTimeout> | undefined;
+    const registration = await Promise.race<ServiceWorkerRegistration | null>([
+      navigator.serviceWorker.ready.then((reg) => reg),
+      new Promise<null>((resolve) => {
+        timerId = setTimeout(() => resolve(null), SW_READY_TIMEOUT_MS);
+      }),
+    ]);
+    if (timerId !== undefined) clearTimeout(timerId);
+
+    if (registration && 'sync' in registration) {
+      await (registration as ServiceWorkerRegistration & {
+        sync: { register: (tag: string) => Promise<void> };
+      }).sync.register('sync-documents');
+    }
+  } catch {
+    // Tolerant if background sync is unavailable or restricted in dev/iframe contexts
+  }
+}
+
 /**
- * Adds an offline mutation to IndexedDB and triggers PWA Background Sync registration
+ * Adds an offline mutation to IndexedDB and triggers PWA Background Sync registration non-blockingly
  */
 export async function enqueueOfflineMutation(mutation: OfflineMutation): Promise<void> {
   try {
     const db = await getOfflineDB();
     await db.put('mutation_queue', mutation);
 
-    // Register PWA Background Sync tag if supported by browser
-    if ('serviceWorker' in navigator && 'SyncManager' in window) {
-      try {
-        const registration = await navigator.serviceWorker.ready;
-        if ('sync' in registration) {
-          await (registration as any).sync.register('sync-documents');
-        }
-      } catch (syncErr) {
-        // Tolerant if background sync not permitted
-      }
-    }
+    // Fire-and-forget PWA Background Sync registration so transactions never hang
+    void tryRegisterBackgroundSync();
   } catch (err) {
     console.error('[OfflineStorage] Failed to enqueue mutation:', err);
   }

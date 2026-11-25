@@ -122,7 +122,7 @@ interface ExcelSimulatorProps {
   adjustmentRequests?: StockAdjustmentRequest[];
   activeTimedWindow?: TimedAccessWindow | null;
   onCreateAdjustmentRequest?: (request: Omit<StockAdjustmentRequest, 'id' | 'createdAt' | 'status'>) => StockAdjustmentRequest | Promise<StockAdjustmentRequest>;
-  onApproveAndExecuteRequest?: (requestId: string, adminNotes: string) => void;
+  onApproveAndExecuteRequest?: (requestId: string, adminNotes: string) => void | AdjustmentDocument | Promise<AdjustmentDocument | undefined | void>;
   onGrantTimedAccess?: (requestId: string, durationMinutes: number, adminNotes: string) => void;
   onRevokeTimedAccess?: (requestId: string) => void;
   onRejectRequest?: (requestId: string, adminNotes: string) => void;
@@ -699,7 +699,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
     setActiveModal('preview');
   };
 
-  const handleOpenIssueDocument = async (doc: IssuedDocument) => {
+  const handleOpenIssueDocument = async (doc: IssuedDocument): Promise<VoucherPdfFile> => {
     const displayableDocument: DisplayableDocument = { type: 'ISSUE', data: doc };
     try {
       const pdfFile = await generateVoucherPdfFile(displayableDocument);
@@ -707,9 +707,11 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
       setActiveDocPdfFile(pdfFile);
       setActiveDocForPreview(doc);
       setActiveModal('docPreview');
+      return pdfFile;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to generate the issue voucher PDF.';
       showToast('Issue PDF Generation Failed', 'error', message, 6000);
+      throw error;
     }
   };
 
@@ -722,6 +724,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to generate the voucher PDF.';
       showToast('Voucher PDF Generation Failed', 'error', message, 6000);
+      throw error;
     }
   };
 
@@ -745,7 +748,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
         console.error('Error executing issue workflow:', err);
         const message = err instanceof Error ? err.message : 'Issue request could not be completed.';
         showToast('Issue Request Failed', 'error', message, 6000);
-        return;
+        throw err;
       }
 
       if (!generatedDoc) {
@@ -1032,6 +1035,9 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
         }
       } catch (err) {
         console.error('Error in bulk delivery save:', err);
+        const message = err instanceof Error ? err.message : 'Bulk delivery could not be saved.';
+        showToast('Delivery Save Failed', 'error', message, 6000);
+        throw err;
       }
     } else if (onSaveDelivery) {
       for (const d of deliveriesToSave) {
@@ -1046,6 +1052,9 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
           if (doc) resDoc = doc;
         } catch (err) {
           console.error('Error in delivery save:', err);
+          const message = err instanceof Error ? err.message : 'Delivery could not be saved.';
+          showToast('Delivery Save Failed', 'error', message, 6000);
+          throw err;
         }
       }
     }
@@ -2770,7 +2779,20 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
           stockItems={stockItems}
           requests={adjustmentRequests}
           activeTimedWindow={activeTimedWindow}
-          onApproveAndExecuteRequest={onApproveAndExecuteRequest}
+          onApproveAndExecuteRequest={async (requestId, adminNotes) => {
+            if (!onApproveAndExecuteRequest) return;
+            const adjDoc = await onApproveAndExecuteRequest(requestId, adminNotes);
+            if (adjDoc && typeof adjDoc === 'object') {
+              await handleOpenMovementDocument({ type: 'ADJUSTMENT', data: adjDoc });
+              showToast(
+                'Adjustment Batch Authorized & PDF Ready',
+                'success',
+                `Voucher ${adjDoc.voucherNumber} committed to Master_Stock and opened in PDF Preview.`,
+                5000
+              );
+            }
+            return adjDoc;
+          }}
           onGrantTimedAccess={onGrantTimedAccess}
           onRevokeTimedAccess={onRevokeTimedAccess}
           onRejectRequest={onRejectRequest}
@@ -2986,6 +3008,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
         <DocumentViewerModal
           document={selectedMovementDoc}
           pdfFile={selectedMovementPdfFile || undefined}
+          zIndex="z-[70]"
           onClose={() => {
             if (selectedMovementPdfFile) URL.revokeObjectURL(selectedMovementPdfFile.url);
             setSelectedMovementPdfFile(null);

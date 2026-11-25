@@ -19,13 +19,14 @@ import {
   RefreshCw,
   Sparkles,
 } from 'lucide-react';
-import { StockItem, AdminUser, Department, IssueCartItem } from '../../types';
+import { StockItem, AdminUser, Department, IssueCartItem, ReceivedDocument } from '../../types';
 import { searchStockItems } from '../../utils/searchEngine';
 import { SearchHighlightText } from '../common/SearchHighlightText';
 import { BulkStockActionsBar } from './BulkStockActionsBar';
 import { BulkBatchUpdateModal } from './BulkBatchUpdateModal';
 import { BulkDeleteConfirmationModal } from './BulkDeleteConfirmationModal';
 import { BulkDeliveryConfirmationModal, BulkDeliveryReviewItem } from './BulkDeliveryConfirmationModal';
+import { ReceivedPdfPreviewModal } from './ReceivedPdfPreviewModal';
 import { MasterStockSheetSkeleton } from '../common/SkeletonLoader';
 import { UsageTrendIndicator } from '../common/UsageTrendIndicator';
 import {
@@ -46,6 +47,7 @@ interface ModernMasterStockSheetProps {
   onQuickEdit?: (item: StockItem) => void;
   onOpenReorderReport?: () => void;
   onSaveBulkDeliveries?: (deliveries: { itemId: string; addQty: number }[], deliveryNoteRef?: string) => Promise<any>;
+  onTriggerReceivedDocPreview?: (doc: ReceivedDocument) => void;
   onTriggerIssueModal?: (cart: IssueCartItem[]) => void;
   onOpenAdjustmentRequests?: () => void;
   isLoading?: boolean;
@@ -62,6 +64,7 @@ export const ModernMasterStockSheet: React.FC<ModernMasterStockSheetProps> = ({
   onQuickEdit,
   onOpenReorderReport,
   onSaveBulkDeliveries,
+  onTriggerReceivedDocPreview,
   onTriggerIssueModal,
   onOpenAdjustmentRequests,
   isLoading = false,
@@ -87,6 +90,7 @@ export const ModernMasterStockSheet: React.FC<ModernMasterStockSheetProps> = ({
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [showBulkDeliveryConfirmModal, setShowBulkDeliveryConfirmModal] = useState(false);
   const [bulkDeliveryReviewItems, setBulkDeliveryReviewItems] = useState<BulkDeliveryReviewItem[]>([]);
+  const [standaloneReceivedDoc, setStandaloneReceivedDoc] = useState<ReceivedDocument | null>(null);
 
   const isSuperiorAdmin = currentUser?.IssuerID === 'ADM001';
   const safeStockItems = Array.isArray(stockItems) ? stockItems : [];
@@ -180,14 +184,22 @@ export const ModernMasterStockSheet: React.FC<ModernMasterStockSheetProps> = ({
     updatedDeliveries?: BulkDeliveryReviewItem[]
   ) => {
     const deliveriesToSave = updatedDeliveries || bulkDeliveryReviewItems;
+    let resDoc: ReceivedDocument | undefined;
     if (onSaveBulkDeliveries) {
-      await onSaveBulkDeliveries(
+      resDoc = await onSaveBulkDeliveries(
         deliveriesToSave.map((d) => ({ itemId: d.itemId, addQty: d.addQty })),
         deliveryNoteRef
       );
     }
     setShowBulkDeliveryConfirmModal(false);
     handleClearSelection();
+    if (resDoc) {
+      if (onTriggerReceivedDocPreview) {
+        onTriggerReceivedDocPreview(resDoc);
+      } else {
+        setStandaloneReceivedDoc(resDoc);
+      }
+    }
   };
 
   const handleTriggerBulkIssue = (items: StockItem[]) => {
@@ -732,6 +744,13 @@ export const ModernMasterStockSheet: React.FC<ModernMasterStockSheetProps> = ({
         onClose={() => setShowBulkDeliveryConfirmModal(false)}
         onConfirm={handleConfirmBulkDeliveryModal}
       />
+
+      {standaloneReceivedDoc && (
+        <ReceivedPdfPreviewModal
+          doc={standaloneReceivedDoc}
+          onClose={() => setStandaloneReceivedDoc(null)}
+        />
+      )}
     </div>
   );
 };
