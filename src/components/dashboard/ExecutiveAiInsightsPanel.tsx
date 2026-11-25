@@ -15,11 +15,9 @@ import {
   Download,
   ShieldAlert,
   Zap,
-  Clock,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
-  ItemPrediction,
   ExecutiveAnalyticsSummary,
 } from '../../utils/predictiveAnalytics';
 import { StockItem, MovementLogEntry } from '../../types';
@@ -46,6 +44,7 @@ export const ExecutiveAiInsightsPanel: React.FC<ExecutiveAiInsightsPanelProps> =
   
   // AI Memo Generation State
   const [isGeneratingAiMemo, setIsGeneratingAiMemo] = useState(false);
+  const [aiMemoError, setAiMemoError] = useState<string | null>(null);
   const [aiMemo, setAiMemo] = useState<{
     executiveSummary: string;
     criticalRecommendations: string[];
@@ -118,11 +117,11 @@ export const ExecutiveAiInsightsPanel: React.FC<ExecutiveAiInsightsPanelProps> =
     XLSX.writeFile(wb, `Paramount_Stock_AI_Forecast_${new Date().toISOString().substring(0, 10)}.xlsx`);
   };
 
-  // Generate or regenerate AI Executive Procurement Memo
+  // Generate or regenerate AI Executive Procurement Memo via server-side Gemini endpoint
   const handleGenerateAiMemo = async () => {
     setIsGeneratingAiMemo(true);
+    setAiMemoError(null);
     try {
-      // Attempt server-side API call if backend endpoint exists
       const response = await fetch('/api/ai-insights', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -139,34 +138,26 @@ export const ExecutiveAiInsightsPanel: React.FC<ExecutiveAiInsightsPanelProps> =
           })),
           sixMonthDemand: totalProjected6MonthDemand,
         }),
-      }).catch(() => null);
+      });
 
-      if (response && response.ok) {
-        const data = await response.json();
-        if (data.memo) {
-          setAiMemo(data.memo);
-          setIsGeneratingAiMemo(false);
-          return;
-        }
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        const message =
+          (payload && typeof payload.error === 'string' && payload.error) ||
+          `AI advisory service responded with HTTP ${response.status}.`;
+        throw new Error(message);
       }
 
-      // Offline-resilient deterministic AI synthesis
-      const topCriticalNames = frequentlyLowStockItems.slice(0, 3).map((i) => i.itemName);
-      const criticalStr = topCriticalNames.length > 0 ? topCriticalNames.join(', ') : 'None';
+      if (!payload?.memo) {
+        throw new Error('The AI service returned an empty advisory payload.');
+      }
 
-      setAiMemo({
-        executiveSummary: `Based on 6-month transaction logs across ${stockItems.length} SKUs, Paramount Exports shows a projected 6-month aggregate consumption of ${totalProjected6MonthDemand.toLocaleString()} units. Currently, ${analyticsSummary.criticalItemsCount} items are at high stockout risk requiring immediate purchase orders, with ${frequentlyLowStockItems.length} items exhibiting repetitive threshold breaches.`,
-        criticalRecommendations: [
-          `Prioritize emergency replenishment for high-velocity consumables: ${criticalStr}.`,
-          `Increase baseline safety reorder levels by 15% for items with turnaround cycle under 14 days.`,
-          `Consolidate quarterly purchase orders for top cleaning detergents and paper reams to capture supplier volume discounts.`,
-          `Enforce weekly physical spot-checks on items showing irregular issue spikes in Sales and Operations departments.`,
-        ],
-        quarterlyBudgetNotes: `Estimated Q4/Q1 replenishment requirement: approx ${Math.round(totalProjected6MonthDemand * 0.52).toLocaleString()} units across Stationery and Cleaning categories to maintain uninterrupted operational flow.`,
-        generatedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      });
-    } catch (e) {
+      setAiMemo(payload.memo);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Unable to connect to the AI advisory service.';
       console.error('Failed to generate AI insights:', e);
+      setAiMemoError(msg);
     } finally {
       setIsGeneratingAiMemo(false);
     }
@@ -218,6 +209,30 @@ export const ExecutiveAiInsightsPanel: React.FC<ExecutiveAiInsightsPanelProps> =
             </button>
           </div>
         </div>
+
+        {/* AI ERROR ALERT */}
+        {aiMemoError && (
+          <div
+            role="alert"
+            className="mt-4 p-3.5 rounded-xl bg-rose-950/70 border border-rose-500/40 text-xs text-rose-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+          >
+            <div className="flex items-start gap-2.5">
+              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+              <div>
+                <div className="font-bold text-rose-200">AI Advisory Unavailable</div>
+                <p className="text-rose-200/90 mt-0.5">{aiMemoError}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleGenerateAiMemo}
+              disabled={isGeneratingAiMemo}
+              className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shrink-0 self-start sm:self-center cursor-pointer"
+            >
+              Retry
+            </button>
+          </div>
+        )}
 
         {/* AI EXECUTIVE MEMO ACCORDION / BANNER */}
         {aiMemo && (

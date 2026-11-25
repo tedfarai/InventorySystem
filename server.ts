@@ -1,0 +1,450 @@
+import 'dotenv/config';
+import express from 'express';
+import type { Request, Response } from 'express';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createServer as createViteServer } from 'vite';
+import { GoogleGenAI, Type, ThinkingLevel } from '@google/genai';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const GEMINI_MODEL = 'gemini-4-hydrogen';
+
+function createGeminiClient(): GoogleGenAI | null {
+  const apiKey = (process.env.GEMINI_API_KEY || '').trim();
+  if (!apiKey) return null;
+  return new GoogleGenAI({
+    apiKey,
+    httpOptions: {
+      timeout: 45_000,
+      headers: {
+        'User-Agent': 'aistudio-build',
+      },
+    },
+  });
+}
+
+function getHttpStatusFromGeminiError(error: unknown): { status: number; message: string } {
+  const rawMessage = error instanceof Error ? error.message : String(error || 'Unknown Gemini API error');
+  const lower = rawMessage.toLowerCase();
+
+  if (lower.includes('api_key_invalid') || lower.includes('permission_denied') || lower.includes('403')) {
+    return {
+      status: 403,
+      message: 'Gemini API authentication failed. Verify your GEMINI_API_KEY in Settings > Secrets.',
+    };
+  }
+  if (lower.includes('resource_exhausted') || lower.includes('429')) {
+    return {
+      status: 429,
+      message: 'Gemini API rate limit or quota reached. Wait a moment and retry.',
+    };
+  }
+  if (lower.includes('not_found') || lower.includes('404')) {
+    return {
+      status: 404,
+      message: `Requested Gemini model (${GEMINI_MODEL}) was unavailable.`,
+    };
+  }
+  if (lower.includes('invalid_argument') || lower.includes('400')) {
+    return {
+      status: 400,
+      message: 'The forecast request payload could not be processed by Gemini.',
+    };
+  }
+  return {
+    status: 502,
+    message: rawMessage || 'Upstream Gemini AI service failed to generate forecast.',
+  };
+}
+
+async function generateWithRetry<T>(operation: () => Promise<T>, maxRetries = 2): Promise<T> {
+  let attempt = 0;
+  let lastError: unknown;
+  while (attempt <= maxRetries) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      const msg = (error instanceof Error ? error.message : String(error)).toLowerCase();
+      const isTransient =
+        msg.includes('429') ||
+        msg.includes('503') ||
+        msg.includes('500') ||
+        msg.includes('unavailable') ||
+        msg.includes('timeout') ||
+        msg.includes('econnreset');
+      if (!isTransient || attempt >= maxRetries) {
+        throw error;
+      }
+      const delayMs = 600 * Math.pow(2, attempt);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      attempt += 1;
+    }
+  }
+  throw lastError;
+}
+
+interface SanitizedCategoryPayload {
+  category: string;
+  skuCount: number;
+  totalCurrentStock: number;
+  totalReorderLevel: number;
+  itemsBelowThreshold: number;
+  outOfStockCount: number;
+  totalIssuedUnits: number;
+  totalReceivedUnits: number;
+  issueTransactionCount: number;
+  deliveryCount: number;
+  avgDailyBurnRate: number;
+  recentHalfDailyBurn: number;
+  priorHalfDailyBurn: number;
+  velocityMomentum: string;
+  peakWeekday: string;
+  peakSingleDayIssue: number;
+  estimatedCoverDays: number | null;
+  estimatedDaysUntilReorder: number | null;
+  baselineOptimalReorderDate: string | null;
+  recommendedBaselineQty: number;
+  hasSufficientHistory: boolean;
+  topPriorityItems: Array<{
+    itemID: string;
+    itemName: string;
+    currentQty: number;
+    reorderLevel: number;
+    unit: string;
+    avgDailyBurn: number;
+    daysUntilThreshold: number | null;
+  }>;
+  recentDailySeries: Array<{
+    dateIso: string;
+    issuedQty: number;
+    receivedQty: number;
+  }>;
+}
+
+function sanitizeNumber(value: unknown, fallback = 0, min = -1_000_000, max = 10_000_000): number {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return fallback;
+  return Math.max(min, Math.min(max, num));
+}
+
+function sanitizeCategoryPayload(raw: unknown): SanitizedCategoryPayload | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const obj = raw as Record<string, unknown>;
+  const category = typeof obj.category === 'string' ? obj.category.trim().slice(0, 64) : '';
+  if (!category) return null;
+
+  const rawItems = Array.isArray(obj.topPriorityItems) ? obj.topPriorityItems.slice(0, 8) : [];
+  const topPriorityItems = rawItems
+    .filter((it): it is Record<string, unknown> => Boolean(it && typeof it === 'object'))
+    .map((it) => ({
+      itemID: String(it.itemID || '').slice(0, 32),
+      itemName: String(it.itemName || '').slice(0, 100),
+      currentQty: sanitizeNumber(it.currentQty, 0, 0),
+      reorderLevel: sanitizeNumber(it.reorderLevel, 0, 0),
+      unit: String(it.unit || 'Units').slice(0, 24),
+      avgDailyBurn: sanitizeNumber(it.avgDailyBurn, 0, 0),
+      daysUntilThreshold:
+        it.daysUntilThreshold === null || it.daysUntilThreshold === undefined
+          ? null
+          : sanitizeNumber(it.daysUntilThreshold, 0, 0, 3650),
+    }));
+
+  const rawSeries = Array.isArray(obj.recentDailySeries) ? obj.recentDailySeries.slice(-25) : [];
+  const recentDailySeries = rawSeries
+    .filter((pt): pt is Record<string, unknown> => Boolean(pt && typeof pt === 'object'))
+    .map((pt) => ({
+      dateIso: String(pt.dateIso || '').slice(0, 16),
+      issuedQty: sanitizeNumber(pt.issuedQty, 0, 0),
+      receivedQty: sanitizeNumber(pt.receivedQty, 0, 0),
+    }));
+
+  return {
+    category,
+    skuCount: sanitizeNumber(obj.skuCount, 0, 0, 10000),
+    totalCurrentStock: sanitizeNumber(obj.totalCurrentStock, 0, 0),
+    totalReorderLevel: sanitizeNumber(obj.totalReorderLevel, 0, 0),
+    itemsBelowThreshold: sanitizeNumber(obj.itemsBelowThreshold, 0, 0, 10000),
+    outOfStockCount: sanitizeNumber(obj.outOfStockCount, 0, 0, 10000),
+    totalIssuedUnits: sanitizeNumber(obj.totalIssuedUnits, 0, 0),
+    totalReceivedUnits: sanitizeNumber(obj.totalReceivedUnits, 0, 0),
+    issueTransactionCount: sanitizeNumber(obj.issueTransactionCount, 0, 0),
+    deliveryCount: sanitizeNumber(obj.deliveryCount, 0, 0),
+    avgDailyBurnRate: sanitizeNumber(obj.avgDailyBurnRate, 0, 0),
+    recentHalfDailyBurn: sanitizeNumber(obj.recentHalfDailyBurn, 0, 0),
+    priorHalfDailyBurn: sanitizeNumber(obj.priorHalfDailyBurn, 0, 0),
+    velocityMomentum: String(obj.velocityMomentum || 'Steady').slice(0, 24),
+    peakWeekday: String(obj.peakWeekday || 'N/A').slice(0, 24),
+    peakSingleDayIssue: sanitizeNumber(obj.peakSingleDayIssue, 0, 0),
+    estimatedCoverDays:
+      obj.estimatedCoverDays === null || obj.estimatedCoverDays === undefined
+        ? null
+        : sanitizeNumber(obj.estimatedCoverDays, 0, 0, 3650),
+    estimatedDaysUntilReorder:
+      obj.estimatedDaysUntilReorder === null || obj.estimatedDaysUntilReorder === undefined
+        ? null
+        : sanitizeNumber(obj.estimatedDaysUntilReorder, 0, 0, 3650),
+    baselineOptimalReorderDate:
+      typeof obj.baselineOptimalReorderDate === 'string'
+        ? obj.baselineOptimalReorderDate.slice(0, 16)
+        : null,
+    recommendedBaselineQty: sanitizeNumber(obj.recommendedBaselineQty, 0, 0),
+    hasSufficientHistory: Boolean(obj.hasSufficientHistory),
+    topPriorityItems,
+    recentDailySeries,
+  };
+}
+
+async function startServer() {
+  const app = express();
+  app.use(express.json({ limit: '1mb' }));
+
+  app.get('/api/health', (_req: Request, res: Response) => {
+    res.json({
+      status: 'ok',
+      geminiConfigured: Boolean((process.env.GEMINI_API_KEY || '').trim()),
+      model: GEMINI_MODEL,
+    });
+  });
+
+  app.post('/api/ai/category-reorder-forecast', async (req: Request, res: Response) => {
+    const ai = createGeminiClient();
+    if (!ai) {
+      res.status(503).json({
+        code: 'MISSING_API_KEY',
+        error:
+          'Gemini API key is not configured on the server. Add GEMINI_API_KEY in Settings > Secrets to run AI demand forecasting.',
+      });
+      return;
+    }
+
+    const body = req.body as Record<string, unknown> | undefined;
+    if (!body || typeof body !== 'object') {
+      res.status(400).json({ error: 'Request body must be a JSON object.' });
+      return;
+    }
+
+    const referenceDateIso =
+      typeof body.referenceDateIso === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.referenceDateIso)
+        ? body.referenceDateIso
+        : new Date().toISOString().slice(0, 10);
+
+    const analysisWindowDays = sanitizeNumber(body.analysisWindowDays, 60, 7, 365);
+    const leadTimeDays = sanitizeNumber(body.leadTimeDays, 5, 1, 60);
+    const safetyBufferDays = sanitizeNumber(body.safetyBufferDays, 7, 0, 60);
+
+    const rawCategories = Array.isArray(body.categories) ? body.categories.slice(0, 15) : [];
+    const categories = rawCategories
+      .map(sanitizeCategoryPayload)
+      .filter((c): c is SanitizedCategoryPayload => c !== null);
+
+    if (categories.length === 0) {
+      res.status(400).json({
+        error: 'At least one stock category with telemetry is required for forecasting.',
+      });
+      return;
+    }
+
+    const promptPayload = {
+      referenceDateIso,
+      analysisWindowDays,
+      leadTimeDays,
+      safetyBufferDays,
+      categories,
+    };
+
+    try {
+      const response = await generateWithRetry(() =>
+        ai.models.generateContent({
+          model: GEMINI_MODEL,
+          contents:
+            'Analyze the following warehouse movement log summaries by stock category and determine optimal reorder dates, order window start dates, urgency levels, predicted 30-day demand, recommended reorder quantities, and concise pattern insights for each category.\n\n' +
+            JSON.stringify(promptPayload),
+          config: {
+            systemInstruction:
+              'You are an expert inventory demand planner for Paramount Exports (stationery, cleaning, and general supplies). ' +
+              'Base every date and recommendation strictly on the provided historical movement log patterns, burn-rate momentum (recentHalfDailyBurn vs priorHalfDailyBurn), weekday peaks, current stock vs safety thresholds, supplier leadTimeDays, and safetyBufferDays relative to referenceDateIso. ' +
+              'Return valid YYYY-MM-DD dates on or after referenceDateIso for optimalReorderDate and orderWindowStartDate (orderWindowStartDate should not be later than optimalReorderDate). ' +
+              'If itemsBelowThreshold > 0 or outOfStockCount > 0, urgencyLevel must be IMMEDIATE and optimalReorderDate should equal referenceDateIso. ' +
+              'If issueTransactionCount < 2 or totalIssuedUnits === 0, set urgencyLevel to INSUFFICIENT_DATA unless items are already below threshold, set confidenceLevel to LOW, and explain the limited log history clearly without fabricating fake demand spikes. ' +
+              'Keep executiveSummary concise (2-3 sentences), forecastHorizonNote to 1 clear disclaimer sentence noting estimates depend on historical patterns, patternAnalysis to 1-2 sentences, keyDrivers to 2-3 short factual bullets, and actionRecommendation to 1 concrete procurement step.',
+            responseMimeType: 'application/json',
+            seed: 42,
+            thinkingConfig: { thinkingLevel: ThinkingLevel.MEDIUM },
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                executiveSummary: { type: Type.STRING },
+                forecastHorizonNote: { type: Type.STRING },
+                categoryForecasts: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      category: { type: Type.STRING },
+                      optimalReorderDate: { type: Type.STRING },
+                      orderWindowStartDate: { type: Type.STRING },
+                      urgencyLevel: {
+                        type: Type.STRING,
+                        enum: ['IMMEDIATE', 'SOON', 'PLANNED', 'ADEQUATE', 'INSUFFICIENT_DATA'],
+                      },
+                      predictedNext30DayDemand: { type: Type.NUMBER },
+                      recommendedOrderQty: { type: Type.NUMBER },
+                      confidenceLevel: {
+                        type: Type.STRING,
+                        enum: ['HIGH', 'MEDIUM', 'LOW'],
+                      },
+                      patternAnalysis: { type: Type.STRING },
+                      keyDrivers: {
+                        type: Type.ARRAY,
+                        items: { type: Type.STRING },
+                      },
+                      actionRecommendation: { type: Type.STRING },
+                    },
+                    required: [
+                      'category',
+                      'optimalReorderDate',
+                      'orderWindowStartDate',
+                      'urgencyLevel',
+                      'predictedNext30DayDemand',
+                      'recommendedOrderQty',
+                      'confidenceLevel',
+                      'patternAnalysis',
+                      'keyDrivers',
+                      'actionRecommendation',
+                    ],
+                  },
+                },
+              },
+              required: ['executiveSummary', 'forecastHorizonNote', 'categoryForecasts'],
+            },
+          },
+        })
+      );
+
+      const text = (response.text || '').trim();
+      if (!text) {
+        res.status(502).json({ error: 'Gemini returned an empty forecast response.' });
+        return;
+      }
+
+      let parsed: Record<string, unknown>;
+      try {
+        parsed = JSON.parse(text) as Record<string, unknown>;
+      } catch {
+        res.status(502).json({ error: 'Gemini response could not be parsed as structured JSON.' });
+        return;
+      }
+
+      res.json({
+        model: GEMINI_MODEL,
+        generatedAt: new Date().toISOString(),
+        referenceDateIso,
+        executiveSummary: String(parsed.executiveSummary || ''),
+        forecastHorizonNote: String(
+          parsed.forecastHorizonNote ||
+            'Forecast dates are estimates derived from historical movement logs and configured lead-time assumptions.'
+        ),
+        categoryForecasts: Array.isArray(parsed.categoryForecasts) ? parsed.categoryForecasts : [],
+      });
+    } catch (error) {
+      console.error('[AI Category Reorder Forecast] Gemini API error:', error);
+      const mapped = getHttpStatusFromGeminiError(error);
+      res.status(mapped.status).json({ error: mapped.message });
+    }
+  });
+
+  app.post('/api/ai-insights', async (req: Request, res: Response) => {
+    const ai = createGeminiClient();
+    if (!ai) {
+      res.status(503).json({
+        code: 'MISSING_API_KEY',
+        error: 'Gemini API key is not configured on the server. Add GEMINI_API_KEY in Settings > Secrets.',
+      });
+      return;
+    }
+
+    const body = req.body as Record<string, unknown> | undefined;
+    if (!body || typeof body !== 'object') {
+      res.status(400).json({ error: 'Invalid request body.' });
+      return;
+    }
+
+    const criticalCount = sanitizeNumber(body.criticalCount, 0, 0, 10000);
+    const totalItems = sanitizeNumber(body.totalItems, 0, 0, 100000);
+    const sixMonthDemand = sanitizeNumber(body.sixMonthDemand, 0, 0);
+    const topLowStock = Array.isArray(body.topLowStock) ? body.topLowStock.slice(0, 10) : [];
+
+    try {
+      const response = await generateWithRetry(() =>
+        ai.models.generateContent({
+          model: GEMINI_MODEL,
+          contents:
+            'Generate a concise procurement executive memo from these inventory analytics:\n' +
+            JSON.stringify({ criticalCount, totalItems, sixMonthDemand, topLowStock }),
+          config: {
+            systemInstruction:
+              'You are a procurement operations advisor for Paramount Exports. Provide practical, concise replenishment guidance grounded only in the supplied figures.',
+            responseMimeType: 'application/json',
+            thinkingConfig: { thinkingLevel: ThinkingLevel.MEDIUM },
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                executiveSummary: { type: Type.STRING },
+                criticalRecommendations: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING },
+                },
+                quarterlyBudgetNotes: { type: Type.STRING },
+              },
+              required: ['executiveSummary', 'criticalRecommendations', 'quarterlyBudgetNotes'],
+            },
+          },
+        })
+      );
+
+      const text = (response.text || '').trim();
+      const parsed = JSON.parse(text || '{}') as Record<string, unknown>;
+      res.json({
+        memo: {
+          executiveSummary: String(parsed.executiveSummary || ''),
+          criticalRecommendations: Array.isArray(parsed.criticalRecommendations)
+            ? parsed.criticalRecommendations.map(String)
+            : [],
+          quarterlyBudgetNotes: String(parsed.quarterlyBudgetNotes || ''),
+          generatedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        },
+      });
+    } catch (error) {
+      console.error('[AI Insights Memo] Gemini API error:', error);
+      const mapped = getHttpStatusFromGeminiError(error);
+      res.status(mapped.status).json({ error: mapped.message });
+    }
+  });
+
+  if (process.env.NODE_ENV !== 'production') {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distDir = path.resolve(__dirname, 'dist');
+    app.use(express.static(distDir));
+    app.get('*', (_req: Request, res: Response) => {
+      res.sendFile(path.join(distDir, 'index.html'));
+    });
+  }
+
+  const port = Number(process.env.PORT || 3000);
+  app.listen(port, '0.0.0.0', () => {
+    console.log(`Paramount Exports server running on http://0.0.0.0:${port}`);
+  });
+}
+
+startServer().catch((err) => {
+  console.error('Failed to start server:', err);
+  process.exit(1);
+});

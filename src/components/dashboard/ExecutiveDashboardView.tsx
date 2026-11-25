@@ -31,6 +31,7 @@ import {
   DollarSign,
   Coins,
   Repeat,
+  CalendarClock,
 } from 'lucide-react';
 import {
   StockItem,
@@ -50,6 +51,7 @@ import { CategoryMovementFrequencyChart } from './CategoryMovementFrequencyChart
 import { ExecutiveAiInsightsPanel } from './ExecutiveAiInsightsPanel';
 import { ExecutiveDemandForecastingView } from './ExecutiveDemandForecastingView';
 import { ExecutiveLinearForecastTab } from './ExecutiveLinearForecastTab';
+import { ExecutiveAiCategoryReorderView } from './ExecutiveAiCategoryReorderView';
 import { SupplierPriceCostPanel } from './SupplierPriceCostPanel';
 import {
   formatCurrency,
@@ -68,7 +70,7 @@ interface ExecutiveDashboardViewProps {
   currentUser: AdminUser | null;
   receivedDocs?: ReceivedDocument[];
   backups?: BackupSnapshot[];
-  initialViewMode?: 'overview' | 'forecasting' | 'forecast';
+  initialViewMode?: 'overview' | 'forecasting' | 'forecast' | 'aiReorder';
   onNavigateTab?: (tab: 'simulator' | 'audit' | 'export') => void;
   onNavigateSheet?: (sheet: string) => void;
   onOpenQuickAction?: (actionType: 'delivery' | 'issue' | 'adjustment' | 'reorderReport') => void;
@@ -142,7 +144,7 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
   onOpenMovementDoc,
   onSelectItemForReorder,
 }) => {
-  const [dashboardViewMode, setDashboardViewMode] = useState<'overview' | 'forecasting' | 'forecast'>(
+  const [dashboardViewMode, setDashboardViewMode] = useState<'overview' | 'forecasting' | 'forecast' | 'aiReorder'>(
     initialViewMode
   );
   const [currencyMode, setCurrencyMode] = useState<DashboardCurrencyMode>(() => {
@@ -334,9 +336,22 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
               Upcoming Month
             </span>
           </button>
+          <button
+            type="button"
+            id="dashboard-tab-ai-reorder"
+            onClick={() => setDashboardViewMode('aiReorder')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+              dashboardViewMode === 'aiReorder'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <CalendarClock className={`w-4 h-4 ${dashboardViewMode === 'aiReorder' ? 'text-white' : 'text-emerald-600 dark:text-emerald-400'}`} />
+            <span>AI Reorder Dates</span>
+          </button>
         </div>
 
-        {(dashboardViewMode === 'forecasting' || dashboardViewMode === 'forecast') && (
+        {dashboardViewMode !== 'overview' && (
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -349,7 +364,14 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
         )}
       </div>
 
-      {dashboardViewMode === 'forecast' ? (
+      {dashboardViewMode === 'aiReorder' ? (
+        <ExecutiveAiCategoryReorderView
+          stockItems={safeStock}
+          movementLogs={safeLogs}
+          onOpenQuickAction={handleQuickAction}
+          onSelectItemForReorder={onSelectItemForReorder}
+        />
+      ) : dashboardViewMode === 'forecast' ? (
         <ExecutiveLinearForecastTab
           stockItems={safeStock}
           movementLogs={safeLogs}
@@ -590,12 +612,12 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
 
             <button
               type="button"
-              onClick={() => onNavigateTab && onNavigateTab('audit')}
-              className="p-3 bg-white dark:bg-slate-900 hover:bg-teal-50 dark:hover:bg-teal-950/50 border border-slate-200 dark:border-slate-800 rounded-xl text-left cursor-pointer transition shadow-2xs group"
+              onClick={() => setDashboardViewMode('aiReorder')}
+              className="p-3 bg-white dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 border border-slate-200 dark:border-slate-800 rounded-xl text-left cursor-pointer transition shadow-2xs group"
             >
-              <Activity className="w-4 h-4 text-teal-600 mb-1.5 group-hover:scale-110 transition-transform" />
-              <div className="text-xs font-bold text-slate-900 dark:text-white">Audit Analytics</div>
-              <div className="text-[10px] text-slate-500">Historical transaction logs</div>
+              <CalendarClock className="w-4 h-4 text-emerald-600 mb-1.5 group-hover:scale-110 transition-transform" />
+              <div className="text-xs font-bold text-slate-900 dark:text-white">AI Reorder Dates</div>
+              <div className="text-[10px] text-slate-500">Category reorder schedule</div>
             </button>
           </div>
         </div>
