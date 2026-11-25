@@ -42,6 +42,43 @@ let inventoryRevision: number | null = (() => {
   return Number.isSafeInteger(saved) && saved >= 0 ? saved : null;
 })();
 
+// Held strictly in JS memory (never localStorage/sessionStorage) so embedded iframes
+// with restricted third-party cookies retain authenticated sessions cleanly.
+let inMemorySessionToken: string | null = null;
+let sessionAuthenticated = false;
+const sessionListeners = new Set<(authenticated: boolean) => void>();
+
+function setSessionAuthenticated(next: boolean): void {
+  if (!next) {
+    inMemorySessionToken = null;
+  }
+  if (sessionAuthenticated === next) return;
+  sessionAuthenticated = next;
+  for (const listener of sessionListeners) {
+    try {
+      listener(next);
+    } catch {
+      // Ignore subscriber errors.
+    }
+  }
+}
+
+export function isSessionAuthenticated(): boolean {
+  return sessionAuthenticated;
+}
+
+export function subscribeSessionAuth(listener: (authenticated: boolean) => void): () => void {
+  sessionListeners.add(listener);
+  return () => {
+    sessionListeners.delete(listener);
+  };
+}
+
+export function clearInMemorySessionForTest(): void {
+  inMemorySessionToken = null;
+  sessionAuthenticated = false;
+}
+
 function saveRevision(revision: number): void {
   inventoryRevision = revision;
   if (typeof localStorage !== 'undefined') {
@@ -57,6 +94,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
       credentials: 'same-origin',
       headers: {
         ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(inMemorySessionToken ? { Authorization: `Bearer ${inMemorySessionToken}` } : {}),
         ...init?.headers,
       },
     });
@@ -65,6 +103,9 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   }
 
   if (!response.ok) {
+    if (response.status === 401) {
+      setSessionAuthenticated(false);
+    }
     let message = `Request failed (${response.status}).`;
     try {
       const body = await response.json() as { error?: string };
@@ -86,9 +127,13 @@ export const authApi = {
   async getSession(): Promise<AdminUser | null> {
     try {
       const result = await request<{ user: AdminUser }>('/api/auth/session');
+      setSessionAuthenticated(Boolean(result.user));
       return result.user;
     } catch (error) {
-      if (error instanceof InventoryApiError && error.status === 401) return null;
+      if (error instanceof InventoryApiError && error.status === 401) {
+        setSessionAuthenticated(false);
+        return null;
+      }
       throw error;
     }
   },
@@ -98,27 +143,36 @@ export const authApi = {
     role?: string;
     password: string;
   }): Promise<AdminUser> {
-    const result = await request<{ user: AdminUser }>('/api/auth/setup', {
+    const result = await request<{ user: AdminUser; token?: string }>('/api/auth/setup', {
       method: 'POST',
       body: JSON.stringify(params),
     });
+    inMemorySessionToken = result.token || null;
+    setSessionAuthenticated(true);
     return result.user;
   },
   async login(issuerId: string, password: string): Promise<AdminUser> {
-    const result = await request<{ user: AdminUser }>('/api/auth/login', {
+    const result = await request<{ user: AdminUser; token?: string }>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ issuerId, password }),
     });
+    inMemorySessionToken = result.token || null;
+    setSessionAuthenticated(true);
     return result.user;
   },
   async logout(): Promise<void> {
-    await request<void>('/api/auth/logout', { method: 'POST' });
+    try {
+      await request<void>('/api/auth/logout', { method: 'POST' });
+    } finally {
+      setSessionAuthenticated(false);
+    }
   },
   async changePassword(currentPassword: string, newPassword: string): Promise<void> {
     await request<void>('/api/auth/password', {
       method: 'POST',
       body: JSON.stringify({ currentPassword, newPassword }),
     });
+    setSessionAuthenticated(false);
   },
   async createUser(user: Pick<AdminUser, 'IssuerID' | 'IssuerName' | 'Role'>, password: string): Promise<AdminUser> {
     const result = await request<{ user: AdminUser }>('/api/admin/users', {

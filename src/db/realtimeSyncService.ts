@@ -43,7 +43,12 @@ import {
 } from './crdtLwwEngine';
 import { detectPlatform } from '../utils/platformDetector';
 import { sqliteBridge } from '../utils/sqliteBridge';
-import { InventoryApiError, inventoryApi } from '../api/inventoryApi';
+import {
+  InventoryApiError,
+  inventoryApi,
+  isSessionAuthenticated,
+  subscribeSessionAuth,
+} from '../api/inventoryApi';
 import type { InventoryState } from '../api/inventoryApi';
 
 export type SyncMessage =
@@ -91,14 +96,16 @@ export type SyncMessage =
   | { type: 'COLLABORATIVE_EVENT'; payload: CollaborativeEvent }
   | { type: 'FORCE_RESYNC_REQUEST'; clientId: string };
 
-class RealtimeSyncService {
+export class RealtimeSyncService {
   private channel: BroadcastChannel | null = null;
   private presenceTimer: any = null;
   private queueDrainTimer: any = null;
   private serverRefreshTimer: any = null;
+  private unsubscribeSessionAuth: (() => void) | null = null;
   private serverRevision = 0;
   private currentPresenceId: string | null = null;
   private isInitialized = false;
+  private isAuthenticated = isSessionAuthenticated();
   private clientId = getLocalClientId();
 
   // In-Memory Synchronized Caches
@@ -131,6 +138,30 @@ class RealtimeSyncService {
   private onEventBroadcastCb?: (event: CollaborativeEvent) => void;
   private onSyncStatusCb?: (status: CloudSyncStatus) => void;
   private onPendingMutationsChangeCb?: (mutations: OfflineMutation[]) => void;
+  private onAuthRequiredCb?: () => void;
+
+  setAuthenticated(authenticated: boolean) {
+    const prev = this.isAuthenticated;
+    this.isAuthenticated = authenticated;
+    if (
+      authenticated &&
+      !prev &&
+      this.isInitialized &&
+      typeof navigator !== 'undefined' &&
+      navigator.onLine &&
+      this.cachedPendingMutations.length > 0
+    ) {
+      void this.drainPendingMutations();
+    }
+  }
+
+  async syncRemoteState(state: InventoryState, revision?: number): Promise<void> {
+    if (typeof revision === 'number' && revision >= 0) {
+      this.serverRevision = revision;
+    }
+    this.setCachedState(state);
+    await this.persistCurrentState();
+  }
 
   /**
    * Initializes offline persistence, real-time broadcast channel, and mutation drainer
@@ -150,6 +181,7 @@ class RealtimeSyncService {
     onEventBroadcast?: (event: CollaborativeEvent) => void;
     onSyncStatus?: (status: CloudSyncStatus) => void;
     onPendingMutationsChange?: (mutations: OfflineMutation[]) => void;
+    onAuthRequired?: () => void;
   }) {
     if (this.isInitialized) {
       this.cleanup();
@@ -169,6 +201,17 @@ class RealtimeSyncService {
     this.onEventBroadcastCb = callbacks.onEventBroadcast;
     this.onSyncStatusCb = callbacks.onSyncStatus;
     this.onPendingMutationsChangeCb = callbacks.onPendingMutationsChange;
+    this.onAuthRequiredCb = callbacks.onAuthRequired;
+    this.isAuthenticated = this.isAuthenticated || isSessionAuthenticated();
+
+    this.unsubscribeSessionAuth = subscribeSessionAuth((authenticated) => {
+      if (!authenticated) {
+        this.isAuthenticated = false;
+        this.onAuthRequiredCb?.();
+      } else {
+        this.setAuthenticated(true);
+      }
+    });
 
     this.updateSyncStatus('SYNCING');
 
@@ -227,10 +270,10 @@ class RealtimeSyncService {
       window.addEventListener('online', this.handleOnlineEvent);
       window.addEventListener('offline', this.handleOfflineEvent);
 
-      // 5. Periodic Queue Drain Loop (every 10s if online)
+      // 5. Periodic Queue Drain Loop (every 10s if online & authenticated)
       this.queueDrainTimer = setInterval(() => {
-        if (navigator.onLine && this.cachedPendingMutations.length > 0) {
-          this.drainPendingMutations();
+        if (navigator.onLine && this.isAuthenticated && this.cachedPendingMutations.length > 0) {
+          void this.drainPendingMutations();
         }
       }, 10000);
       this.serverRefreshTimer = setInterval(() => {
@@ -245,9 +288,9 @@ class RealtimeSyncService {
       // 6. Request initial state mesh from peers
       this.broadcastMessage({ type: 'FORCE_RESYNC_REQUEST', clientId: this.clientId });
 
-      // 7. Drain any existing pending mutations immediately
-      if (navigator.onLine && this.cachedPendingMutations.length > 0) {
-        this.drainPendingMutations();
+      // 7. Drain any existing pending mutations immediately when authenticated
+      if (navigator.onLine && this.isAuthenticated && this.cachedPendingMutations.length > 0) {
+        void this.drainPendingMutations();
       }
     } catch (err) {
       console.error('[RealtimeSyncService] Initialization error:', err);
@@ -279,7 +322,9 @@ class RealtimeSyncService {
 
   private handleOnlineEvent = () => {
     this.updateSyncStatus('CONNECTED');
-    this.drainPendingMutations();
+    if (this.isAuthenticated && this.cachedPendingMutations.length > 0) {
+      void this.drainPendingMutations();
+    }
   };
 
   private handleOfflineEvent = () => {
@@ -562,6 +607,7 @@ class RealtimeSyncService {
   private commitServerState(): Promise<boolean> {
     const operation = this.serverCommitQueue.then(async () => {
       if (typeof navigator !== 'undefined' && !navigator.onLine) return false;
+      if (!this.isAuthenticated) return false;
       try {
         const result = await inventoryApi.commitState({
           stockItems: this.cachedStock,
@@ -581,9 +627,25 @@ class RealtimeSyncService {
         return true;
       } catch (error) {
         if (error instanceof InventoryApiError && error.status === 0) return false;
+        if (error instanceof InventoryApiError && error.status === 401) {
+          this.isAuthenticated = false;
+          this.onAuthRequiredCb?.();
+          if (typeof navigator === 'undefined' || navigator.onLine) {
+            try {
+              const remote = await inventoryApi.getState();
+              this.serverRevision = remote.revision;
+              this.setCachedState(remote.state);
+              await this.persistCurrentState();
+            } catch {
+              // Ignore secondary state refresh failures after 401.
+            }
+          }
+          return false;
+        }
         if (error instanceof InventoryApiError && error.status === 409) throw error;
-        if (navigator.onLine) {
+        if (typeof navigator === 'undefined' || navigator.onLine) {
           const remote = await inventoryApi.getState();
+          this.serverRevision = remote.revision;
           this.setCachedState(remote.state);
           await this.persistCurrentState();
         }
@@ -1213,13 +1275,18 @@ class RealtimeSyncService {
   // ===========================================================================
 
   async drainPendingMutations(): Promise<number> {
+    if ((typeof navigator !== 'undefined' && !navigator.onLine) || !this.isAuthenticated) {
+      return 0;
+    }
     const mutations = await getPendingMutations();
-    if (mutations.length === 0 || !navigator.onLine) return 0;
+    if (mutations.length === 0) return 0;
 
     this.updateSyncStatus('DRAINING');
     try {
       if (!(await this.commitServerState())) {
-        this.updateSyncStatus('OFFLINE');
+        this.updateSyncStatus(
+          typeof navigator !== 'undefined' && !navigator.onLine ? 'OFFLINE' : 'CONNECTED'
+        );
         return 0;
       }
 
@@ -1278,15 +1345,21 @@ class RealtimeSyncService {
    */
   cleanup() {
     this.stopPresenceHeartbeat();
+    if (this.unsubscribeSessionAuth) {
+      this.unsubscribeSessionAuth();
+      this.unsubscribeSessionAuth = null;
+    }
     if (this.queueDrainTimer) clearInterval(this.queueDrainTimer);
     if (this.serverRefreshTimer) clearInterval(this.serverRefreshTimer);
     if (this.channel) {
       this.channel.close();
       this.channel = null;
     }
-    window.removeEventListener('storage', this.handleStorageEvent);
-    window.removeEventListener('online', this.handleOnlineEvent);
-    window.removeEventListener('offline', this.handleOfflineEvent);
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('storage', this.handleStorageEvent);
+      window.removeEventListener('online', this.handleOnlineEvent);
+      window.removeEventListener('offline', this.handleOfflineEvent);
+    }
     this.isInitialized = false;
   }
 }

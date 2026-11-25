@@ -201,6 +201,7 @@ function sanitizeCategoryPayload(raw: unknown): SanitizedCategoryPayload | null 
 async function startServer() {
   const inventory = await InventoryBackend.open();
   const app = express();
+  app.set('trust proxy', 1);
   app.use(express.json({ limit: '10mb' }));
   app.use('/api', (_req: Request, res: Response, next) => {
     res.setHeader('Cache-Control', 'no-store');
@@ -209,6 +210,11 @@ async function startServer() {
   });
 
   const readSessionToken = (req: Request): string | null => {
+    const authHeader = req.headers.authorization;
+    if (typeof authHeader === 'string' && authHeader.toLowerCase().startsWith('bearer ')) {
+      const bearerToken = authHeader.slice(7).trim();
+      if (bearerToken) return bearerToken;
+    }
     const cookieHeader = req.headers.cookie || '';
     const pair = cookieHeader.split(';').map((part) => part.trim()).find((part) => part.startsWith('inventory_session='));
     if (!pair) return null;
@@ -217,6 +223,25 @@ async function startServer() {
     } catch {
       return null;
     }
+  };
+  const readAllSessionTokens = (req: Request): string[] => {
+    const tokens = new Set<string>();
+    const authHeader = req.headers.authorization;
+    if (typeof authHeader === 'string' && authHeader.toLowerCase().startsWith('bearer ')) {
+      const bearerToken = authHeader.slice(7).trim();
+      if (bearerToken) tokens.add(bearerToken);
+    }
+    const cookieHeader = req.headers.cookie || '';
+    const pair = cookieHeader.split(';').map((part) => part.trim()).find((part) => part.startsWith('inventory_session='));
+    if (pair) {
+      try {
+        const cookieToken = decodeURIComponent(pair.slice('inventory_session='.length));
+        if (cookieToken) tokens.add(cookieToken);
+      } catch {
+        // Ignore malformed cookie token.
+      }
+    }
+    return Array.from(tokens);
   };
   const authenticatedUser = (req: Request): AdminUser | null => inventory.getSession(readSessionToken(req));
   const requireUser = (req: Request, res: Response): AdminUser | null => {
@@ -236,20 +261,54 @@ async function startServer() {
     }
     return user;
   };
+  const normalizeHost = (rawHost: string, isHttps: boolean): string => {
+    const lower = rawHost.trim().toLowerCase();
+    if (isHttps && lower.endsWith(':443')) return lower.slice(0, -4);
+    if (!isHttps && lower.endsWith(':80')) return lower.slice(0, -3);
+    return lower;
+  };
+  const isHttpsRequest = (req: Request): boolean => {
+    if (req.secure) return true;
+    const forwardedProto = String(req.headers['x-forwarded-proto'] || '').toLowerCase();
+    if (forwardedProto.split(',').some((part) => part.trim() === 'https')) return true;
+    const origin = req.get('origin') || '';
+    return origin.startsWith('https://');
+  };
+  const getAllowedHosts = (req: Request): Set<string> => {
+    const https = isHttpsRequest(req);
+    const hosts = new Set<string>();
+    const addHeaderHosts = (raw?: string | string[]) => {
+      if (!raw) return;
+      const list = Array.isArray(raw) ? raw : [raw];
+      for (const entry of list) {
+        for (const part of entry.split(',')) {
+          const normalized = normalizeHost(part, https);
+          if (normalized) hosts.add(normalized);
+        }
+      }
+    };
+    addHeaderHosts(req.get('host'));
+    addHeaderHosts(req.headers['x-forwarded-host']);
+    return hosts;
+  };
   const requireSameOrigin = (req: Request, res: Response): boolean => {
     const origin = req.get('origin');
     if (!origin) return true;
     try {
-      if (new URL(origin).host === req.get('host')) return true;
+      const parsedOrigin = new URL(origin);
+      const originHost = normalizeHost(parsedOrigin.host, parsedOrigin.protocol === 'https:');
+      if (getAllowedHosts(req).has(originHost)) return true;
     } catch {
       // Reject malformed origins.
     }
     res.status(403).json({ error: 'Cross-origin request rejected.' });
     return false;
   };
-  const sessionCookie = (token: string, maxAgeSeconds: number) => {
-    const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
-    return `inventory_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAgeSeconds}${secure}`;
+  const sessionCookie = (req: Request, token: string, maxAgeSeconds: number) => {
+    if (isHttpsRequest(req) || process.env.NODE_ENV === 'production') {
+      return `inventory_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=None; Secure; Partitioned; Max-Age=${maxAgeSeconds}`;
+    }
+    return `inventory_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSeconds}`;
   };
 
   app.get('/api/auth/users', (_req: Request, res: Response) => {
@@ -277,8 +336,8 @@ async function startServer() {
         role: typeof role === 'string' ? role : undefined,
         password,
       });
-      res.setHeader('Set-Cookie', sessionCookie(session.token, 12 * 60 * 60));
-      res.status(201).json({ user: session.user, expiresAt: session.expiresAt });
+      res.setHeader('Set-Cookie', sessionCookie(req, session.token, 12 * 60 * 60));
+      res.status(201).json({ user: session.user, token: session.token, expiresAt: session.expiresAt });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Initial setup failed.';
       res.status(message.includes('already configured') ? 409 : 400).json({ error: message });
@@ -304,8 +363,8 @@ async function startServer() {
     }
     try {
       const session = await inventory.login(issuerId, password, req.ip || 'unknown');
-      res.setHeader('Set-Cookie', sessionCookie(session.token, 12 * 60 * 60));
-      res.json({ user: session.user, expiresAt: session.expiresAt });
+      res.setHeader('Set-Cookie', sessionCookie(req, session.token, 12 * 60 * 60));
+      res.json({ user: session.user, token: session.token, expiresAt: session.expiresAt });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Sign-in failed.';
       res.status(message.startsWith('Too many') ? 429 : 401).json({ error: message });
@@ -314,8 +373,10 @@ async function startServer() {
 
   app.post('/api/auth/logout', async (req: Request, res: Response) => {
     if (!requireSameOrigin(req, res)) return;
-    await inventory.logout(readSessionToken(req));
-    res.setHeader('Set-Cookie', sessionCookie('', 0));
+    for (const token of readAllSessionTokens(req)) {
+      await inventory.logout(token);
+    }
+    res.setHeader('Set-Cookie', sessionCookie(req, '', 0));
     res.status(204).end();
   });
 
@@ -329,7 +390,7 @@ async function startServer() {
     }
     try {
       await inventory.changePassword(user, req.body.currentPassword, req.body.newPassword);
-      res.setHeader('Set-Cookie', sessionCookie('', 0));
+      res.setHeader('Set-Cookie', sessionCookie(req, '', 0));
       res.status(204).end();
     } catch (error) {
       res.status(400).json({ error: error instanceof Error ? error.message : 'Password update failed.' });

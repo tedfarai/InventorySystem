@@ -18,8 +18,16 @@ import {
   LwwConflictResolutionResult,
 } from '../types';
 
+let fallbackClientId: string | null = null;
+
 // Persistent Client ID for deterministic LWW tie-breaking
 export function getLocalClientId(): string {
+  if (typeof localStorage === 'undefined') {
+    if (!fallbackClientId) {
+      fallbackClientId = `node_${Math.random().toString(36).substring(2, 9)}_${Date.now().toString(36)}`;
+    }
+    return fallbackClientId;
+  }
   let clientId = localStorage.getItem('paramount_client_uuid');
   if (!clientId) {
     clientId = `node_${Math.random().toString(36).substring(2, 9)}_${Date.now().toString(36)}`;

@@ -87,7 +87,9 @@ export function useSqliteProcurement() {
     try {
       let state: Awaited<ReturnType<typeof inventoryApi.getState>>['state'];
       try {
-        state = (await inventoryApi.getState()).state;
+        const remote = await inventoryApi.getState();
+        state = remote.state;
+        void realtimeSyncService.syncRemoteState(remote.state, remote.revision);
       } catch (error) {
         if (!(error instanceof InventoryApiError && error.status === 0)) throw error;
         const cached = await loadInitialFromIndexedDB();
@@ -256,6 +258,11 @@ export function useSqliteProcurement() {
               setPendingMutations(mutations);
             }
           },
+          onAuthRequired: () => {
+            if (mounted) {
+              setCurrentUser(null);
+            }
+          },
         });
       } catch (err) {
         console.warn('[useSqliteProcurement] Realtime sync initialization fallback to local:', err);
@@ -286,8 +293,9 @@ export function useSqliteProcurement() {
     };
   }, [refreshAllFromSqlite]);
 
-  // Presence heartbeat when currentUser changes
+  // Presence heartbeat & sync auth gate when currentUser changes
   useEffect(() => {
+    realtimeSyncService.setAuthenticated(Boolean(currentUser));
     if (currentUser) {
       realtimeSyncService.startPresenceHeartbeat(currentUser, 'inventory', 'Master_Stock');
     } else {
@@ -400,8 +408,9 @@ export function useSqliteProcurement() {
 
   const handleDeleteBackup = useCallback(
     async (snapId: string) => {
+      if (!currentUser) throw new Error('Sign in required to delete a backup snapshot.');
       await sqliteBridge.deleteBackup(snapId);
-      await realtimeSyncService.deleteBackupSnapshot(snapId, currentUser || undefined);
+      await realtimeSyncService.deleteBackupSnapshot(snapId, currentUser);
       await refreshAllFromSqlite();
     },
     [currentUser, refreshAllFromSqlite]
@@ -409,8 +418,9 @@ export function useSqliteProcurement() {
 
   const handlePruneBackups = useCallback(
     async (retentionDays = 30) => {
+      if (!currentUser) throw new Error('Sign in required to prune backup snapshots.');
       await sqliteBridge.pruneBackups(retentionDays);
-      await realtimeSyncService.pruneBackupSnapshots(retentionDays, currentUser || undefined);
+      await realtimeSyncService.pruneBackupSnapshots(retentionDays, currentUser);
       await refreshAllFromSqlite();
     },
     [currentUser, refreshAllFromSqlite]
@@ -462,69 +472,80 @@ export function useSqliteProcurement() {
 
   useEffect(() => {
     const backgroundInterval = setInterval(async () => {
-      const now = new Date();
-      const currentDayOfWeek = now.getDay();
-      const currentHour = now.getHours();
-      const currentMinute = now.getMinutes();
-      const todayDateStr = now.toISOString().split('T')[0];
+      if (!currentUser) return;
+      try {
+        const now = new Date();
+        const currentDayOfWeek = now.getDay();
+        const currentHour = now.getHours();
+        const currentMinute = now.getMinutes();
+        const todayDateStr = now.toISOString().split('T')[0];
 
-      const isWeekday = currentDayOfWeek >= 1 && currentDayOfWeek <= 5;
-      const isPastOrAt1630 = currentHour > 16 || (currentHour === 16 && currentMinute >= 30);
+        const isWeekday = currentDayOfWeek >= 1 && currentDayOfWeek <= 5;
+        const isPastOrAt1630 = currentHour > 16 || (currentHour === 16 && currentMinute >= 30);
 
-      if (isWeekday && isPastOrAt1630 && lastCobDateRef.current !== todayDateStr) {
-        lastCobDateRef.current = todayDateStr;
-        await handleCreateBackup(
-          'DAILY',
-          `Automated Mon-Fri Close-of-Business (16:30) Full Master Archive [${todayDateStr}]`
-        );
-      }
+        if (isWeekday && isPastOrAt1630 && lastCobDateRef.current !== todayDateStr) {
+          lastCobDateRef.current = todayDateStr;
+          await handleCreateBackup(
+            'DAILY',
+            `Automated Mon-Fri Close-of-Business (16:30) Full Master Archive [${todayDateStr}]`
+          );
+        }
 
-      const elapsedMs = Date.now() - lastHourlyRef.current;
-      if (elapsedMs >= 60 * 60 * 1000) {
-        lastHourlyRef.current = Date.now();
-        await handleCreateBackup(
-          'HOURLY',
-          `Automated Hourly Differential Snapshot — SQLite Sync [${now.toTimeString().split(' ')[0]}]`
-        );
+        const elapsedMs = Date.now() - lastHourlyRef.current;
+        if (elapsedMs >= 60 * 60 * 1000) {
+          lastHourlyRef.current = Date.now();
+          await handleCreateBackup(
+            'HOURLY',
+            `Automated Hourly Differential Snapshot — SQLite Sync [${now.toTimeString().split(' ')[0]}]`
+          );
+        }
+      } catch (err) {
+        console.warn('[useSqliteProcurement] Automated background backup skipped:', err);
       }
     }, 30000);
 
     return () => clearInterval(backgroundInterval);
-  }, [handleCreateBackup]);
+  }, [currentUser, handleCreateBackup]);
 
   // Timed Access Expiration Engine (Heartbeat every 1s)
   useEffect(() => {
     const timerInterval = setInterval(async () => {
-      const nowMs = Date.now();
-      if (activeTimedWindow && activeTimedWindow.isActive) {
-        const endMs = new Date(activeTimedWindow.endTime).getTime();
-        if (!isNaN(endMs) && nowMs >= endMs) {
-          setActiveTimedWindow(null);
-          // Transition pending requests in SQLite
-          for (const req of adjustmentRequests) {
-            if (
-              req.status === 'TIMED_ACCESS_GRANTED' &&
-              req.timedAccessWindow &&
-              new Date(req.timedAccessWindow.endTime).getTime() <= nowMs
-            ) {
-              const updated = {
-                ...req,
-                status: 'EXPIRED' as const,
-                superiorAdminNotes: req.superiorAdminNotes
-                  ? `${req.superiorAdminNotes} — [Timed Access Session Expired at ${new Date().toLocaleTimeString()}]`
-                  : `[Timed Access Session Expired at ${new Date().toLocaleTimeString()}]`,
-              };
-              await sqliteBridge.updateAdjustmentRequest(updated);
-              await realtimeSyncService.updateAdjustmentRequest(updated, currentUser || undefined);
+      try {
+        const nowMs = Date.now();
+        if (activeTimedWindow && activeTimedWindow.isActive) {
+          const endMs = new Date(activeTimedWindow.endTime).getTime();
+          if (!isNaN(endMs) && nowMs >= endMs) {
+            setActiveTimedWindow(null);
+            // Transition pending requests in SQLite
+            for (const req of adjustmentRequests) {
+              if (
+                req.status === 'TIMED_ACCESS_GRANTED' &&
+                req.timedAccessWindow &&
+                new Date(req.timedAccessWindow.endTime).getTime() <= nowMs
+              ) {
+                const updated = {
+                  ...req,
+                  status: 'EXPIRED' as const,
+                  superiorAdminNotes: req.superiorAdminNotes
+                    ? `${req.superiorAdminNotes} — [Timed Access Session Expired at ${new Date().toLocaleTimeString()}]`
+                    : `[Timed Access Session Expired at ${new Date().toLocaleTimeString()}]`,
+                };
+                await sqliteBridge.updateAdjustmentRequest(updated);
+                if (currentUser) {
+                  await realtimeSyncService.updateAdjustmentRequest(updated, currentUser);
+                }
+              }
             }
+            await refreshAllFromSqlite();
           }
-          await refreshAllFromSqlite();
         }
+      } catch (err) {
+        console.warn('[useSqliteProcurement] Timed access expiration check failed:', err);
       }
     }, 1000);
 
     return () => clearInterval(timerInterval);
-  }, [activeTimedWindow, adjustmentRequests, refreshAllFromSqlite]);
+  }, [activeTimedWindow, adjustmentRequests, currentUser, refreshAllFromSqlite]);
 
   // ===========================================================================
   // ADMIN USERS CRUD (Optimistic)
@@ -570,6 +591,7 @@ export function useSqliteProcurement() {
   // DEPARTMENTS CRUD (Optimistic)
   // ===========================================================================
   const handleAddDepartment = async (dept: Department) => {
+    if (!currentUser) throw new Error('Sign in required to save department changes.');
     try {
       await sqliteBridge.addDepartment(dept);
       await realtimeSyncService.saveDepartment(dept);
@@ -580,6 +602,7 @@ export function useSqliteProcurement() {
   };
 
   const handleUpdateDepartment = async (updatedDept: Department) => {
+    if (!currentUser) throw new Error('Sign in required to update department changes.');
     try {
       await sqliteBridge.updateDepartment(updatedDept);
       await realtimeSyncService.saveDepartment(updatedDept);
@@ -590,6 +613,7 @@ export function useSqliteProcurement() {
   };
 
   const handleDeleteDepartment = async (deptId: string) => {
+    if (!currentUser) throw new Error('Sign in required to delete departments.');
     try {
       await sqliteBridge.deleteDepartment(deptId);
       await realtimeSyncService.deleteDepartment(deptId);
@@ -603,6 +627,7 @@ export function useSqliteProcurement() {
   // MANAGERS CRUD (Optimistic)
   // ===========================================================================
   const handleAddManager = async (mgr: Manager) => {
+    if (!currentUser) throw new Error('Sign in required to add managers.');
     try {
       await sqliteBridge.addManager(mgr);
       await realtimeSyncService.saveManager(mgr);
@@ -613,6 +638,7 @@ export function useSqliteProcurement() {
   };
 
   const handleUpdateManager = async (updatedMgr: Manager) => {
+    if (!currentUser) throw new Error('Sign in required to update managers.');
     try {
       await sqliteBridge.updateManager(updatedMgr);
       await realtimeSyncService.saveManager(updatedMgr);
@@ -623,6 +649,7 @@ export function useSqliteProcurement() {
   };
 
   const handleDeleteManager = async (mgrId: string) => {
+    if (!currentUser) throw new Error('Sign in required to delete managers.');
     try {
       await sqliteBridge.deleteManager(mgrId);
       await realtimeSyncService.deleteManager(mgrId);
@@ -636,10 +663,11 @@ export function useSqliteProcurement() {
   // STOCK ITEMS CRUD (Optimistic + Mesh Sync)
   // ===========================================================================
   const handleAddNewStockItem = async (item: StockItem) => {
+    if (!currentUser) throw new Error('Sign in required to create stock items.');
     setStockItems((prev) => [...prev, item]);
     try {
       await sqliteBridge.addStockItem(item);
-      await realtimeSyncService.saveStockItem(item, currentUser || undefined);
+      await realtimeSyncService.saveStockItem(item, currentUser);
     } catch (e) {
       await refreshAllFromSqlite();
       throw e;
@@ -647,13 +675,14 @@ export function useSqliteProcurement() {
   };
 
   const handleUpdateStockItemName = async (itemId: string, newName: string) => {
+    if (!currentUser) throw new Error('Sign in required to update stock items.');
     const item = stockItems.find((s) => s.ItemID === itemId);
     const updated = item ? { ...item, ItemName: newName } : undefined;
     setStockItems((prev) => prev.map((s) => (s.ItemID === itemId ? { ...s, ItemName: newName } : s)));
     try {
       await sqliteBridge.updateStockItemName(itemId, newName);
       if (updated) {
-        await realtimeSyncService.saveStockItem(updated, currentUser || undefined);
+        await realtimeSyncService.saveStockItem(updated, currentUser);
       }
     } catch (e) {
       await refreshAllFromSqlite();
@@ -662,10 +691,11 @@ export function useSqliteProcurement() {
   };
 
   const handleUpdateStockItem = async (updatedItem: StockItem) => {
+    if (!currentUser) throw new Error('Sign in required to update stock items.');
     setStockItems((prev) => prev.map((s) => (s.ItemID === updatedItem.ItemID ? updatedItem : s)));
     try {
       await sqliteBridge.updateStockItem(updatedItem);
-      await realtimeSyncService.saveStockItem(updatedItem, currentUser || undefined);
+      await realtimeSyncService.saveStockItem(updatedItem, currentUser);
     } catch (e) {
       await refreshAllFromSqlite();
       throw e;
@@ -673,9 +703,10 @@ export function useSqliteProcurement() {
   };
 
   const handleDeleteStockItem = async (itemId: string) => {
+    if (!currentUser) throw new Error('Sign in required to delete stock items.');
     try {
       await sqliteBridge.deleteStockItem(itemId);
-      await realtimeSyncService.deleteStockItem(itemId, currentUser || undefined);
+      await realtimeSyncService.deleteStockItem(itemId, currentUser);
     } catch (e) {
       await refreshAllFromSqlite();
       throw e;
@@ -1283,6 +1314,7 @@ export function useSqliteProcurement() {
   const handleCreateAdjustmentRequest = async (
     reqData: Omit<StockAdjustmentRequest, 'id' | 'createdAt' | 'status'>
   ): Promise<StockAdjustmentRequest> => {
+    if (!currentUser) throw new Error('Sign in required to submit adjustment requests.');
     const now = new Date();
     const compactDate = now.toISOString().replace(/[-:]/g, '').substring(0, 8);
     const countToday = adjustmentRequests.length + 1;
@@ -1299,10 +1331,11 @@ export function useSqliteProcurement() {
     setAdjustmentRequests((prev) => [newRequest, ...prev]);
     try {
       await sqliteBridge.addAdjustmentRequest(newRequest);
-      await realtimeSyncService.saveAdjustmentRequest(newRequest, currentUser || undefined);
+      await realtimeSyncService.saveAdjustmentRequest(newRequest, currentUser);
     } catch (err) {
       console.error('[useSqliteProcurement] Create request error:', err);
       await refreshAllFromSqlite();
+      throw err;
     }
     return newRequest;
   };
