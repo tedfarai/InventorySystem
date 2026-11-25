@@ -28,6 +28,7 @@ import { OfflineStatusBadge } from '../pwa/OfflineStatusBadge';
 interface LandingLoginPageProps {
   admins: AdminUser[];
   onSuccess: (admin: AdminUser, password: string) => Promise<void> | void;
+  onSetupInitialAdmin?: (params: { issuerName: string; role: string; password: string }) => Promise<void>;
   isOffline?: boolean;
   onOpenInstallModal?: () => void;
   isInstallable?: boolean;
@@ -36,6 +37,7 @@ interface LandingLoginPageProps {
 export const LandingLoginPage: React.FC<LandingLoginPageProps> = ({
   admins = [],
   onSuccess,
+  onSetupInitialAdmin,
   isOffline = false,
   onOpenInstallModal,
   isInstallable = false,
@@ -48,6 +50,13 @@ export const LandingLoginPage: React.FC<LandingLoginPageProps> = ({
   const [errorMsg, setErrorMsg] = useState('');
   const [showInstallBanner, setShowInstallBanner] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // First-time server administrator setup state (when 0 accounts exist)
+  const [setupName, setSetupName] = useState('Rachel Pickard');
+  const [setupRole, setSetupRole] = useState('Procurement Manager');
+  const [setupPassword, setSetupPassword] = useState('');
+  const [setupConfirmPassword, setSetupConfirmPassword] = useState('');
+  const [setupError, setSetupError] = useState('');
 
   const passwordInputRef = useRef<HTMLInputElement>(null);
 
@@ -109,6 +118,37 @@ export const LandingLoginPage: React.FC<LandingLoginPageProps> = ({
       setErrorMsg(error instanceof Error ? error.message : 'Sign-in failed.');
       setPassword('');
       passwordInputRef.current?.focus();
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSetupSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSetupError('');
+    if (!onSetupInitialAdmin) return;
+    if (!setupName.trim()) {
+      setSetupError('Please enter the administrator full name.');
+      return;
+    }
+    if (setupPassword.length < 12) {
+      setSetupError('Password must be at least 12 characters long.');
+      return;
+    }
+    if (setupPassword !== setupConfirmPassword) {
+      setSetupError('Passwords do not match.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await onSetupInitialAdmin({
+        issuerName: setupName.trim(),
+        role: setupRole.trim() || 'Procurement Manager',
+        password: setupPassword,
+      });
+    } catch (error) {
+      setSetupError(error instanceof Error ? error.message : 'Initial setup failed.');
     } finally {
       setIsSubmitting(false);
     }
@@ -276,7 +316,15 @@ export const LandingLoginPage: React.FC<LandingLoginPageProps> = ({
                     tabIndex={0}
                     aria-label="Registered users directory list"
                   >
-                    {filteredAdmins.length === 0 ? (
+                    {safeAdmins.length === 0 ? (
+                      <div className="py-12 px-4 text-center text-xs text-slate-300 space-y-2.5">
+                        <Crown className="w-7 h-7 text-amber-400 mx-auto" />
+                        <p className="font-bold text-white text-sm">Initial Server Provisioning Required</p>
+                        <p className="text-slate-400 max-w-xs mx-auto leading-relaxed">
+                          No user accounts exist in the database yet. Create the Superior Administrator (ADM001) profile on the right to begin.
+                        </p>
+                      </div>
+                    ) : filteredAdmins.length === 0 ? (
                       <div className="py-12 text-center text-xs text-slate-500 space-y-2">
                         <AlertTriangle className="w-6 h-6 text-amber-500 mx-auto" />
                         <p>No registered user matches &quot;{searchQuery}&quot;.</p>
@@ -376,7 +424,105 @@ export const LandingLoginPage: React.FC<LandingLoginPageProps> = ({
                 id="login-right-auth-panel"
                 className="p-6 sm:p-8 lg:p-10 flex flex-col justify-center bg-[linear-gradient(180deg,rgba(10,18,15,0.96),rgba(5,12,10,1))]"
               >
-                {!selectedAdmin ? (
+                {safeAdmins.length === 0 && onSetupInitialAdmin ? (
+                  <div className="space-y-5 animate-in fade-in duration-200">
+                    <div className="space-y-1">
+                      <div className="inline-flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider text-amber-300 bg-amber-500/10 border border-amber-400/30 px-2.5 py-0.5 rounded-full">
+                        <Crown className="w-3 h-3" />
+                        <span>First-Time Setup · ADM001</span>
+                      </div>
+                      <h3 className="text-xl font-extrabold text-white tracking-tight">
+                        Create Superior Administrator
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        Provision the first server-verified administrator account (minimum 12-character password).
+                      </p>
+                    </div>
+
+                    {setupError && (
+                      <div
+                        role="alert"
+                        className="flex items-center space-x-2 bg-rose-950/60 border border-rose-700/60 text-rose-200 p-3 rounded-xl text-xs font-medium"
+                      >
+                        <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />
+                        <span>{setupError}</span>
+                      </div>
+                    )}
+
+                    <form onSubmit={handleSetupSubmit} className="space-y-3.5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label htmlFor="setup-admin-name" className="block text-xs font-bold text-slate-300 mb-1">
+                            Full Name
+                          </label>
+                          <input
+                            id="setup-admin-name"
+                            type="text"
+                            value={setupName}
+                            onChange={(e) => setSetupName(e.target.value)}
+                            required
+                            className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="setup-admin-role" className="block text-xs font-bold text-slate-300 mb-1">
+                            Role Title
+                          </label>
+                          <input
+                            id="setup-admin-role"
+                            type="text"
+                            value={setupRole}
+                            onChange={(e) => setSetupRole(e.target.value)}
+                            required
+                            className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label htmlFor="setup-admin-password" className="block text-xs font-bold text-slate-300 mb-1">
+                          Password (min 12 characters)
+                        </label>
+                        <input
+                          id="setup-admin-password"
+                          type="password"
+                          value={setupPassword}
+                          onChange={(e) => setSetupPassword(e.target.value)}
+                          placeholder="Enter at least 12 characters..."
+                          minLength={12}
+                          required
+                          className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="setup-admin-confirm" className="block text-xs font-bold text-slate-300 mb-1">
+                          Confirm Password
+                        </label>
+                        <input
+                          id="setup-admin-confirm"
+                          type="password"
+                          value={setupConfirmPassword}
+                          onChange={(e) => setSetupConfirmPassword(e.target.value)}
+                          placeholder="Re-enter password..."
+                          minLength={12}
+                          required
+                          className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        />
+                      </div>
+
+                      <button
+                        id="btn-create-initial-admin"
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="w-full flex items-center justify-center space-x-2 py-3 px-6 text-xs sm:text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-600 rounded-xl shadow-md transition cursor-pointer"
+                      >
+                        <ShieldCheck className="w-4 h-4" />
+                        <span>{isSubmitting ? 'Creating Administrator...' : 'Create Superior Admin & Sign In'}</span>
+                      </button>
+                    </form>
+                  </div>
+                ) : !selectedAdmin ? (
                   /* Initial State: Prompt to select a user from the left side panel */
                   <div className="text-center py-6 sm:py-10 space-y-5 animate-in fade-in duration-200">
                     <div className="w-16 h-16 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/80 flex items-center justify-center text-emerald-600 dark:text-emerald-400 mx-auto shadow-xs">

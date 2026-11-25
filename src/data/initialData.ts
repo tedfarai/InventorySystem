@@ -1,4 +1,4 @@
-import { StockItem, AdminUser, Department, Manager, MovementLogEntry, StockAdjustmentRequest } from '../types';
+import type { StockItem, AdminUser, Department, Manager, MovementLogEntry, StockAdjustmentRequest } from '../types.ts';
 
 export const INITIAL_STOCK: StockItem[] = [
   // Stationery Items

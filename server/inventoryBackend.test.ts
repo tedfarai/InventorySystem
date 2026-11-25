@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { InventoryBackend } from './inventoryBackend';
+import { InventoryBackend } from './inventoryBackend.ts';
 
 test('hashes credentials, issues revocable sessions, and enforces transactional roles', async () => {
   const previousPassword = process.env.INITIAL_ADMIN_PASSWORD;
@@ -49,6 +49,39 @@ test('hashes credentials, issues revocable sessions, and enforces transactional 
 
     await backend.logout(adminSession.token);
     assert.equal(backend.getSession(adminSession.token), null);
+  } finally {
+    if (previousPassword === undefined) delete process.env.INITIAL_ADMIN_PASSWORD;
+    else process.env.INITIAL_ADMIN_PASSWORD = previousPassword;
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('allows startup in setup mode without INITIAL_ADMIN_PASSWORD and locks bootstrap after first admin', async () => {
+  const previousPassword = process.env.INITIAL_ADMIN_PASSWORD;
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'inventory-setup-test-'));
+  delete process.env.INITIAL_ADMIN_PASSWORD;
+
+  try {
+    const backend = await InventoryBackend.open(path.join(directory, 'inventory.sqlite'));
+    assert.equal(backend.needsInitialSetup(), true);
+    assert.equal(backend.listUsers().length, 0);
+
+    const session = await backend.setupInitialAdmin({
+      issuerName: 'Rachel Pickard',
+      role: 'Procurement Manager',
+      password: 'secure-initial-passphrase',
+    });
+    assert.equal(session.user.IssuerID, 'ADM001');
+    assert.equal(backend.needsInitialSetup(), false);
+    assert.equal(backend.getSession(session.token)?.IssuerID, 'ADM001');
+
+    await assert.rejects(
+      backend.setupInitialAdmin({
+        issuerName: 'Duplicate Admin',
+        password: 'another-secure-passphrase',
+      }),
+      /already configured/
+    );
   } finally {
     if (previousPassword === undefined) delete process.env.INITIAL_ADMIN_PASSWORD;
     else process.env.INITIAL_ADMIN_PASSWORD = previousPassword;

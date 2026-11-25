@@ -1092,6 +1092,22 @@ function AppContent() {
                     setIsLoginModalOpen(false);
                     showToast(`Welcome, ${authenticatedUser.IssuerName}`, 'success', `Authenticated as ${authenticatedUser.Role}`);
                   }}
+                  onSetupInitialAdmin={async ({ issuerName, role, password }) => {
+                    const createdUser = await authApi.setupInitialAdmin({
+                      issuerId: 'ADM001',
+                      issuerName,
+                      role,
+                      password,
+                    });
+                    setCurrentUser(createdUser);
+                    await refreshAllFromSqlite();
+                    setIsLoginModalOpen(false);
+                    showToast(
+                      `Welcome, ${createdUser.IssuerName}`,
+                      'success',
+                      `Superior Administrator (${createdUser.IssuerID}) provisioned`
+                    );
+                  }}
                   isOffline={isOffline}
                   onOpenInstallModal={() => setIsInstallModalOpen(true)}
                   isInstallable={isInstallable}

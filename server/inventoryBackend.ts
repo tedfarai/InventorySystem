@@ -2,14 +2,15 @@ import { createHash, randomBytes, scrypt as scryptCallback, timingSafeEqual } fr
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import initSqlJs, { Database, SqlJsStatic } from 'sql.js';
+import initSqlJs from 'sql.js';
+import type { Database, SqlJsStatic } from 'sql.js';
 import {
   INITIAL_ADJUSTMENT_REQUESTS,
   INITIAL_DEPARTMENTS,
   INITIAL_LOGS,
   INITIAL_MANAGERS,
   INITIAL_STOCK,
-} from '../src/data/initialData';
+} from '../src/data/initialData.ts';
 import type {
   AdjustmentDocument,
   AdminUser,
@@ -21,7 +22,7 @@ import type {
   ReceivedDocument,
   StockAdjustmentRequest,
   StockItem,
-} from '../src/types';
+} from '../src/types.ts';
 
 const scrypt = promisify(scryptCallback);
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
@@ -189,14 +190,19 @@ export class InventoryBackend {
 
     if (!this.queryOne('SELECT issuer_id FROM accounts LIMIT 1')) {
       const password = process.env.INITIAL_ADMIN_PASSWORD || '';
-      if (password.length < PASSWORD_MIN_LENGTH) {
-        throw new Error(`No admin account exists. Set INITIAL_ADMIN_PASSWORD to at least ${PASSWORD_MIN_LENGTH} characters before starting the server.`);
+      if (password.length >= PASSWORD_MIN_LENGTH) {
+        const issuerId = (process.env.INITIAL_ADMIN_ID || 'ADM001').trim().toUpperCase();
+        const issuerName = (process.env.INITIAL_ADMIN_NAME || 'Rachel Pickard').trim();
+        const role = (process.env.INITIAL_ADMIN_ROLE || 'Procurement Manager').trim();
+        const passwordHash = await this.hashPassword(password);
+        this.insertAccount({ IssuerID: issuerId, IssuerName: issuerName, Role: role, Active: true }, passwordHash);
+      } else if (password.length > 0) {
+        throw new Error(`INITIAL_ADMIN_PASSWORD must be at least ${PASSWORD_MIN_LENGTH} characters.`);
+      } else {
+        console.warn(
+          '[InventoryBackend] No admin account exists yet and INITIAL_ADMIN_PASSWORD is not set. Starting in first-time administrator setup mode.'
+        );
       }
-      const issuerId = (process.env.INITIAL_ADMIN_ID || 'ADM001').trim().toUpperCase();
-      const issuerName = (process.env.INITIAL_ADMIN_NAME || 'Rachel Pickard').trim();
-      const role = (process.env.INITIAL_ADMIN_ROLE || 'Procurement Manager').trim();
-      const passwordHash = await this.hashPassword(password);
-      this.insertAccount({ IssuerID: issuerId, IssuerName: issuerName, Role: role, Active: true }, passwordHash);
     }
 
     await this.persist();
@@ -271,6 +277,51 @@ export class InventoryBackend {
       'INSERT INTO accounts (issuer_id, issuer_name, role, password_salt, password_hash, active) VALUES (?, ?, ?, ?, ?, ?)',
       [user.IssuerID, user.IssuerName, user.Role, passwordHash.salt, passwordHash.hash, user.Active ? 1 : 0]
     );
+  }
+
+  needsInitialSetup(): boolean {
+    return !this.queryOne('SELECT issuer_id FROM accounts LIMIT 1');
+  }
+
+  async setupInitialAdmin(
+    input: { issuerId?: string; issuerName: string; role?: string; password: string }
+  ): Promise<{ user: AdminUser; token: string; expiresAt: number }> {
+    const issuerId = (input.issuerId || 'ADM001').trim().toUpperCase();
+    const issuerName = (input.issuerName || '').trim();
+    const role = (input.role || 'Procurement Manager').trim();
+    if (!issuerId || !/^[A-Z0-9_-]{3,20}$/.test(issuerId)) {
+      throw new Error('Administrator ID must be 3-20 alphanumeric characters.');
+    }
+    if (!issuerName) {
+      throw new Error('Administrator full name is required.');
+    }
+    if (!role) {
+      throw new Error('Administrator role is required.');
+    }
+
+    const passwordHash = await this.hashPassword(input.password);
+    const token = randomBytes(32).toString('base64url');
+    const expiresAt = Date.now() + SESSION_TTL_MS;
+    const user: AdminUser = {
+      IssuerID: issuerId,
+      IssuerName: issuerName,
+      Role: role,
+      Active: true,
+    };
+
+    await this.write(() => {
+      if (this.queryOne('SELECT issuer_id FROM accounts LIMIT 1')) {
+        throw new Error('Initial administrator account is already configured.');
+      }
+      this.insertAccount(user, passwordHash);
+      this.db.run('INSERT INTO sessions (token_hash, issuer_id, expires_at) VALUES (?, ?, ?)', [
+        hashToken(token),
+        user.IssuerID,
+        expiresAt,
+      ]);
+    });
+
+    return { user, token, expiresAt };
   }
 
   listUsers(): AdminUser[] {

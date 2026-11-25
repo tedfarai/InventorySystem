@@ -3,10 +3,9 @@ import express from 'express';
 import type { Request, Response } from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type, ThinkingLevel } from '@google/genai';
-import { InventoryBackend, verifyUser } from './server/inventoryBackend';
-import type { AdminUser } from './src/types';
+import { InventoryBackend, verifyUser } from './server/inventoryBackend.ts';
+import type { AdminUser } from './src/types.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -254,7 +253,36 @@ async function startServer() {
   };
 
   app.get('/api/auth/users', (_req: Request, res: Response) => {
-    res.json({ users: inventory.listUsers().filter((user) => user.Active) });
+    res.json({
+      users: inventory.listUsers().filter((user) => user.Active),
+      needsSetup: inventory.needsInitialSetup(),
+    });
+  });
+
+  app.post('/api/auth/setup', async (req: Request, res: Response) => {
+    if (!requireSameOrigin(req, res)) return;
+    if (!inventory.needsInitialSetup()) {
+      res.status(409).json({ error: 'Administrator account already exists. Please sign in.' });
+      return;
+    }
+    const { issuerId, issuerName, role, password } = req.body || {};
+    if (typeof issuerName !== 'string' || typeof password !== 'string') {
+      res.status(400).json({ error: 'Administrator name and password are required.' });
+      return;
+    }
+    try {
+      const session = await inventory.setupInitialAdmin({
+        issuerId: typeof issuerId === 'string' ? issuerId : undefined,
+        issuerName,
+        role: typeof role === 'string' ? role : undefined,
+        password,
+      });
+      res.setHeader('Set-Cookie', sessionCookie(session.token, 12 * 60 * 60));
+      res.status(201).json({ user: session.user, expiresAt: session.expiresAt });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Initial setup failed.';
+      res.status(message.includes('already configured') ? 409 : 400).json({ error: message });
+    }
   });
 
   app.get('/api/auth/session', (req: Request, res: Response) => {
@@ -635,6 +663,7 @@ async function startServer() {
   });
 
   if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',

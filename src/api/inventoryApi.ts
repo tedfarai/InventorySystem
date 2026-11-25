@@ -92,6 +92,18 @@ export const authApi = {
       throw error;
     }
   },
+  async setupInitialAdmin(params: {
+    issuerId?: string;
+    issuerName: string;
+    role?: string;
+    password: string;
+  }): Promise<AdminUser> {
+    const result = await request<{ user: AdminUser }>('/api/auth/setup', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
+    return result.user;
+  },
   async login(issuerId: string, password: string): Promise<AdminUser> {
     const result = await request<{ user: AdminUser }>('/api/auth/login', {
       method: 'POST',
