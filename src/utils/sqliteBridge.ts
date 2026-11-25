@@ -7,7 +7,6 @@
  */
 
 import initSqlJs, { Database, SqlJsStatic } from 'sql.js';
-import initSqlJsInline from 'sql.js/dist/sql-wasm-inline.js';
 import sqlWasmUrl from 'sql.js/dist/sql-wasm.wasm?url';
 import {
   StockItem,
@@ -73,59 +72,48 @@ class SqliteBridge {
     if (this.initPromise) return this.initPromise;
 
     this.initPromise = (async () => {
-      // 1. First priority: Initialize sql.js using self-contained inline WebAssembly.
-      // This eliminates external network requests, CORS, and WASM version mismatch errors.
-      try {
-        const sqlInstance = await initSqlJsInline();
-        if (sqlInstance) {
-          this.SQL = sqlInstance;
-          this.isWasmAvailable = true;
-        }
-      } catch (inlineErr) {
-        console.warn('[SQLite Bridge] Inline WebAssembly init deferred, attempting candidates:', inlineErr);
-      }
+      // 1. Prefer the locally bundled WASM file, which is also cached by the PWA service worker.
+      const wasmCandidates = [
+        sqlWasmUrl,
+        '/sql-wasm.wasm',
+        'https://cdn.jsdelivr.net/npm/sql.js@1.15.0/dist/sql-wasm.wasm',
+        'https://unpkg.com/sql.js@1.15.0/dist/sql-wasm.wasm',
+      ];
 
-      // 2. Secondary fallback: Pre-fetch verified 1.15.0 WASM binary
-      if (!this.SQL) {
-        const wasmCandidates = [
-          '/sql-wasm.wasm',
-          sqlWasmUrl,
-          'https://cdn.jsdelivr.net/npm/sql.js@1.15.0/dist/sql-wasm.wasm',
-          'https://unpkg.com/sql.js@1.15.0/dist/sql-wasm.wasm',
-        ];
+      for (const candidate of wasmCandidates) {
+        let timeoutId: ReturnType<typeof setTimeout> | undefined;
+        try {
+          const controller = new AbortController();
+          timeoutId = setTimeout(() => controller.abort(), 6000);
+          const response = await fetch(candidate, { signal: controller.signal });
+          clearTimeout(timeoutId);
+          timeoutId = undefined;
 
-        for (const candidate of wasmCandidates) {
-          try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 6000);
-            const response = await fetch(candidate, { signal: controller.signal });
-            clearTimeout(timeoutId);
-
-            if (response.ok) {
-              const wasmBinary = await response.arrayBuffer();
-              // Validate wasm magic bytes (0x00, 0x61, 0x73, 0x6D) to ensure it is not an HTML 404/challenge page
-              if (wasmBinary && wasmBinary.byteLength >= 4) {
-                const header = new Uint8Array(wasmBinary, 0, 4);
-                if (header[0] === 0x00 && header[1] === 0x61 && header[2] === 0x73 && header[3] === 0x6D) {
-                  const sqlInstance = await initSqlJs({
-                    wasmBinary,
-                    useOldExtensionFunctions: false,
-                  });
-                  if (sqlInstance) {
-                    this.SQL = sqlInstance;
-                    this.isWasmAvailable = true;
-                    break;
-                  }
+          if (response.ok) {
+            const wasmBinary = await response.arrayBuffer();
+            // Validate wasm magic bytes (0x00, 0x61, 0x73, 0x6D) to reject HTML error pages.
+            if (wasmBinary && wasmBinary.byteLength >= 4) {
+              const header = new Uint8Array(wasmBinary, 0, 4);
+              if (header[0] === 0x00 && header[1] === 0x61 && header[2] === 0x73 && header[3] === 0x6D) {
+                const sqlInstance = await initSqlJs({
+                  wasmBinary,
+                  useOldExtensionFunctions: false,
+                });
+                if (sqlInstance) {
+                  this.SQL = sqlInstance;
+                  this.isWasmAvailable = true;
+                  break;
                 }
               }
             }
-          } catch {
-            // Continue to next candidate cleanly
           }
+        } catch {
+          if (timeoutId !== undefined) clearTimeout(timeoutId);
+          // Continue to the next candidate.
         }
       }
 
-      // 3. Third fallback attempt using locateFile
+      // 2. Fallback attempt using locateFile.
       if (!this.SQL) {
         try {
           const sqlInstance = await initSqlJs({
@@ -138,6 +126,20 @@ class SqliteBridge {
           }
         } catch {
           // Resilient fallback store will handle below
+        }
+      }
+
+      // 3. Load the self-contained engine only when all external WASM candidates fail.
+      if (!this.SQL) {
+        try {
+          const { default: initSqlJsInline } = await import('sql.js/dist/sql-wasm-inline.js');
+          const sqlInstance = await initSqlJsInline();
+          if (sqlInstance) {
+            this.SQL = sqlInstance;
+            this.isWasmAvailable = true;
+          }
+        } catch (inlineErr) {
+          console.warn('[SQLite Bridge] Inline WebAssembly fallback unavailable:', inlineErr);
         }
       }
 

@@ -178,9 +178,8 @@ html {
   bottom: 0;
   z-index: 15 !important;
   transform: none !important;
-  background-color: #ecfdf5 !important;
-  border-left: 4px solid #059669 !important;
-  box-shadow: 0 4px 14px -2px rgba(16, 185, 129, 0.28), inset 0 1px 0 #a7f3d0, inset 0 -1px 0 #a7f3d0 !important;
+  background-color: #f0fdf4 !important;
+  box-shadow: inset 0 1px 0 #d1fae5, inset 0 -1px 0 #d1fae5 !important;
 }
 
 .stock-table-row.is-active td,
@@ -191,8 +190,8 @@ html {
   top: 2rem;
   bottom: 0;
   background-color: inherit;
-  border-top: 1px solid #a7f3d0 !important;
-  border-bottom: 1px solid #a7f3d0 !important;
+  border-top: 1px solid #d1fae5 !important;
+  border-bottom: 1px solid #d1fae5 !important;
   z-index: 15 !important;
 }
 
@@ -201,9 +200,8 @@ html {
 .dark .stock-table-row.is-selected,
 .dark .stock-table-row[data-active="true"],
 .dark .stock-table-row[data-selected="true"] {
-  background-color: #064e3b !important;
-  border-left: 4px solid #34d399 !important;
-  box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(52, 211, 153, 0.35), inset 0 -1px 0 rgba(52, 211, 153, 0.35) !important;
+  background-color: #112d27 !important;
+  box-shadow: inset 0 1px 0 rgba(52, 211, 153, 0.2), inset 0 -1px 0 rgba(52, 211, 153, 0.2) !important;
 }
 
 .dark .stock-table-row.is-active td,
@@ -211,8 +209,8 @@ html {
 .dark .stock-table-row[data-active="true"] td,
 .dark .stock-table-row[data-selected="true"] td {
   background-color: inherit;
-  border-top: 1px solid rgba(52, 211, 153, 0.35) !important;
-  border-bottom: 1px solid rgba(52, 211, 153, 0.35) !important;
+  border-top: 1px solid rgba(52, 211, 153, 0.2) !important;
+  border-bottom: 1px solid rgba(52, 211, 153, 0.2) !important;
 }
 
 /* 1. Visual hover effect that persists on the active/selected row */
@@ -220,16 +218,16 @@ html {
 .stock-table-row.is-selected:hover,
 .stock-table-row[data-active="true"]:hover,
 .stock-table-row[data-selected="true"]:hover {
-  background-color: #d1fae5 !important;
-  box-shadow: 0 6px 18px -2px rgba(16, 185, 129, 0.38), inset 0 1px 0 #6ee7b7, inset 0 -1px 0 #6ee7b7 !important;
+  background-color: #ecfdf5 !important;
+  box-shadow: 0 2px 8px -4px rgba(16, 185, 129, 0.2), inset 0 1px 0 #d1fae5, inset 0 -1px 0 #d1fae5 !important;
 }
 
 .dark .stock-table-row.is-active:hover,
 .dark .stock-table-row.is-selected:hover,
 .dark .stock-table-row[data-active="true"]:hover,
 .dark .stock-table-row[data-selected="true"]:hover {
-  background-color: #065f46 !important;
-  box-shadow: 0 6px 20px -2px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(52, 211, 153, 0.5), inset 0 -1px 0 rgba(52, 211, 153, 0.5) !important;
+  background-color: #173c34 !important;
+  box-shadow: 0 2px 8px -4px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(52, 211, 153, 0.25), inset 0 -1px 0 rgba(52, 211, 153, 0.25) !important;
 }
 
 /* Highly visible glowing keyboard navigation focus outline for .stock-table-row */

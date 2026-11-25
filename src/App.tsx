@@ -9,26 +9,27 @@ const VbaCodeHub = lazy(() => import('./components/vba/VbaCodeHub').then((module
 const SetupGuide = lazy(() => import('./components/guide/SetupGuide').then((module) => ({ default: module.SetupGuide })));
 const ExportCenter = lazy(() => import('./components/export/ExportCenter').then((module) => ({ default: module.ExportCenter })));
 const StyleGuide = lazy(() => import('./components/styleguide/StyleGuide').then((module) => ({ default: module.StyleGuide })));
-import { DocumentViewerModal, DisplayableDocument } from './components/simulator/DocumentViewerModal';
+const DocumentViewerModal = lazy(() => import('./components/simulator/DocumentViewerModal').then((module) => ({ default: module.DocumentViewerModal })));
+import type { DisplayableDocument } from './components/simulator/DocumentViewerModal';
 import { MovementLogEntry, IssuedDocument, ReceivedDocument, AdjustmentDocument, AdminUser } from './types';
 import { useSqliteProcurement } from './hooks/useSqliteProcurement';
 import { Database, Loader2, Sparkles, RefreshCw, X } from 'lucide-react';
 import { ToastProvider, useToast } from './context/ToastContext';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
-import { KeyboardShortcutsModal } from './components/common/KeyboardShortcutsModal';
+const KeyboardShortcutsModal = lazy(() => import('./components/common/KeyboardShortcutsModal').then((module) => ({ default: module.KeyboardShortcutsModal })));
 import { usePwaInstall } from './hooks/usePwaInstall';
 import { useAppBadging } from './hooks/useAppBadging';
 import { usePushNotifications } from './hooks/usePushNotifications';
 import { PWAInstallButton } from './components/pwa/PWAInstallButton';
-import { CrossPlatformInstallModal } from './components/pwa/CrossPlatformInstallModal';
-import { SharedDocumentVaultModal } from './components/collaboration/SharedDocumentVaultModal';
+const CrossPlatformInstallModal = lazy(() => import('./components/pwa/CrossPlatformInstallModal').then((module) => ({ default: module.CrossPlatformInstallModal })));
+const SharedDocumentVaultModal = lazy(() => import('./components/collaboration/SharedDocumentVaultModal').then((module) => ({ default: module.SharedDocumentVaultModal })));
 import { LandingLoginPage } from './components/layout/LandingLoginPage';
 import { StickyTopHeader } from './components/layout/StickyTopHeader';
 import { SidebarAccordionNav, SidebarAction } from './components/layout/SidebarAccordionNav';
-import { AccountDetailsModal } from './components/auth/AccountDetailsModal';
+const AccountDetailsModal = lazy(() => import('./components/auth/AccountDetailsModal').then((module) => ({ default: module.AccountDetailsModal })));
 const ExecutiveDashboardView = lazy(() => import('./components/dashboard/ExecutiveDashboardView').then((module) => ({ default: module.ExecutiveDashboardView })));
 import { UsageTrendProvider } from './context/UsageTrendContext';
-import { BackupRemindersModal } from './components/simulator/BackupRemindersModal';
+const BackupRemindersModal = lazy(() => import('./components/simulator/BackupRemindersModal').then((module) => ({ default: module.BackupRemindersModal })));
 import { authApi } from './api/inventoryApi';
 import {
   BackupReminderSettings,
@@ -962,69 +963,91 @@ function AppContent() {
 
           {/* Audit Log Document Viewer Modal (Requisition/GRN/Adj Form with Print Preview & Official Logo) */}
           {selectedAuditMovementDoc && (
-            <DocumentViewerModal
-              document={selectedAuditMovementDoc}
-              onClose={() => setSelectedAuditMovementDoc(null)}
-            />
+            <Suspense fallback={null}>
+              <DocumentViewerModal
+                document={selectedAuditMovementDoc}
+                onClose={() => setSelectedAuditMovementDoc(null)}
+              />
+            </Suspense>
           )}
 
           {/* Global Keyboard Shortcuts Help Modal */}
-          <KeyboardShortcutsModal
-            isOpen={isShortcutsModalOpen}
-            onClose={() => setIsShortcutsModalOpen(false)}
-          />
+          {isShortcutsModalOpen && (
+            <Suspense fallback={null}>
+              <KeyboardShortcutsModal
+                isOpen={isShortcutsModalOpen}
+                onClose={() => setIsShortcutsModalOpen(false)}
+              />
+            </Suspense>
+          )}
 
           {/* Cross-Platform Windows / Mac / Linux PWA Installation Modal */}
-          <CrossPlatformInstallModal
-            isOpen={isInstallModalOpen}
-            onClose={() => setIsInstallModalOpen(false)}
-            onDirectInstall={triggerInstall}
-            isInstallable={isInstallable}
-            isInstalled={isInstalled}
-          />
+          {isInstallModalOpen && (
+            <Suspense fallback={null}>
+              <CrossPlatformInstallModal
+                isOpen={isInstallModalOpen}
+                onClose={() => setIsInstallModalOpen(false)}
+                onDirectInstall={triggerInstall}
+                isInstallable={isInstallable}
+                isInstalled={isInstalled}
+              />
+            </Suspense>
+          )}
 
           {/* Centralized Cloud Document & File Vault Modal */}
-          <SharedDocumentVaultModal
-            isOpen={isVaultModalOpen}
-            onClose={() => setIsVaultModalOpen(false)}
-            issuedDocs={issuedDocs}
-            receivedDocs={receivedDocs}
-            adjustmentDocs={adjustmentDocs}
-            backups={backups}
-            stockItems={stockItems}
-            masterFolderPath={masterFolderPath}
-            onViewDoc={(doc) => setSelectedAuditMovementDoc(doc)}
-          />
+          {isVaultModalOpen && (
+            <Suspense fallback={null}>
+              <SharedDocumentVaultModal
+                isOpen={isVaultModalOpen}
+                onClose={() => setIsVaultModalOpen(false)}
+                issuedDocs={issuedDocs}
+                receivedDocs={receivedDocs}
+                adjustmentDocs={adjustmentDocs}
+                backups={backups}
+                stockItems={stockItems}
+                masterFolderPath={masterFolderPath}
+                onViewDoc={(doc) => setSelectedAuditMovementDoc(doc)}
+              />
+            </Suspense>
+          )}
 
           {/* User Account Details & Password Change Modal */}
-          <AccountDetailsModal
-            isOpen={isAccountModalOpen}
-            currentUser={currentUser}
-            onClose={() => setIsAccountModalOpen(false)}
-            onChangePassword={async (currentPassword, newPassword) => {
-              await authApi.changePassword(currentPassword, newPassword);
-              setCurrentUser(null);
-              setIsAccountModalOpen(false);
-              setIsLoginModalOpen(true);
-            }}
-            onShowToast={(title, type) => showToast(title, type)}
-          />
+          {isAccountModalOpen && (
+            <Suspense fallback={null}>
+              <AccountDetailsModal
+                isOpen={isAccountModalOpen}
+                currentUser={currentUser}
+                onClose={() => setIsAccountModalOpen(false)}
+                onChangePassword={async (currentPassword, newPassword) => {
+                  await authApi.changePassword(currentPassword, newPassword);
+                  setCurrentUser(null);
+                  setIsAccountModalOpen(false);
+                  setIsLoginModalOpen(true);
+                }}
+                onShowToast={(title, type) => showToast(title, type)}
+              />
+            </Suspense>
+          )}
 
           {/* Backup Reminders Settings & Manual Backup Modal */}
-          <BackupRemindersModal
-            isOpen={isBackupRemindersModalOpen}
-            onClose={() => setIsBackupRemindersModalOpen(false)}
-            settings={backupReminderSettings}
-            onUpdateSettings={handleUpdateBackupReminderSettings}
-            backups={backups}
-            currentUser={currentUser}
-            onTriggerManualBackup={(note) => handleCreateBackupWithToast('MANUAL', note)}
-            onCheckReminderNow={() => triggerBackupReminderToast(true)}
-            onOpenBackupVault={() => {
-              setActiveTab('simulator');
-              setExternalSimulatorAction({ type: 'OPEN_MODAL', modal: 'backupRecovery' });
-            }}
-          />
+          {isBackupRemindersModalOpen && (
+            <Suspense fallback={null}>
+              <BackupRemindersModal
+                isOpen={isBackupRemindersModalOpen}
+                onClose={() => setIsBackupRemindersModalOpen(false)}
+                settings={backupReminderSettings}
+                onUpdateSettings={handleUpdateBackupReminderSettings}
+                backups={backups}
+                currentUser={currentUser}
+                onTriggerManualBackup={(note) => handleCreateBackupWithToast('MANUAL', note)}
+                onCheckReminderNow={() => triggerBackupReminderToast(true)}
+                onOpenBackupVault={() => {
+                  setActiveTab('simulator');
+                  setExternalSimulatorAction({ type: 'OPEN_MODAL', modal: 'backupRecovery' });
+                }}
+              />
+            </Suspense>
+          )}
         </main>
 
         {/* Smooth Cross-Fade Veil Fallback for Environments Without View Transitions API */}
