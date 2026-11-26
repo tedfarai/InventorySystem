@@ -311,10 +311,15 @@ async function startServer() {
     return `inventory_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSeconds}`;
   };
 
-  app.get('/api/auth/users', (_req: Request, res: Response) => {
+  app.get('/api/auth/users', (req: Request, res: Response) => {
+    if (inventory.needsInitialSetup()) {
+      res.json({ users: [], needsSetup: true });
+      return;
+    }
+    if (!requireSuperiorAdmin(req, res)) return;
     res.json({
       users: inventory.listUsers().filter((user) => user.Active),
-      needsSetup: inventory.needsInitialSetup(),
+      needsSetup: false,
     });
   });
 
@@ -472,8 +477,15 @@ async function startServer() {
     }
   });
 
-  app.get('/api/state', (_req: Request, res: Response) => {
-    res.json(inventory.getState());
+  app.get('/api/state', (req: Request, res: Response) => {
+    const user = requireUser(req, res);
+    if (!user) return;
+    const result = inventory.getState();
+    if (user.IssuerID !== 'ADM001') {
+      result.state.admins = [];
+      result.state.backups = [];
+    }
+    res.json(result);
   });
 
   app.put('/api/state', async (req: Request, res: Response) => {
