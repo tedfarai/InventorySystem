@@ -1,5 +1,4 @@
 import React from 'react';
-import { motion, AnimatePresence } from 'motion/react';
 import {
   PackageCheck,
   SlidersHorizontal,
@@ -9,8 +8,10 @@ import {
   Send,
   Edit3,
   Download,
-  ListPlus,
   Plus,
+  Move,
+  ArrowRight,
+  Lock,
 } from 'lucide-react';
 import { StockItem, StockAdjustmentRequest, AdminUser } from '../../types';
 import { DraggableResizableModal } from '../common/DraggableResizableModal';
@@ -56,15 +57,12 @@ export const StockItemContextMenuModal: React.FC<StockItemContextMenuModalProps>
   onAddToList,
   adjustmentRequests = [],
   currentUser,
-  position,
 }) => {
   if (!isOpen || !item) return null;
 
-  // Active items in context: if multiple items are selected and include this item, treat all selected items as the target set
   const isMultipleSelected = selectedItems.length >= 2 && selectedItems.some((s) => s.ItemID === item.ItemID);
   const targetItems = isMultipleSelected ? selectedItems : [item];
 
-  // Check if an existing adjustment request with status 'PENDING' is detected in the state
   const safeRequests = Array.isArray(adjustmentRequests) ? adjustmentRequests : [];
   const pendingAdjustmentInState = safeRequests.find((req) => req?.status === 'PENDING');
   const pendingAdjustmentForItem = safeRequests.find(
@@ -74,267 +72,391 @@ export const StockItemContextMenuModal: React.FC<StockItemContextMenuModalProps>
       req.items.some((i) => i?.ItemID === item.ItemID)
   );
 
-  // Check if current user has an unapproved pending adjustment
   const userHasPendingAdjustment = currentUser
-    ? safeRequests.find(
-        (r) => r?.requesterId === currentUser.IssuerID && r?.status === 'PENDING'
-      )
+    ? safeRequests.find((r) => r?.requesterId === currentUser.IssuerID && r?.status === 'PENDING')
     : undefined;
 
-  // 'Add to Adjustment' option MUST be disabled if an existing adjustment request with status 'PENDING' is detected in the state
   const isAdjustmentDisabled = Boolean(pendingAdjustmentInState || pendingAdjustmentForItem || userHasPendingAdjustment);
+
+  const hasActiveWorkflowLists =
+    existingReceivingList.length > 0 ||
+    existingIssueList.length > 0 ||
+    existingEditList.length > 0 ||
+    (existingAdjustmentList.length > 0 && !isAdjustmentDisabled);
+
+  const viewportW = typeof window !== 'undefined' ? window.innerWidth : 1024;
+  const viewportH = typeof window !== 'undefined' ? window.innerHeight : 768;
+  const modalWidth = Math.min(396, Math.max(320, viewportW - 24));
+  const modalHeight = Math.min(hasActiveWorkflowLists ? 580 : 495, Math.max(320, viewportH - 24));
 
   return (
     <DraggableResizableModal
+      isOpen={isOpen}
       onClose={onClose}
       modalId={`stock-item-context-menu-${item.ItemID}`}
-      initialWidth={Math.min(760, Math.max(380, Math.round(window.innerWidth * 0.70)))}
-      initialHeight={Math.min(580, Math.max(320, Math.round(window.innerHeight * 0.60)))}
-      initialPosition={position}
+      aria-label={`Quick actions for ${item.ItemName}`}
+      initialWidth={modalWidth}
+      initialHeight={modalHeight}
+      initialPosition={null}
       minWidth={320}
-      minHeight={180}
-      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden m-auto"
+      minHeight={300}
+      showControls={false}
+      className="w-full bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-700 rounded-2xl shadow-2xl overflow-hidden text-xs font-sans text-slate-800 dark:text-slate-200"
     >
-      {/* Header with Item Context */}
-      <div
-        data-drag-handle="true"
-        className="p-3.5 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700/80 flex items-center justify-between cursor-grab active:cursor-grabbing select-none"
-      >
-        <div className="flex items-center space-x-2.5 min-w-0">
-          <div className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
-            <Package className="w-4 h-4" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="font-mono text-[11px] font-bold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-950/80 px-1.5 py-0.2 rounded">
-                {item.ItemID}
-              </span>
-              <span className="text-[10px] font-bold uppercase font-mono px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
-                {item.Category}
-              </span>
-              {isMultipleSelected && (
-                <span className="text-[9px] font-bold px-1.5 py-0.2 bg-teal-100 dark:bg-teal-900/60 text-teal-700 dark:text-teal-300 rounded font-mono">
-                  {selectedItems.length} Selected
-                </span>
-              )}
+      <div className="flex flex-col h-full min-h-0 p-3 sm:p-4">
+        {/* Draggable Header (matches Table View Options styling) */}
+        <div
+          data-drag-handle="true"
+          className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-200 dark:border-slate-800 cursor-grab active:cursor-grabbing select-none shrink-0"
+          title="Drag header to move popup anywhere on screen"
+        >
+          <div className="flex items-center space-x-2 min-w-0">
+            <div className="p-1.5 rounded-lg bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 shrink-0">
+              <Package className="w-4 h-4" />
             </div>
-            <h3 className="text-xs font-bold text-slate-900 dark:text-white truncate mt-0.5">
-              {item.ItemName}
-            </h3>
+            <div className="min-w-0">
+              <h4 className="font-bold text-slate-900 dark:text-white text-xs truncate">
+                {item.ItemName}
+              </h4>
+              <p className="text-[10.5px] text-slate-500 dark:text-slate-400 font-mono truncate">
+                {item.ItemID} · {item.Category}
+                {isMultipleSelected ? ` · ${selectedItems.length} selected` : ''}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-1 shrink-0 ml-2">
+            <span
+              className="hidden sm:inline-flex items-center text-[10px] text-slate-400 dark:text-slate-500 pr-1 pointer-events-none"
+              aria-hidden="true"
+            >
+              <Move className="w-3.5 h-3.5" />
+            </span>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              title="Close quick actions"
+              aria-label="Close"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         </div>
-        <button
-          onClick={onClose}
-          className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer transition"
-          aria-label="Close"
-        >
-          <X className="w-4 h-4" />
-        </button>
-      </div>
 
-      {/* Current Balances */}
-      <div className="p-3 bg-white dark:bg-slate-900 space-y-2.5 flex-1 min-h-0 overflow-y-auto">
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="p-2 bg-slate-50 dark:bg-slate-800/70 rounded-xl border border-slate-200 dark:border-slate-700">
-              <span className="text-[9px] uppercase font-bold text-slate-400">Available Qty</span>
-              <div className="text-sm font-extrabold text-slate-900 dark:text-white mt-0.5">
-                {item.Qty} <span className="text-[10px] font-normal text-slate-500">{item.Unit}</span>
+        {/* Scrollable Content */}
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-0.5">
+          {/* Compact Stock Snapshot */}
+          <div className="p-2.5 bg-slate-50 dark:bg-slate-950/60 rounded-xl border border-slate-200 dark:border-slate-800">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <span className="block text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Available Qty
+                </span>
+                <span className="text-sm font-extrabold font-mono tabular-nums text-slate-900 dark:text-white">
+                  {item.Qty}{' '}
+                  <span className="text-[10.5px] font-sans font-normal text-slate-500 dark:text-slate-400">
+                    {item.Unit}
+                  </span>
+                </span>
               </div>
-            </div>
-            <div className="p-2 bg-slate-50 dark:bg-slate-800/70 rounded-xl border border-slate-200 dark:border-slate-700">
-              <span className="text-[9px] uppercase font-bold text-slate-400">Reorder Level</span>
-              <div className="text-sm font-extrabold text-slate-900 dark:text-white mt-0.5">
-                {item.ReorderLevel}{' '}
-                <span className="text-[10px] font-normal text-slate-500">{item.Unit}</span>
+              <div>
+                <span className="block text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Reorder Level
+                </span>
+                <span className="text-sm font-extrabold font-mono tabular-nums text-slate-900 dark:text-white">
+                  {item.ReorderLevel}{' '}
+                  <span className="text-[10.5px] font-sans font-normal text-slate-500 dark:text-slate-400">
+                    {item.Unit}
+                  </span>
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Active Lists Prompt (If any in-progress receiving, editing, or adjustment list exists) */}
-          {(existingReceivingList.length > 0 ||
-            existingIssueList.length > 0 ||
-            existingEditList.length > 0 ||
-            existingAdjustmentList.length > 0) && (
-            <div className="p-3 bg-indigo-50/90 dark:bg-indigo-950/70 border border-indigo-300 dark:border-indigo-700/80 rounded-xl space-y-2">
-              <div className="flex items-center space-x-1.5 text-xs font-bold text-indigo-950 dark:text-indigo-200">
-                <ListPlus className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
-                <span>Active Workflow Lists Detected</span>
+          {/* Primary Action Rows (mirrors Table View Options row structure) */}
+          <div className="space-y-1.5">
+            <div className="text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
+              <span>Quick Actions:</span>
+              <span className="text-[9px] font-normal lowercase text-slate-400">click to open</span>
+            </div>
+
+            {/* 1. Receive */}
+            <button
+              type="button"
+              id={isMultipleSelected ? 'context-menu-bulk-receive' : 'context-menu-quick-receive'}
+              title={isMultipleSelected ? 'Open interactive bulk stock grid entry' : `Receive stock for ${item.ItemID}`}
+              onClick={() => {
+                onClose();
+                onQuickReceive(targetItems, isMultipleSelected ? 'bulkGrid' : 'single');
+              }}
+              className="w-full flex items-center justify-between p-2 rounded-xl border bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-teal-400 dark:hover:border-teal-500 hover:bg-slate-50 dark:hover:bg-slate-800/80 cursor-pointer transition select-none text-left group"
+            >
+              <div className="flex items-center space-x-2.5 min-w-0">
+                <div className="p-1.5 rounded-lg bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 shrink-0">
+                  <PackageCheck className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <span className="font-semibold text-xs text-slate-900 dark:text-white block truncate">
+                    {isMultipleSelected ? 'Bulk Receive' : 'Receive'}
+                  </span>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                    {isMultipleSelected
+                      ? `Receive ${targetItems.length} selected items (BRV)`
+                      : 'Record incoming delivery (GRN)'}
+                  </p>
+                </div>
               </div>
-              <p className="text-[11px] text-indigo-800 dark:text-indigo-300 leading-snug">
-                Would you like to add <strong className="font-mono">[{item.ItemID}]</strong> to an existing active list?
-              </p>
+              <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-teal-600 dark:group-hover:text-teal-400 group-hover:translate-x-0.5 transition shrink-0 ml-2" />
+            </button>
 
-              <div className="grid grid-cols-1 gap-1.5 pt-0.5">
-                {existingReceivingList.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onClose();
-                      onAddToList?.('receiving', targetItems);
-                    }}
-                    className="w-full text-left p-2 bg-white dark:bg-slate-900 hover:bg-sky-50 dark:hover:bg-sky-950/80 border border-sky-300 dark:border-sky-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 flex items-center justify-between group transition cursor-pointer shadow-2xs"
-                  >
-                    <span className="flex items-center gap-1.5 truncate">
-                      <PackageCheck className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                      <span className="truncate">Add to Receiving Manifest ({existingReceivingList.length} items)</span>
-                    </span>
-                    <Plus className="w-3.5 h-3.5 text-sky-600 group-hover:scale-125 transition-transform shrink-0 ml-1" />
-                  </button>
-                )}
-
-                {existingIssueList.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onClose();
-                      onAddToList?.('issue', targetItems);
-                    }}
-                    className="w-full text-left p-2 bg-white dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-emerald-950/80 border border-emerald-300 dark:border-emerald-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 flex items-center justify-between group transition cursor-pointer shadow-2xs"
-                  >
-                    <span className="flex items-center gap-1.5 truncate">
-                      <Send className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                      <span className="truncate">Add to Requisition Issue Cart ({existingIssueList.length} items)</span>
-                    </span>
-                    <Plus className="w-3.5 h-3.5 text-emerald-600 group-hover:scale-125 transition-transform shrink-0 ml-1" />
-                  </button>
-                )}
-
-                {existingEditList.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onClose();
-                      onAddToList?.('editing', targetItems);
-                    }}
-                    className="w-full text-left p-2 bg-white dark:bg-slate-900 hover:bg-purple-50 dark:hover:bg-purple-950/80 border border-purple-300 dark:border-purple-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 flex items-center justify-between group transition cursor-pointer shadow-2xs"
-                  >
-                    <span className="flex items-center gap-1.5 truncate">
-                      <Edit3 className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                      <span className="truncate">Add to Batch Edit Selection ({existingEditList.length} items)</span>
-                    </span>
-                    <Plus className="w-3.5 h-3.5 text-purple-600 group-hover:scale-125 transition-transform shrink-0 ml-1" />
-                  </button>
-                )}
-
-                {existingAdjustmentList.length > 0 && !isAdjustmentDisabled && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onClose();
-                      onAddToList?.('adjustment', targetItems);
-                    }}
-                    className="w-full text-left p-2 bg-white dark:bg-slate-900 hover:bg-amber-50 dark:hover:bg-amber-950/80 border border-amber-300 dark:border-amber-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 flex items-center justify-between group transition cursor-pointer shadow-2xs"
-                  >
-                    <span className="flex items-center gap-1.5 truncate">
-                      <SlidersHorizontal className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                      <span className="truncate">Add to Adjustment Draft ({existingAdjustmentList.length} items)</span>
-                    </span>
-                    <Plus className="w-3.5 h-3.5 text-amber-600 group-hover:scale-125 transition-transform shrink-0 ml-1" />
-                  </button>
-                )}
+            {/* 2. Issue Out */}
+            <button
+              type="button"
+              id={isMultipleSelected ? 'context-menu-bulk-issue' : 'context-menu-quick-issue'}
+              title={isMultipleSelected ? 'Create an issue request for selected items' : `Issue ${item.ItemID}`}
+              onClick={() => {
+                onClose();
+                onQuickIssue(targetItems);
+              }}
+              className="w-full flex items-center justify-between p-2 rounded-xl border bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-teal-400 dark:hover:border-teal-500 hover:bg-slate-50 dark:hover:bg-slate-800/80 cursor-pointer transition select-none text-left group"
+            >
+              <div className="flex items-center space-x-2.5 min-w-0">
+                <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 shrink-0">
+                  <Send className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <span className="font-semibold text-xs text-slate-900 dark:text-white block truncate">
+                    {isMultipleSelected ? 'Bulk Issue' : 'Issue Out'}
+                  </span>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                    {isMultipleSelected
+                      ? `Issue ${targetItems.length} selected items (SIV)`
+                      : 'Dispatch stock to a department (SIV)'}
+                  </p>
+                </div>
               </div>
+              <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-teal-600 dark:group-hover:text-teal-400 group-hover:translate-x-0.5 transition shrink-0 ml-2" />
+            </button>
+
+            {/* 3. Edit Item */}
+            <button
+              type="button"
+              id={isMultipleSelected ? 'context-menu-bulk-stock-edit' : 'context-menu-quick-edit'}
+              title={isMultipleSelected ? `Edit ${targetItems.length} selected items` : `Edit ${item.ItemID}`}
+              onClick={() => {
+                onClose();
+                if (isMultipleSelected && onBulkStockEdit) onBulkStockEdit(targetItems);
+                else onQuickEdit(item);
+              }}
+              className="w-full flex items-center justify-between p-2 rounded-xl border bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-teal-400 dark:hover:border-teal-500 hover:bg-slate-50 dark:hover:bg-slate-800/80 cursor-pointer transition select-none text-left group"
+            >
+              <div className="flex items-center space-x-2.5 min-w-0">
+                <div className="p-1.5 rounded-lg bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 shrink-0">
+                  <Edit3 className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <span className="font-semibold text-xs text-slate-900 dark:text-white block truncate">
+                    {isMultipleSelected ? 'Bulk Edit' : 'Edit Item'}
+                  </span>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                    {isMultipleSelected
+                      ? `Batch update ${targetItems.length} selected items`
+                      : 'Update item name, pricing, and threshold'}
+                  </p>
+                </div>
+              </div>
+              <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-teal-600 dark:group-hover:text-teal-400 group-hover:translate-x-0.5 transition shrink-0 ml-2" />
+            </button>
+
+            {/* 4. Export CSV */}
+            <button
+              type="button"
+              id="context-menu-export-item"
+              title={isMultipleSelected ? 'Export selected items to CSV' : `Export ${item.ItemID} to CSV`}
+              onClick={() => {
+                onClose();
+                onExportItem(targetItems);
+              }}
+              className="w-full flex items-center justify-between p-2 rounded-xl border bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-teal-400 dark:hover:border-teal-500 hover:bg-slate-50 dark:hover:bg-slate-800/80 cursor-pointer transition select-none text-left group"
+            >
+              <div className="flex items-center space-x-2.5 min-w-0">
+                <div className="p-1.5 rounded-lg bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 shrink-0">
+                  <Download className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <span className="font-semibold text-xs text-slate-900 dark:text-white block truncate">
+                    Export CSV
+                  </span>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                    {isMultipleSelected
+                      ? `Download ${targetItems.length} selected rows as CSV`
+                      : `Download ${item.ItemID} stock details as CSV`}
+                  </p>
+                </div>
+              </div>
+              <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-teal-600 dark:group-hover:text-teal-400 group-hover:translate-x-0.5 transition shrink-0 ml-2" />
+            </button>
+
+            {/* 5. Adjust Stock */}
+            <button
+              type="button"
+              id={isMultipleSelected ? 'context-menu-bulk-request-adjustment' : 'context-menu-add-adjustment'}
+              disabled={isAdjustmentDisabled}
+              title={isAdjustmentDisabled ? 'A pending adjustment request already exists' : 'Open stock adjustment workflow'}
+              onClick={() => {
+                if (isAdjustmentDisabled) return;
+                onClose();
+                if (isMultipleSelected && onBulkAdjustment) onBulkAdjustment(targetItems);
+                else onQuickAdjust(item);
+              }}
+              className={`w-full flex items-center justify-between p-2 rounded-xl border transition select-none text-left group ${
+                isAdjustmentDisabled
+                  ? 'bg-slate-100/70 dark:bg-slate-950/60 border-dashed border-slate-300 dark:border-slate-800 opacity-60 cursor-not-allowed'
+                  : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-teal-400 dark:hover:border-teal-500 hover:bg-slate-50 dark:hover:bg-slate-800/80 cursor-pointer'
+              }`}
+            >
+              <div className="flex items-center space-x-2.5 min-w-0">
+                <div className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 shrink-0">
+                  <SlidersHorizontal className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <span className="font-semibold text-xs text-slate-900 dark:text-white block truncate">
+                    {isMultipleSelected ? 'Bulk Adjust' : 'Adjust Stock'}
+                  </span>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                    {isAdjustmentDisabled
+                      ? 'Locked while pending adjustment is active'
+                      : 'Record physical count & variance adjustment'}
+                  </p>
+                </div>
+              </div>
+              {isAdjustmentDisabled ? (
+                <Lock className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-2" />
+              ) : (
+                <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-teal-600 dark:group-hover:text-teal-400 group-hover:translate-x-0.5 transition shrink-0 ml-2" />
+              )}
+            </button>
+          </div>
+
+          {/* Pending Adjustment Notice */}
+          {isAdjustmentDisabled && (
+            <div className="p-2 bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800/80 rounded-xl text-[10.5px] text-amber-800 dark:text-amber-200 flex items-start gap-2">
+              <ShieldAlert className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <span>An active pending stock adjustment request prevents another adjustment.</span>
             </div>
           )}
 
-          {/* Quick Actions */}
-          <div className="space-y-2 pt-1">
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              Quick Actions &amp; Direct Entry:
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
-              <button
-                type="button"
-                id={isMultipleSelected ? 'context-menu-bulk-receive' : 'context-menu-quick-receive'}
-                title={isMultipleSelected ? 'Open interactive bulk stock grid entry' : `Receive stock for ${item.ItemID}`}
-                onClick={() => {
-                  onClose();
-                  onQuickReceive(targetItems, isMultipleSelected ? 'bulkGrid' : 'single');
-                }}
-                className="min-h-[76px] p-2 rounded-xl border border-sky-200 dark:border-sky-800 bg-white dark:bg-slate-800/90 hover:bg-sky-50 dark:hover:bg-sky-950/50 text-sky-700 dark:text-sky-300 flex flex-col items-center justify-center gap-1.5 text-[10px] font-bold transition cursor-pointer"
-              >
-                <PackageCheck className="w-5 h-5" />
-                <span>{isMultipleSelected ? 'Bulk Receive' : 'Receive'}</span>
-              </button>
-              <button
-                type="button"
-                id={isMultipleSelected ? 'context-menu-bulk-issue' : 'context-menu-quick-issue'}
-                title={isMultipleSelected ? 'Create an issue request for selected items' : `Issue ${item.ItemID}`}
-                onClick={() => {
-                  onClose();
-                  onQuickIssue(targetItems);
-                }}
-                className="min-h-[76px] p-2 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-800/90 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 flex flex-col items-center justify-center gap-1.5 text-[10px] font-bold transition cursor-pointer"
-              >
-                <Send className="w-5 h-5" />
-                <span>{isMultipleSelected ? 'Bulk Issue' : 'Issue Out'}</span>
-              </button>
-              <button
-                type="button"
-                id={isMultipleSelected ? 'context-menu-bulk-stock-edit' : 'context-menu-quick-edit'}
-                title={isMultipleSelected ? `Edit ${targetItems.length} selected items` : `Edit ${item.ItemID}`}
-                onClick={() => {
-                  onClose();
-                  if (isMultipleSelected && onBulkStockEdit) onBulkStockEdit(targetItems);
-                  else onQuickEdit(item);
-                }}
-                className="min-h-[76px] p-2 rounded-xl border border-purple-200 dark:border-purple-800 bg-white dark:bg-slate-800/90 hover:bg-purple-50 dark:hover:bg-purple-950/50 text-purple-700 dark:text-purple-300 flex flex-col items-center justify-center gap-1.5 text-[10px] font-bold transition cursor-pointer"
-              >
-                <Edit3 className="w-5 h-5" />
-                <span>{isMultipleSelected ? 'Bulk Edit' : 'Edit Item'}</span>
-              </button>
-              <button
-                type="button"
-                id="context-menu-export-item"
-                title={isMultipleSelected ? 'Export selected items to CSV' : `Export ${item.ItemID} to CSV`}
-                onClick={() => {
-                  onClose();
-                  onExportItem(targetItems);
-                }}
-                className="min-h-[76px] p-2 rounded-xl border border-teal-200 dark:border-teal-800 bg-white dark:bg-slate-800/90 hover:bg-teal-50 dark:hover:bg-teal-950/50 text-teal-700 dark:text-teal-300 flex flex-col items-center justify-center gap-1.5 text-[10px] font-bold transition cursor-pointer"
-              >
-                <Download className="w-5 h-5" />
-                <span>Export CSV</span>
-              </button>
-              <button
-                type="button"
-                id={isMultipleSelected ? 'context-menu-bulk-request-adjustment' : 'context-menu-add-adjustment'}
-                disabled={isAdjustmentDisabled}
-                title={isAdjustmentDisabled ? 'A pending adjustment request already exists' : 'Open stock adjustment workflow'}
-                onClick={() => {
-                  if (isAdjustmentDisabled) return;
-                  onClose();
-                  if (isMultipleSelected && onBulkAdjustment) onBulkAdjustment(targetItems);
-                  else onQuickAdjust(item);
-                }}
-                className={`min-h-[76px] p-2 rounded-xl border flex flex-col items-center justify-center gap-1.5 text-[10px] font-bold transition ${
-                  isAdjustmentDisabled
-                    ? 'bg-slate-100 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-400 cursor-not-allowed opacity-60'
-                    : 'bg-white dark:bg-slate-800/90 hover:bg-amber-50 dark:hover:bg-amber-950/50 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 cursor-pointer'
-                }`}
-              >
-                <SlidersHorizontal className="w-5 h-5" />
-                <span>{isMultipleSelected ? 'Bulk Adjust' : 'Adjust Stock'}</span>
-              </button>
-            </div>
-            {isAdjustmentDisabled && (
-              <div className="p-2 bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800/80 rounded-lg text-[10px] text-amber-800 dark:text-amber-200 flex items-start gap-1.5">
-                <ShieldAlert className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                <span>An active pending stock adjustment request prevents another adjustment.</span>
+          {/* Active Workflow Lists (when queues already exist) */}
+          {hasActiveWorkflowLists && (
+            <div className="space-y-1.5">
+              <div className="text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
+                <span>Add To Active List:</span>
+                <span className="text-[9px] font-normal lowercase text-slate-400">in progress</span>
               </div>
-            )}
-          </div>
+
+              {existingReceivingList.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onAddToList?.('receiving', targetItems);
+                  }}
+                  className="w-full flex items-center justify-between p-2 rounded-xl border bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-teal-400 cursor-pointer transition select-none text-left group"
+                >
+                  <div className="flex items-center space-x-2.5 min-w-0">
+                    <div className="p-1.5 rounded-lg bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 shrink-0">
+                      <PackageCheck className="w-3.5 h-3.5" />
+                    </div>
+                    <span className="font-semibold text-xs text-slate-900 dark:text-white truncate">
+                      Receiving Manifest ({existingReceivingList.length})
+                    </span>
+                  </div>
+                  <Plus className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0 ml-2" />
+                </button>
+              )}
+
+              {existingIssueList.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onAddToList?.('issue', targetItems);
+                  }}
+                  className="w-full flex items-center justify-between p-2 rounded-xl border bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-teal-400 cursor-pointer transition select-none text-left group"
+                >
+                  <div className="flex items-center space-x-2.5 min-w-0">
+                    <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 shrink-0">
+                      <Send className="w-3.5 h-3.5" />
+                    </div>
+                    <span className="font-semibold text-xs text-slate-900 dark:text-white truncate">
+                      Issue Requisition Cart ({existingIssueList.length})
+                    </span>
+                  </div>
+                  <Plus className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0 ml-2" />
+                </button>
+              )}
+
+              {existingEditList.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onAddToList?.('editing', targetItems);
+                  }}
+                  className="w-full flex items-center justify-between p-2 rounded-xl border bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-teal-400 cursor-pointer transition select-none text-left group"
+                >
+                  <div className="flex items-center space-x-2.5 min-w-0">
+                    <div className="p-1.5 rounded-lg bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 shrink-0">
+                      <Edit3 className="w-3.5 h-3.5" />
+                    </div>
+                    <span className="font-semibold text-xs text-slate-900 dark:text-white truncate">
+                      Batch Edit Selection ({existingEditList.length})
+                    </span>
+                  </div>
+                  <Plus className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0 ml-2" />
+                </button>
+              )}
+
+              {existingAdjustmentList.length > 0 && !isAdjustmentDisabled && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onAddToList?.('adjustment', targetItems);
+                  }}
+                  className="w-full flex items-center justify-between p-2 rounded-xl border bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-teal-400 cursor-pointer transition select-none text-left group"
+                >
+                  <div className="flex items-center space-x-2.5 min-w-0">
+                    <div className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 shrink-0">
+                      <SlidersHorizontal className="w-3.5 h-3.5" />
+                    </div>
+                    <span className="font-semibold text-xs text-slate-900 dark:text-white truncate">
+                      Adjustment Draft ({existingAdjustmentList.length})
+                    </span>
+                  </div>
+                  <Plus className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0 ml-2" />
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Footer */}
-        <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-200 dark:border-slate-800 flex justify-end">
+        {/* Footer (matches Table View Options styling) */}
+        <div className="flex items-center justify-between pt-2.5 mt-2.5 border-t border-slate-200 dark:border-slate-800 text-[10.5px] shrink-0">
+          <span className="text-slate-400 dark:text-slate-500 flex items-center gap-1">
+            <Move className="w-3 h-3 text-slate-400" />
+            Drag header to move
+          </span>
           <button
             type="button"
             onClick={onClose}
-            className="px-3 py-1 text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg cursor-pointer transition"
+            className="px-3 py-1 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg transition cursor-pointer"
           >
-            Dismiss
+            Done
           </button>
         </div>
+      </div>
     </DraggableResizableModal>
   );
 };

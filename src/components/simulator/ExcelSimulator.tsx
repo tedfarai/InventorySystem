@@ -375,7 +375,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
       setSelectedStockItemIds([item.ItemID]);
     }
     setContextMenuItem(item);
-    setContextMenuPos({ x: e.clientX, y: e.clientY });
+    setContextMenuPos(null);
     setIsContextMenuOpen(true);
   };
 
@@ -3029,6 +3029,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
       <AnimatePresence>
         {isContextMenuOpen && (
           <StockItemContextMenuModal
+            key={contextMenuItem?.ItemID || 'context-menu'}
             isOpen={isContextMenuOpen}
             item={contextMenuItem}
             selectedItems={selectedStockItems}
