@@ -493,7 +493,16 @@ async function startServer() {
     const user = requireUser(req, res);
     if (!user) return;
     try {
-      const result = await inventory.commitState(user, req.body?.expectedRevision, req.body?.state);
+      let incomingState = req.body?.state;
+      if (user.IssuerID !== 'ADM001' && incomingState && typeof incomingState === 'object' && !Array.isArray(incomingState)) {
+        const { backups: _ignoredBackups, admins: _ignoredAdmins, ...allowedState } = incomingState as Record<string, unknown>;
+        incomingState = allowedState;
+      }
+      const result = await inventory.commitState(user, req.body?.expectedRevision, incomingState);
+      if (user.IssuerID !== 'ADM001') {
+        result.state.admins = [];
+        result.state.backups = [];
+      }
       res.json(result);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Could not commit inventory state.';

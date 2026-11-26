@@ -143,6 +143,12 @@ export class RealtimeSyncService {
   setAuthenticated(authenticated: boolean) {
     const prev = this.isAuthenticated;
     this.isAuthenticated = authenticated;
+    if (!authenticated) {
+      this.cachedAdmins = [];
+      this.cachedBackups = [];
+      this.onAdminsChangeCb?.([]);
+      this.onBackupsChangeCb?.([]);
+    }
     if (
       authenticated &&
       !prev &&
@@ -206,7 +212,7 @@ export class RealtimeSyncService {
 
     this.unsubscribeSessionAuth = subscribeSessionAuth((authenticated) => {
       if (!authenticated) {
-        this.isAuthenticated = false;
+        this.setAuthenticated(false);
         this.onAuthRequiredCb?.();
       } else {
         this.setAuthenticated(true);
@@ -220,25 +226,31 @@ export class RealtimeSyncService {
       const localState = await loadInitialFromIndexedDB();
       this.cachedStock = localState.stockItems || [];
       this.cachedLogs = localState.movementLogs || [];
-      this.cachedAdmins = localState.admins || [];
+      this.cachedAdmins = this.isAuthenticated ? localState.admins || [] : [];
       this.cachedDepts = localState.departments || [];
       this.cachedManagers = localState.managers || [];
       this.cachedIssuedDocs = localState.issuedDocs || [];
       this.cachedReceivedDocs = localState.receivedDocs || [];
       this.cachedAdjDocs = localState.adjustmentDocs || [];
       this.cachedAdjReqs = localState.adjustmentRequests || [];
-      this.cachedBackups = localState.backups || [];
+      this.cachedBackups = this.isAuthenticated ? localState.backups || [] : [];
       this.cachedPendingMutations = localState.pendingMutations || [];
 
-      if (navigator.onLine && this.cachedPendingMutations.length === 0) {
+      if (this.isAuthenticated && navigator.onLine && this.cachedPendingMutations.length === 0) {
         try {
           const remote = await inventoryApi.getState();
           this.serverRevision = remote.revision;
           this.setCachedState(remote.state);
           await this.persistCurrentState();
         } catch (error) {
-          if (!(error instanceof InventoryApiError && error.status === 0)) throw error;
-          console.info('[RealtimeSyncService] Server unavailable; using the last local snapshot.');
+          if (error instanceof InventoryApiError && error.status === 401) {
+            this.setAuthenticated(false);
+            this.onAuthRequiredCb?.();
+          } else if (error instanceof InventoryApiError && error.status === 0) {
+            console.info('[RealtimeSyncService] Server unavailable; using the last local snapshot.');
+          } else {
+            throw error;
+          }
         }
       }
 
@@ -264,11 +276,12 @@ export class RealtimeSyncService {
       }
 
       // 3. Fallback Storage Event Listener (for multi-window synchronization)
-      window.addEventListener('storage', this.handleStorageEvent);
-
       // 4. Online / Offline Network Listeners for Auto-Drain
-      window.addEventListener('online', this.handleOnlineEvent);
-      window.addEventListener('offline', this.handleOfflineEvent);
+      if (typeof window !== 'undefined') {
+        window.addEventListener('storage', this.handleStorageEvent);
+        window.addEventListener('online', this.handleOnlineEvent);
+        window.addEventListener('offline', this.handleOfflineEvent);
+      }
 
       // 5. Periodic Queue Drain Loop (every 10s if online & authenticated)
       this.queueDrainTimer = setInterval(() => {
@@ -277,7 +290,7 @@ export class RealtimeSyncService {
         }
       }, 10000);
       this.serverRefreshTimer = setInterval(() => {
-        if (navigator.onLine && this.cachedPendingMutations.length === 0) {
+        if (navigator.onLine && this.isAuthenticated && this.cachedPendingMutations.length === 0) {
           void this.refreshServerState();
         }
       }, 15000);
@@ -305,6 +318,7 @@ export class RealtimeSyncService {
   }
 
   private async refreshServerState(): Promise<void> {
+    if (!this.isAuthenticated) return;
     try {
       const remote = await inventoryApi.getState();
       if (remote.revision <= this.serverRevision || this.cachedPendingMutations.length > 0) return;
@@ -312,6 +326,11 @@ export class RealtimeSyncService {
       this.setCachedState(remote.state);
       await this.persistCurrentState();
     } catch (error) {
+      if (error instanceof InventoryApiError && error.status === 401) {
+        this.setAuthenticated(false);
+        this.onAuthRequiredCb?.();
+        return;
+      }
       if (error instanceof InventoryApiError && error.status === 0) {
         this.updateSyncStatus('OFFLINE');
         return;
@@ -628,22 +647,12 @@ export class RealtimeSyncService {
       } catch (error) {
         if (error instanceof InventoryApiError && error.status === 0) return false;
         if (error instanceof InventoryApiError && error.status === 401) {
-          this.isAuthenticated = false;
+          this.setAuthenticated(false);
           this.onAuthRequiredCb?.();
-          if (typeof navigator === 'undefined' || navigator.onLine) {
-            try {
-              const remote = await inventoryApi.getState();
-              this.serverRevision = remote.revision;
-              this.setCachedState(remote.state);
-              await this.persistCurrentState();
-            } catch {
-              // Ignore secondary state refresh failures after 401.
-            }
-          }
           return false;
         }
         if (error instanceof InventoryApiError && error.status === 409) throw error;
-        if (typeof navigator === 'undefined' || navigator.onLine) {
+        if ((typeof navigator === 'undefined' || navigator.onLine) && this.isAuthenticated) {
           const remote = await inventoryApi.getState();
           this.serverRevision = remote.revision;
           this.setCachedState(remote.state);

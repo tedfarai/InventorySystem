@@ -38,7 +38,7 @@ import {
 } from '../data/initialData';
 import { realtimeSyncService } from '../db/realtimeSyncService';
 import { getExchangeRate, normalizePriceAndValue } from '../utils/currencyUtils';
-import { authApi, InventoryApiError, inventoryApi } from '../api/inventoryApi';
+import { authApi, InventoryApiError, inventoryApi, isSessionAuthenticated } from '../api/inventoryApi';
 import { loadInitialFromIndexedDB } from '../db/offlineStorage';
 
 export function useSqliteProcurement() {
@@ -67,6 +67,7 @@ export function useSqliteProcurement() {
 
   // Active Session & Timed Access Window
   const [currentUser, setCurrentUser] = useState<AdminUser | null>(null);
+  const [needsInitialSetup, setNeedsInitialSetup] = useState(false);
   const [activeTimedWindow, setActiveTimedWindow] = useState<TimedAccessWindow | null>(null);
 
   // Master Folder Path
@@ -79,63 +80,89 @@ export function useSqliteProcurement() {
     localStorage.setItem('master_folder_path', newPath);
   };
 
+  const loadLocalReadOnlyState = useCallback(
+    async (serverUsers: AdminUser[] = []) => {
+      const cached = await loadInitialFromIndexedDB();
+      const hasCachedData = Object.values(cached).some((value) => Array.isArray(value) && value.length > 0);
+      if (hasCachedData) {
+        return {
+          stockItems: cached.stockItems || [],
+          movementLogs: cached.movementLogs || [],
+          admins: serverUsers,
+          departments: cached.departments || [],
+          managers: cached.managers || [],
+          issuedDocs: cached.issuedDocs || [],
+          receivedDocs: cached.receivedDocs || [],
+          adjustmentDocs: cached.adjustmentDocs || [],
+          adjustmentRequests: cached.adjustmentRequests || [],
+          backups: [] as BackupSnapshot[],
+        };
+      }
+      const [
+        stockItemsLocal, movementLogsLocal, departmentsLocal, managersLocal,
+        issuedDocsLocal, receivedDocsLocal, adjustmentDocsLocal, adjustmentRequestsLocal,
+      ] = await Promise.all([
+        sqliteBridge.getAllStock(),
+        sqliteBridge.getAllMovementLogs(),
+        sqliteBridge.getAllDepartments(),
+        sqliteBridge.getAllManagers(),
+        sqliteBridge.getAllIssuedDocs(),
+        sqliteBridge.getAllReceivedDocs(),
+        sqliteBridge.getAllAdjustmentDocs(),
+        sqliteBridge.getAllAdjustmentRequests(),
+      ]);
+      return {
+        stockItems: stockItemsLocal,
+        movementLogs: movementLogsLocal,
+        admins: serverUsers,
+        departments: departmentsLocal,
+        managers: managersLocal,
+        issuedDocs: issuedDocsLocal,
+        receivedDocs: receivedDocsLocal,
+        adjustmentDocs: adjustmentDocsLocal,
+        adjustmentRequests: adjustmentRequestsLocal,
+        backups: [] as BackupSnapshot[],
+      };
+    },
+    []
+  );
+
   /**
    * Refetches all tables asynchronously from the SQLite database
    */
   const refreshAllFromSqlite = useCallback(async () => {
     setIsDataLoading(true);
     try {
-      let state: Awaited<ReturnType<typeof inventoryApi.getState>>['state'];
-      try {
-        const remote = await inventoryApi.getState();
-        state = remote.state;
-        void realtimeSyncService.syncRemoteState(remote.state, remote.revision);
-      } catch (error) {
-        if (!(error instanceof InventoryApiError && error.status === 0)) throw error;
-        const cached = await loadInitialFromIndexedDB();
-        const hasCachedData = Object.values(cached).some((value) => Array.isArray(value) && value.length > 0);
-        if (hasCachedData) {
-          state = {
-            stockItems: cached.stockItems || [],
-            movementLogs: cached.movementLogs || [],
-            admins: cached.admins || [],
-            departments: cached.departments || [],
-            managers: cached.managers || [],
-            issuedDocs: cached.issuedDocs || [],
-            receivedDocs: cached.receivedDocs || [],
-            adjustmentDocs: cached.adjustmentDocs || [],
-            adjustmentRequests: cached.adjustmentRequests || [],
-            backups: cached.backups || [],
-          };
-        } else {
-          const [
-            stockItemsLocal, movementLogsLocal, adminsLocal, departmentsLocal, managersLocal,
-            issuedDocsLocal, receivedDocsLocal, adjustmentDocsLocal, adjustmentRequestsLocal, backupsLocal,
-          ] = await Promise.all([
-            sqliteBridge.getAllStock(),
-            sqliteBridge.getAllMovementLogs(),
-            sqliteBridge.getAllAdmins(),
-            sqliteBridge.getAllDepartments(),
-            sqliteBridge.getAllManagers(),
-            sqliteBridge.getAllIssuedDocs(),
-            sqliteBridge.getAllReceivedDocs(),
-            sqliteBridge.getAllAdjustmentDocs(),
-            sqliteBridge.getAllAdjustmentRequests(),
-            sqliteBridge.getAllBackups(),
-          ]);
-          state = {
-            stockItems: stockItemsLocal,
-            movementLogs: movementLogsLocal,
-            admins: adminsLocal,
-            departments: departmentsLocal,
-            managers: managersLocal,
-            issuedDocs: issuedDocsLocal,
-            receivedDocs: receivedDocsLocal,
-            adjustmentDocs: adjustmentDocsLocal,
-            adjustmentRequests: adjustmentRequestsLocal,
-            backups: backupsLocal,
-          };
+      let state: Awaited<ReturnType<typeof inventoryApi.getState>>['state'] | null = null;
+      let serverUsersForFallback: AdminUser[] = [];
+
+      if (isSessionAuthenticated()) {
+        try {
+          const remote = await inventoryApi.getState();
+          state = remote.state;
+          setNeedsInitialSetup(false);
+          void realtimeSyncService.syncRemoteState(remote.state, remote.revision);
+        } catch (error) {
+          if (error instanceof InventoryApiError && error.status === 401) {
+            setCurrentUser(null);
+            realtimeSyncService.setAuthenticated(false);
+          } else if (!(error instanceof InventoryApiError && error.status === 0)) {
+            throw error;
+          }
         }
+      }
+
+      if (!state) {
+        try {
+          const authStatus = await authApi.getUsersStatus();
+          setNeedsInitialSetup(authStatus.needsSetup);
+          serverUsersForFallback = authStatus.users;
+        } catch (error) {
+          if (!(error instanceof InventoryApiError && error.status === 0)) {
+            setNeedsInitialSetup(false);
+          }
+        }
+        state = await loadLocalReadOnlyState(serverUsersForFallback);
       }
 
       setStockItems(state.stockItems);
@@ -159,12 +186,22 @@ export function useSqliteProcurement() {
     } finally {
       setIsDataLoading(false);
     }
-  }, []);
+  }, [loadLocalReadOnlyState]);
 
   // Initial Boot from SQLite + Real-time Mesh & LWW Listeners
   useEffect(() => {
     let mounted = true;
     (async () => {
+      try {
+        const sessionUser = await authApi.getSession().catch(() => null);
+        if (mounted && sessionUser) {
+          setCurrentUser(sessionUser);
+          realtimeSyncService.setAuthenticated(true);
+        }
+      } catch {
+        // Offline or unauthenticated
+      }
+
       try {
         await sqliteBridge.getDb();
         if (mounted) {
@@ -1743,6 +1780,7 @@ export function useSqliteProcurement() {
     backupPolicy,
     currentUser,
     setCurrentUser,
+    needsInitialSetup,
     activePresences,
     liveCollabEvents,
     syncStatus,

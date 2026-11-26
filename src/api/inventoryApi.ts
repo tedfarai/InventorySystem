@@ -86,16 +86,20 @@ function saveRevision(revision: number): void {
   }
 }
 
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
+async function request<T>(
+  url: string,
+  init?: RequestInit & { suppressAuthReset?: boolean }
+): Promise<T> {
+  const { suppressAuthReset, ...fetchInit } = init || {};
   let response: Response;
   try {
     response = await fetch(url, {
-      ...init,
+      ...fetchInit,
       credentials: 'same-origin',
       headers: {
-        ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(fetchInit?.body ? { 'Content-Type': 'application/json' } : {}),
         ...(inMemorySessionToken ? { Authorization: `Bearer ${inMemorySessionToken}` } : {}),
-        ...init?.headers,
+        ...fetchInit?.headers,
       },
     });
   } catch (error) {
@@ -103,7 +107,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   }
 
   if (!response.ok) {
-    if (response.status === 401) {
+    if (response.status === 401 && !suppressAuthReset) {
       setSessionAuthenticated(false);
     }
     let message = `Request failed (${response.status}).`;
@@ -119,10 +123,37 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return await response.json() as T;
 }
 
+export interface AuthUsersStatus {
+  users: AdminUser[];
+  needsSetup: boolean;
+  directoryRestricted: boolean;
+}
+
 export const authApi = {
+  async getUsersStatus(): Promise<AuthUsersStatus> {
+    try {
+      const result = await request<{ users: AdminUser[]; needsSetup?: boolean }>('/api/auth/users', {
+        suppressAuthReset: true,
+      });
+      return {
+        users: Array.isArray(result.users) ? result.users : [],
+        needsSetup: Boolean(result.needsSetup),
+        directoryRestricted: false,
+      };
+    } catch (error) {
+      if (error instanceof InventoryApiError && (error.status === 401 || error.status === 403)) {
+        return {
+          users: [],
+          needsSetup: false,
+          directoryRestricted: true,
+        };
+      }
+      throw error;
+    }
+  },
   async listUsers(): Promise<AdminUser[]> {
-    const result = await request<{ users: AdminUser[] }>('/api/auth/users');
-    return result.users;
+    const status = await this.getUsersStatus();
+    return status.users;
   },
   async getSession(): Promise<AdminUser | null> {
     try {

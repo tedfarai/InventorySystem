@@ -27,6 +27,7 @@ import { OfflineStatusBadge } from '../pwa/OfflineStatusBadge';
 
 interface LandingLoginPageProps {
   admins: AdminUser[];
+  needsInitialSetup?: boolean;
   onSuccess: (admin: AdminUser, password: string) => Promise<void> | void;
   onSetupInitialAdmin?: (params: { issuerName: string; role: string; password: string }) => Promise<void>;
   isOffline?: boolean;
@@ -36,6 +37,7 @@ interface LandingLoginPageProps {
 
 export const LandingLoginPage: React.FC<LandingLoginPageProps> = ({
   admins = [],
+  needsInitialSetup = false,
   onSuccess,
   onSetupInitialAdmin,
   isOffline = false,
@@ -43,6 +45,7 @@ export const LandingLoginPage: React.FC<LandingLoginPageProps> = ({
   isInstallable = false,
 }) => {
   const [selectedAdmin, setSelectedAdmin] = useState<AdminUser | null>(null);
+  const [directIssuerId, setDirectIssuerId] = useState('ADM001');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -91,26 +94,41 @@ export const LandingLoginPage: React.FC<LandingLoginPageProps> = ({
     e.preventDefault();
     setErrorMsg('');
 
-    if (!selectedAdmin) {
-      setErrorMsg('Please select your user profile from the left side panel.');
+    const targetAdmin: AdminUser | null = selectedAdmin
+      ? selectedAdmin
+      : !needsInitialSetup && directIssuerId.trim()
+      ? {
+          IssuerID: directIssuerId.trim().toUpperCase(),
+          IssuerName: directIssuerId.trim().toUpperCase(),
+          Role: 'Staff',
+          Active: true,
+        }
+      : null;
+
+    if (!targetAdmin) {
+      setErrorMsg(
+        safeAdmins.length > 0
+          ? 'Please select your user profile from the left side panel.'
+          : 'Please enter your User ID.'
+      );
       return;
     }
 
     const trimmedPass = password.trim();
     if (!trimmedPass) {
-      setErrorMsg(`Please enter the password for ${selectedAdmin.IssuerName || 'user'}.`);
+      setErrorMsg(`Please enter the password for ${targetAdmin.IssuerName || targetAdmin.IssuerID}.`);
       passwordInputRef.current?.focus();
       return;
     }
 
-    if (!selectedAdmin.Active) {
+    if (!targetAdmin.Active) {
       setErrorMsg('This account is inactive. Contact the superior administrator.');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      await onSuccess(selectedAdmin, trimmedPass);
+      await onSuccess(targetAdmin, trimmedPass);
       setAttempts(0);
     } catch (error) {
       const nextAttempts = attempts + 1;
@@ -317,13 +335,23 @@ export const LandingLoginPage: React.FC<LandingLoginPageProps> = ({
                     aria-label="Registered users directory list"
                   >
                     {safeAdmins.length === 0 ? (
-                      <div className="py-12 px-4 text-center text-xs text-slate-300 space-y-2.5">
-                        <Crown className="w-7 h-7 text-amber-400 mx-auto" />
-                        <p className="font-bold text-white text-sm">Initial Server Provisioning Required</p>
-                        <p className="text-slate-400 max-w-xs mx-auto leading-relaxed">
-                          No user accounts exist in the database yet. Create the Superior Administrator (ADM001) profile on the right to begin.
-                        </p>
-                      </div>
+                      needsInitialSetup ? (
+                        <div className="py-12 px-4 text-center text-xs text-slate-300 space-y-2.5">
+                          <Crown className="w-7 h-7 text-amber-400 mx-auto" />
+                          <p className="font-bold text-white text-sm">Initial Server Provisioning Required</p>
+                          <p className="text-slate-400 max-w-xs mx-auto leading-relaxed">
+                            No user accounts exist in the database yet. Create the Superior Administrator (ADM001) profile on the right to begin.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="py-12 px-4 text-center text-xs text-slate-300 space-y-2.5">
+                          <ShieldCheck className="w-7 h-7 text-emerald-400 mx-auto" />
+                          <p className="font-bold text-white text-sm">Account Directory Protected</p>
+                          <p className="text-slate-400 max-w-xs mx-auto leading-relaxed">
+                            Enter your User ID (e.g. <span className="font-mono text-emerald-300">ADM001</span>) and password on the right to sign in and unlock the workspace.
+                          </p>
+                        </div>
+                      )
                     ) : filteredAdmins.length === 0 ? (
                       <div className="py-12 text-center text-xs text-slate-500 space-y-2">
                         <AlertTriangle className="w-6 h-6 text-amber-500 mx-auto" />
@@ -424,7 +452,7 @@ export const LandingLoginPage: React.FC<LandingLoginPageProps> = ({
                 id="login-right-auth-panel"
                 className="p-6 sm:p-8 lg:p-10 flex flex-col justify-center bg-[linear-gradient(180deg,rgba(10,18,15,0.96),rgba(5,12,10,1))]"
               >
-                {safeAdmins.length === 0 && onSetupInitialAdmin ? (
+                {needsInitialSetup && safeAdmins.length === 0 && onSetupInitialAdmin ? (
                   <div className="space-y-5 animate-in fade-in duration-200">
                     <div className="space-y-1">
                       <div className="inline-flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider text-amber-300 bg-amber-500/10 border border-amber-400/30 px-2.5 py-0.5 rounded-full">
@@ -519,6 +547,90 @@ export const LandingLoginPage: React.FC<LandingLoginPageProps> = ({
                       >
                         <ShieldCheck className="w-4 h-4" />
                         <span>{isSubmitting ? 'Creating Administrator...' : 'Create Superior Admin & Sign In'}</span>
+                      </button>
+                    </form>
+                  </div>
+                ) : safeAdmins.length === 0 ? (
+                  <div className="space-y-5 animate-in fade-in duration-200">
+                    <div className="space-y-1">
+                      <div className="inline-flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider text-emerald-400 bg-emerald-950/80 border border-emerald-800 px-2.5 py-0.5 rounded-full">
+                        <Lock className="w-3 h-3" />
+                        <span>Credential Sign-In</span>
+                      </div>
+                      <h3 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
+                        Sign In to Paramount Inventory
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        Enter your User ID and server password to authenticate.
+                      </p>
+                    </div>
+
+                    {errorMsg && (
+                      <div
+                        id="login-error-alert"
+                        className="flex items-center space-x-2 bg-rose-950/50 border border-rose-800 text-rose-300 p-3 rounded-xl text-xs font-medium"
+                      >
+                        <AlertTriangle className="w-4 h-4 shrink-0 text-rose-500" />
+                        <span>{errorMsg}</span>
+                      </div>
+                    )}
+
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                      <div>
+                        <label htmlFor="input-direct-issuer-id" className="block text-xs font-bold text-slate-300 mb-1.5">
+                          User ID
+                        </label>
+                        <div className="relative">
+                          <input
+                            id="input-direct-issuer-id"
+                            type="text"
+                            value={directIssuerId}
+                            onChange={(e) => setDirectIssuerId(e.target.value.toUpperCase())}
+                            placeholder="ADM001"
+                            required
+                            className="w-full px-4 py-3 pl-10 bg-slate-950 border border-slate-700 rounded-xl text-xs sm:text-sm text-white uppercase font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
+                          />
+                          <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5 pointer-events-none" />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label htmlFor="input-login-password" className="block text-xs font-bold text-slate-300 mb-1.5">
+                          Password
+                        </label>
+                        <div className="relative">
+                          <input
+                            id="input-login-password"
+                            ref={passwordInputRef}
+                            type={showPassword ? 'text' : 'password'}
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            placeholder="Enter your password..."
+                            disabled={attempts >= 5}
+                            autoFocus
+                            className="w-full px-4 py-3 pl-10 pr-10 bg-slate-950 border border-slate-700 rounded-xl text-xs sm:text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono transition"
+                          />
+                          <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5 pointer-events-none" />
+                          <button
+                            id="btn-toggle-password-visibility"
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3 top-3 text-slate-400 hover:text-slate-200 p-0.5 rounded cursor-pointer"
+                            title={showPassword ? 'Hide password' : 'Show password'}
+                          >
+                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <button
+                        id="btn-submit-login"
+                        type="submit"
+                        disabled={isSubmitting || attempts >= 5}
+                        className="w-full flex items-center justify-center space-x-2 py-3 px-6 text-xs sm:text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-600 rounded-xl shadow-md transition cursor-pointer"
+                      >
+                        <KeyRound className="w-4 h-4" />
+                        <span>{isSubmitting ? 'Signing in…' : 'Log In'}</span>
                       </button>
                     </form>
                   </div>

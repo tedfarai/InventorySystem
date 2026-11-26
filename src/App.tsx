@@ -31,6 +31,7 @@ const ExecutiveDashboardView = lazy(() => import('./components/dashboard/Executi
 import { UsageTrendProvider } from './context/UsageTrendContext';
 const BackupRemindersModal = lazy(() => import('./components/simulator/BackupRemindersModal').then((module) => ({ default: module.BackupRemindersModal })));
 import { authApi } from './api/inventoryApi';
+import { realtimeSyncService } from './db/realtimeSyncService';
 import {
   BackupReminderSettings,
   loadBackupReminderSettings,
@@ -244,6 +245,7 @@ function AppContent() {
     backupPolicy,
     currentUser,
     setCurrentUser,
+    needsInitialSetup,
     activePresences,
     liveCollabEvents,
     syncStatus,
@@ -290,23 +292,11 @@ function AppContent() {
     } catch (error) {
       if (!(error instanceof Error && 'status' in error && error.status === 0)) throw error;
     }
+    realtimeSyncService.setAuthenticated(false);
     setCurrentUser(null);
+    await refreshAllFromSqlite();
     showToast('Session Ended', 'info', 'Logged out successfully');
-  }, [setCurrentUser, showToast]);
-
-  useEffect(() => {
-    let active = true;
-    authApi.getSession()
-      .then((user) => {
-        if (active && user) setCurrentUser(user);
-      })
-      .catch((error) => {
-        console.error('[App] Could not restore the server session:', error);
-      });
-    return () => {
-      active = false;
-    };
-  }, [setCurrentUser]);
+  }, [refreshAllFromSqlite, setCurrentUser, showToast]);
 
   // Low stock counter for indicators
   const safeStockItems = Array.isArray(stockItems) ? stockItems : [];
@@ -1086,9 +1076,12 @@ function AppContent() {
               <div className="rounded-2xl overflow-hidden shadow-2xl border border-slate-700/80 bg-slate-950">
                 <LandingLoginPage
                   admins={admins}
+                  needsInitialSetup={needsInitialSetup}
                   onSuccess={async (admin, password) => {
                     const authenticatedUser = await authApi.login(admin.IssuerID, password);
+                    realtimeSyncService.setAuthenticated(true);
                     setCurrentUser(authenticatedUser);
+                    await refreshAllFromSqlite();
                     setIsLoginModalOpen(false);
                     showToast(`Welcome, ${authenticatedUser.IssuerName}`, 'success', `Authenticated as ${authenticatedUser.Role}`);
                   }}
@@ -1099,6 +1092,7 @@ function AppContent() {
                       role,
                       password,
                     });
+                    realtimeSyncService.setAuthenticated(true);
                     setCurrentUser(createdUser);
                     await refreshAllFromSqlite();
                     setIsLoginModalOpen(false);
