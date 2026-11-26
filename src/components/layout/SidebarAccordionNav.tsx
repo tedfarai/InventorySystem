@@ -37,7 +37,7 @@ import { ProcurementTabType } from '../simulator/ProcurementOperationsDialog';
 
 export type SidebarAction =
   | { type: 'NAVIGATE_SHEET'; sheet: 'Master_Stock' | 'Movement_Log' | 'Adjustment_Hub' | 'Admin_Config' }
-  | { type: 'OPEN_TAB'; tab: ProcurementTabType; subMode?: string }
+  | { type: 'OPEN_TAB'; tab: ProcurementTabType; subMode?: 'single' | 'bulkQueue' | 'bulkGrid' }
   | { type: 'OPEN_MODAL'; modal: 'reorderReport' | 'adjustmentRequests' | 'superiorAdjustmentManager' | 'userManagement' | 'backupRecovery' | 'backupReminders' | 'folderConfig' | 'documentVault' | 'vbaHub' | 'setupGuide' | 'accountDetails' }
   | { type: 'NAVIGATE_APP_TAB'; appTab: 'simulator' | 'audit' | 'vba' | 'guide' | 'export' | 'dashboard' };
 

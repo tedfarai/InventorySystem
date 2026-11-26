@@ -85,10 +85,10 @@ export const NavigationDialog: React.FC<NavigationDialogProps> = ({
 
           <div className="text-center space-y-1">
             <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-              Select Procurement Dialogue Tab
+              Choose a standalone form
             </h3>
             <p className="text-xs text-slate-600 dark:text-slate-400">
-              Choose an action below to open a dialogue tab, or close this window to work directly in the workbook.
+              Choose a form to open independently, or close this window to return to the workbook.
             </p>
           </div>
 
@@ -110,7 +110,7 @@ export const NavigationDialog: React.FC<NavigationDialogProps> = ({
                 </p>
               </div>
               <div className="mt-2 pt-1.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                <span>Launch Dialogue Tab</span>
+                <span>Open Standalone Form</span>
                 <span>→</span>
               </div>
             </button>
@@ -132,7 +132,7 @@ export const NavigationDialog: React.FC<NavigationDialogProps> = ({
                 </p>
               </div>
               <div className="mt-2 pt-1.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] font-semibold text-blue-600 dark:text-blue-400">
-                <span>Launch Dialogue Tab</span>
+                <span>Open Standalone Form</span>
                 <span>→</span>
               </div>
             </button>
@@ -147,14 +147,14 @@ export const NavigationDialog: React.FC<NavigationDialogProps> = ({
                   <Edit3 className="w-4 h-4" />
                 </div>
                 <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition">
-                  3. Edit Stock Name
+                  3. Edit Stock Item
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                   Select an existing stock item and rename its description in Master_Stock.
                 </p>
               </div>
               <div className="mt-2 pt-1.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] font-semibold text-amber-600 dark:text-amber-400">
-                <span>Launch Dialogue Tab</span>
+                <span>Open Standalone Form</span>
                 <span>→</span>
               </div>
             </button>
@@ -176,7 +176,7 @@ export const NavigationDialog: React.FC<NavigationDialogProps> = ({
                 </p>
               </div>
               <div className="mt-2 pt-1.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] font-semibold text-blue-600 dark:text-blue-400">
-                <span>Launch Dialogue Tab</span>
+                <span>Open Standalone Form</span>
                 <span>→</span>
               </div>
             </button>
@@ -198,7 +198,7 @@ export const NavigationDialog: React.FC<NavigationDialogProps> = ({
                 </p>
               </div>
               <div className="mt-2 pt-1.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                <span>Launch Dialogue Tab</span>
+                <span>Open Standalone Form</span>
                 <span>→</span>
               </div>
             </button>
@@ -220,7 +220,7 @@ export const NavigationDialog: React.FC<NavigationDialogProps> = ({
                 </p>
               </div>
               <div className="mt-2 pt-1.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] font-semibold text-amber-600 dark:text-amber-400">
-                <span>Launch Dialogue Tab</span>
+                <span>Open Standalone Form</span>
                 <span>→</span>
               </div>
             </button>
