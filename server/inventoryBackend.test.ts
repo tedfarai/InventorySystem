@@ -59,10 +59,11 @@ test('hashes credentials, issues revocable sessions, and enforces transactional 
 test('allows startup in setup mode without INITIAL_ADMIN_PASSWORD and locks bootstrap after first admin', async () => {
   const previousPassword = process.env.INITIAL_ADMIN_PASSWORD;
   const directory = await mkdtemp(path.join(os.tmpdir(), 'inventory-setup-test-'));
+  const databasePath = path.join(directory, 'inventory.sqlite');
   delete process.env.INITIAL_ADMIN_PASSWORD;
 
   try {
-    const backend = await InventoryBackend.open(path.join(directory, 'inventory.sqlite'));
+    const backend = await InventoryBackend.open(databasePath);
     assert.equal(backend.needsInitialSetup(), true);
     assert.equal(backend.listUsers().length, 0);
 
@@ -74,6 +75,12 @@ test('allows startup in setup mode without INITIAL_ADMIN_PASSWORD and locks boot
     assert.equal(session.user.IssuerID, 'ADM001');
     assert.equal(backend.needsInitialSetup(), false);
     assert.equal(backend.getSession(session.token)?.IssuerID, 'ADM001');
+
+    const reopenedBackend = await InventoryBackend.open(databasePath);
+    assert.equal(reopenedBackend.needsInitialSetup(), false);
+    assert.equal(reopenedBackend.getUser('ADM001')?.IssuerName, 'Rachel Pickard');
+    assert.equal(reopenedBackend.getSession(session.token)?.IssuerID, 'ADM001');
+    assert.equal((await reopenedBackend.login('ADM001', 'secure-initial-passphrase', 'test')).user.IssuerID, 'ADM001');
 
     await assert.rejects(
       backend.setupInitialAdmin({
