@@ -7,7 +7,7 @@ import React, {
   createContext,
   useContext,
 } from 'react';
-import { Maximize2, Minimize2, RotateCcw, X, GripHorizontal, Move } from 'lucide-react';
+import { Maximize2, Minimize2, RotateCcw, Move } from 'lucide-react';
 
 export type ResizeDirection = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
 
@@ -24,6 +24,7 @@ interface Size {
 export interface DraggableModalContextValue {
   isMaximized: boolean;
   toggleMaximize: () => void;
+  toggleMinimize: () => void;
   resetPositionAndSize: () => void;
   isDragging: boolean;
   isResizing: boolean;
@@ -93,6 +94,7 @@ export const DraggableResizableModal: React.FC<DraggableResizableModalProps> = (
   const [position, setPosition] = useState<Position | null>(null);
   const [size, setSize] = useState<Size | null>(null);
   const [isMaximized, setIsMaximized] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [activeDirection, setActiveDirection] = useState<ResizeDirection | null>(null);
@@ -110,6 +112,7 @@ export const DraggableResizableModal: React.FC<DraggableResizableModalProps> = (
     if (!isOpen) {
       isInitializedRef.current = false;
       setIsMaximized(false);
+      setIsMinimized(false);
       setIsDragging(false);
       setIsResizing(false);
       setActiveDirection(null);
@@ -218,6 +221,10 @@ export const DraggableResizableModal: React.FC<DraggableResizableModalProps> = (
     }
   }, [isMaximized, position, size, resetPositionAndSize]);
 
+  const toggleMinimize = useCallback(() => {
+    setIsMinimized((minimized) => !minimized);
+  }, []);
+
   // Drag handling refs
   const dragRef = useRef<{
     startX: number;
@@ -297,8 +304,17 @@ export const DraggableResizableModal: React.FC<DraggableResizableModalProps> = (
       setPosition({ x: newX, y: newY });
     };
 
-    const handlePointerUp = () => {
+    const handlePointerUp = (upEv: PointerEvent) => {
       setIsDragging(false);
+      const deltaY = upEv.clientY - dragRef.current.startY;
+      const snappedY = dragRef.current.initialPosY + deltaY;
+      if (deltaY < -8 && snappedY <= 12) {
+        savedStateRef.current = {
+          position: { x: dragRef.current.initialPosX, y: Math.max(8, snappedY) },
+          size: { width: dragRef.current.modalWidth, height: dragRef.current.modalHeight },
+        };
+        setIsMaximized(true);
+      }
       window.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('pointerup', handlePointerUp);
       window.removeEventListener('pointercancel', handlePointerUp);
@@ -506,6 +522,7 @@ export const DraggableResizableModal: React.FC<DraggableResizableModalProps> = (
   const contextValue: DraggableModalContextValue = {
     isMaximized,
     toggleMaximize,
+    toggleMinimize,
     resetPositionAndSize,
     isDragging,
     isResizing,
@@ -516,12 +533,12 @@ export const DraggableResizableModal: React.FC<DraggableResizableModalProps> = (
   const windowStyle: React.CSSProperties = isMaximized
     ? {
         position: 'fixed',
-        left: '8px',
-        top: '8px',
-        width: 'calc(100vw - 16px)',
-        height: 'calc(100vh - 16px)',
-        maxWidth: 'calc(100vw - 16px)',
-        maxHeight: 'calc(100vh - 16px)',
+        left: 0,
+        top: 0,
+        width: '100vw',
+        height: '100vh',
+        maxWidth: '100vw',
+        maxHeight: '100vh',
         margin: 0,
         zIndex: 60,
       }
@@ -543,9 +560,20 @@ export const DraggableResizableModal: React.FC<DraggableResizableModalProps> = (
       {/* Backdrop: semi-transparent overlay, NO blur so background UI stays visible.
           pointer-events-none lets sidebar/nav clicks pass through the backdrop area,
           except when dragging or resizing so mouse pointer remains locked to the active operation. */}
+      {isMinimized && (
+        <button
+          type="button"
+          onClick={toggleMinimize}
+          className={`fixed bottom-3 left-3 ${zIndex} pointer-events-auto inline-flex items-center gap-2 rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-xs font-semibold text-white shadow-xl hover:bg-slate-800`}
+          aria-label={`Restore ${typeof title === 'string' ? title : 'window'}`}
+        >
+          <Minimize2 className="h-3.5 w-3.5" />
+          Restore {title || 'window'}
+        </button>
+      )}
       <div
         id={modalId ? `${modalId}-backdrop` : undefined}
-        className={`fixed inset-0 bg-slate-950/30 flex items-center justify-center p-2 sm:p-4 ${zIndex} ${
+        className={`${isMinimized ? 'hidden' : ''} fixed inset-0 bg-slate-950/30 flex items-center justify-center p-2 sm:p-4 ${zIndex} ${
           isResizing
             ? `${getResizeCursor(activeDirection)} pointer-events-auto select-none`
             : isDragging
@@ -565,7 +593,7 @@ export const DraggableResizableModal: React.FC<DraggableResizableModalProps> = (
           onDoubleClick={handleHeaderDoubleClick}
           className={`relative flex flex-col transition-shadow pointer-events-auto ${
             isDragging ? 'shadow-2xl ring-2 ring-emerald-500/40 cursor-grabbing' : ''
-          } ${isResizing ? 'shadow-2xl ring-1 ring-emerald-500/30' : ''} ${className}`}
+          } ${isResizing ? 'shadow-2xl ring-1 ring-emerald-500/30' : ''} ${isMaximized ? '!rounded-none' : ''} ${className}`}
         >
           {/* Subtle Top Window Control Pill (if enabled & not explicitly hidden) */}
           {showControls && (

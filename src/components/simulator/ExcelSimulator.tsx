@@ -177,6 +177,7 @@ interface ExcelSimulatorProps {
     type: 'NAVIGATE_SHEET' | 'OPEN_TAB' | 'OPEN_MODAL' | 'NAVIGATE_APP_TAB';
     sheet?: 'Master_Stock' | 'Movement_Log' | 'Adjustment_Hub' | 'Admin_Config';
     tab?: ProcurementTabType;
+    subMode?: 'single' | 'bulkQueue' | 'bulkGrid';
     modal?: string;
   } | null;
   onClearExternalAction?: () => void;
@@ -562,6 +563,9 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
       setActiveSheet(externalAction.sheet);
     } else if (externalAction.type === 'OPEN_TAB' && externalAction.tab) {
       setProcurementInitialTab(externalAction.tab);
+      setProcurementInitialItemId(undefined);
+      setProcurementInitialItemIds(undefined);
+      setProcurementInitialDeliveryMode(externalAction.subMode);
       setActiveModal('procurement');
     } else if (externalAction.type === 'OPEN_MODAL' && externalAction.modal) {
       if (externalAction.modal === 'folderConfig') {
@@ -682,6 +686,9 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
       else setActiveModal('login');
     } else {
       setProcurementInitialTab(tab);
+      setProcurementInitialItemId(undefined);
+      setProcurementInitialItemIds(undefined);
+      setProcurementInitialDeliveryMode(undefined);
       setActiveModal('procurement');
     }
   };
@@ -695,6 +702,9 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
 
   const handleSelectNavOption = (option: ProcurementTabType) => {
     setProcurementInitialTab(option);
+    setProcurementInitialItemId(undefined);
+    setProcurementInitialItemIds(undefined);
+    setProcurementInitialDeliveryMode(undefined);
     setActiveModal('procurement');
   };
 
@@ -2709,6 +2719,7 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
 
       {activeModal === 'procurement' && (
         <ProcurementOperationsDialog
+          key={`${procurementInitialTab}-${procurementInitialItemId ?? ''}-${procurementInitialItemIds?.join(',') ?? ''}-${procurementInitialDeliveryMode ?? ''}`}
           initialTab={procurementInitialTab}
           initialItemId={procurementInitialItemId}
           initialItemIds={procurementInitialItemIds}
@@ -2765,6 +2776,9 @@ export const ExcelSimulator: React.FC<ExcelSimulatorProps> = ({
           }}
           onOpenDirectAdjustmentTab={() => {
             setProcurementInitialTab('adjustment');
+            setProcurementInitialItemId(undefined);
+            setProcurementInitialItemIds(undefined);
+            setProcurementInitialDeliveryMode(undefined);
             setActiveModal('procurement');
           }}
           onClose={() => {

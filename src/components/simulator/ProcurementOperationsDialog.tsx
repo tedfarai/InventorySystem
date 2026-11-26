@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Building2, PackagePlus, Edit3, ArrowRightLeft, Send, Layers, ShieldCheck, SlidersHorizontal, Users } from 'lucide-react';
+import React from 'react';
+import { Building2, PackagePlus, Edit3, ArrowRightLeft, Send, ShieldCheck, SlidersHorizontal, Minus, Square, Minimize2, X, type LucideIcon } from 'lucide-react';
 import { StockItem, Department, Manager, IssueCartItem, AdjustmentReasonCode, ReceivedDocument, AdminUser, TimedAccessWindow, StockAdjustmentRequest } from '../../types';
 import { EditDepartmentsTab } from './tabs/EditDepartmentsTab';
 import { CreateStockTab } from './tabs/CreateStockTab';
@@ -7,9 +7,73 @@ import { EditStockItemTab } from './tabs/EditStockItemTab';
 import { StockDeliveryTab } from './tabs/StockDeliveryTab';
 import { IssueRequestTab } from './tabs/IssueRequestTab';
 import { StockAdjustmentTab } from './tabs/StockAdjustmentTab';
-import { DraggableResizableModal } from '../common/DraggableResizableModal';
+import { DraggableResizableModal, useDraggableModal } from '../common/DraggableResizableModal';
 
 export type ProcurementTabType = 'departments' | 'createStock' | 'editStockItem' | 'delivery' | 'issue' | 'adjustment';
+
+const formDetails: Record<ProcurementTabType, { id: string; title: string; icon: LucideIcon }> = {
+  departments: { id: 'frmEditDepartmentsManagers', title: 'Edit Departments & Managers', icon: Building2 },
+  createStock: { id: 'frmCreateStock', title: 'Create Stock', icon: PackagePlus },
+  editStockItem: { id: 'frmEditStockItem', title: 'Edit Stock Item', icon: Edit3 },
+  delivery: { id: 'frmStockDelivery', title: 'Stock Delivery', icon: ArrowRightLeft },
+  issue: { id: 'frmIssueOut', title: 'Issue Out', icon: Send },
+  adjustment: { id: 'frmStockAdjustment', title: 'Stock Adjustment', icon: SlidersHorizontal },
+};
+
+const ProcurementDialogTitleBar: React.FC<{ title: string; issuerId: string; icon: LucideIcon }> = ({
+  title,
+  issuerId,
+  icon: Icon,
+}) => {
+  const windowControls = useDraggableModal();
+  if (!windowControls) return null;
+
+  return (
+    <div
+      data-drag-handle="true"
+      className="bg-slate-900 text-white px-4 py-2.5 flex items-center justify-between border-b border-slate-700 cursor-grab active:cursor-grabbing select-none"
+    >
+      <div className="flex items-center gap-2 min-w-0">
+        <Icon className="w-4 h-4 text-emerald-400 shrink-0" />
+        <span className="font-semibold text-sm text-slate-100 truncate">
+          {title}
+        </span>
+        <span className="hidden md:inline-flex items-center gap-1 bg-slate-800 text-emerald-400 px-2 py-0.5 rounded text-[10px] font-mono border border-slate-700 shrink-0">
+          <ShieldCheck className="w-3 h-3" /> {issuerId}
+        </span>
+      </div>
+      <div className="flex items-center gap-1 shrink-0">
+        <button
+          type="button"
+          onClick={windowControls.toggleMinimize}
+          className="p-2 rounded text-white hover:bg-slate-700 transition cursor-pointer"
+          title="Minimize"
+          aria-label="Minimize window"
+        >
+          <Minus className="w-4 h-4" />
+        </button>
+        <button
+          type="button"
+          onClick={windowControls.toggleMaximize}
+          className="p-2 rounded text-white hover:bg-emerald-700 transition cursor-pointer"
+          title={windowControls.isMaximized ? 'Restore window' : 'Maximize'}
+          aria-label={windowControls.isMaximized ? 'Restore window' : 'Maximize window'}
+        >
+          {windowControls.isMaximized ? <Minimize2 className="w-4 h-4" /> : <Square className="w-3.5 h-3.5" />}
+        </button>
+        <button
+          type="button"
+          onClick={windowControls.close}
+          className="p-2 rounded text-white hover:bg-rose-600 transition cursor-pointer"
+          title="Close"
+          aria-label="Close window"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
+};
 
 interface ProcurementOperationsDialogProps {
   initialTab?: ProcurementTabType;
@@ -86,124 +150,22 @@ export const ProcurementOperationsDialog: React.FC<ProcurementOperationsDialogPr
   onTriggerIssuePreview,
   onClose,
 }) => {
-  const [activeTab, setActiveTab] = useState<ProcurementTabType>(initialTab);
+  const form = formDetails[initialTab];
 
   return (
     <DraggableResizableModal
       onClose={onClose}
-      modalId="procurement-operations-dialog"
+      modalId={`procurement-operations-dialog-${initialTab}`}
+      title={form.title}
+      showControls={false}
       initialWidth={Math.round(window.innerWidth * 0.70)}
-      initialHeight={Math.round(window.innerHeight * 0.60)}
+      initialHeight={Math.round(window.innerHeight * 0.94)}
       className="bg-slate-100 dark:bg-slate-800 rounded-2xl shadow-2xl border-2 border-emerald-600/70 w-full overflow-hidden my-auto"
     >
-      {/* UserForm Header */}
-      <div
-        data-drag-handle="true"
-        className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between border-b border-slate-700 cursor-grab active:cursor-grabbing select-none"
-      >
-        <div className="flex items-center space-x-2">
-          <Layers className="w-4 h-4 text-emerald-400" />
-          <span className="font-mono text-xs font-bold tracking-wide text-slate-200">
-            frmProcurementOperations — Stock & Inventory Management Dialogue
-          </span>
-        </div>
-        <div className="flex items-center space-x-3">
-          <span className="hidden sm:inline-flex items-center gap-1 bg-slate-800 text-emerald-400 px-2 py-0.5 rounded text-[10px] font-mono border border-slate-700">
-            <ShieldCheck className="w-3 h-3" /> Issuer: {issuerId}
-          </span>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-white text-xs font-bold px-2 py-1 rounded hover:bg-slate-800 transition cursor-pointer"
-          >
-            ✕ Close
-          </button>
-        </div>
-      </div>
+      <ProcurementDialogTitleBar title={`${form.id} — ${form.title}`} issuerId={issuerId} icon={form.icon} />
 
-        {/* 6 OPERATIONAL DIALOGUE TABS */}
-        <div className="bg-slate-200 dark:bg-slate-900 border-b border-slate-300 dark:border-slate-700 px-2 pt-2 flex flex-wrap gap-1 select-none">
-          {/* Tab 1: Edit Departments Dialogue */}
-          <button
-            onClick={() => setActiveTab('departments')}
-            className={`flex items-center space-x-1.5 px-3 py-2 rounded-t-xl text-xs font-bold transition border-t-2 ${
-              activeTab === 'departments'
-                ? 'bg-slate-100 dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 border-emerald-500 shadow-sm'
-                : 'bg-slate-300/60 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 border-transparent'
-            }`}
-          >
-            <Building2 className="w-3.5 h-3.5" />
-            <span>1. Edit Departments & Managers</span>
-          </button>
-
-          {/* Tab 2: Create New Stock Dialogue */}
-          <button
-            onClick={() => setActiveTab('createStock')}
-            className={`flex items-center space-x-1.5 px-3 py-2 rounded-t-xl text-xs font-bold transition border-t-2 ${
-              activeTab === 'createStock'
-                ? 'bg-slate-100 dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 border-emerald-500 shadow-sm'
-                : 'bg-slate-300/60 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 border-transparent'
-            }`}
-          >
-            <PackagePlus className="w-3.5 h-3.5" />
-            <span>2. Create Stock</span>
-          </button>
-
-          {/* Tab 3: Edit Stock Item Name */}
-          <button
-            onClick={() => setActiveTab('editStockItem')}
-            className={`flex items-center space-x-1.5 px-3 py-2 rounded-t-xl text-xs font-bold transition border-t-2 ${
-              activeTab === 'editStockItem'
-                ? 'bg-slate-100 dark:bg-slate-800 text-amber-600 dark:text-amber-400 border-amber-500 shadow-sm'
-                : 'bg-slate-300/60 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 border-transparent'
-            }`}
-          >
-            <Edit3 className="w-3.5 h-3.5" />
-            <span>3. Edit Stock</span>
-          </button>
-
-          {/* Tab 4: Enter New Delivery/Update Stock */}
-          <button
-            onClick={() => setActiveTab('delivery')}
-            className={`flex items-center space-x-1.5 px-3 py-2 rounded-t-xl text-xs font-bold transition border-t-2 ${
-              activeTab === 'delivery'
-                ? 'bg-slate-100 dark:bg-slate-800 text-blue-600 dark:text-blue-400 border-blue-500 shadow-sm'
-                : 'bg-slate-300/60 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 border-transparent'
-            }`}
-          >
-            <ArrowRightLeft className="w-3.5 h-3.5" />
-            <span>4. Stock Delivery</span>
-          </button>
-
-          {/* Tab 5: Issue Out Requests */}
-          <button
-            onClick={() => setActiveTab('issue')}
-            className={`flex items-center space-x-1.5 px-3 py-2 rounded-t-xl text-xs font-bold transition border-t-2 ${
-              activeTab === 'issue'
-                ? 'bg-slate-100 dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 border-emerald-500 shadow-sm'
-                : 'bg-slate-300/60 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 border-transparent'
-            }`}
-          >
-            <Send className="w-3.5 h-3.5" />
-            <span>5. Issue Out</span>
-          </button>
-
-          {/* Tab 6: Physical Stock Count & Adjustment */}
-          <button
-            onClick={() => setActiveTab('adjustment')}
-            className={`flex items-center space-x-1.5 px-3 py-2 rounded-t-xl text-xs font-bold transition border-t-2 ${
-              activeTab === 'adjustment'
-                ? 'bg-slate-100 dark:bg-slate-800 text-amber-600 dark:text-amber-400 border-amber-500 shadow-sm'
-                : 'bg-slate-300/60 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 border-transparent'
-            }`}
-          >
-            <SlidersHorizontal className="w-3.5 h-3.5" />
-            <span>6. Stock Adjustment</span>
-          </button>
-        </div>
-
-        {/* Tab Body Content */}
-        <div className="p-4 sm:p-6 flex-1 min-h-0 overflow-y-auto">
-          {activeTab === 'departments' && (
+      <div className="p-4 sm:p-6 flex-1 min-h-0 overflow-y-auto">
+          {initialTab === 'departments' && (
             <EditDepartmentsTab
               departments={departments}
               onAddDepartment={onAddDepartment}
@@ -216,14 +178,14 @@ export const ProcurementOperationsDialog: React.FC<ProcurementOperationsDialogPr
             />
           )}
 
-          {activeTab === 'createStock' && (
+          {initialTab === 'createStock' && (
             <CreateStockTab
               stockItems={stockItems}
               onAddNewStockItem={onAddNewStockItem}
             />
           )}
 
-          {activeTab === 'editStockItem' && (
+          {initialTab === 'editStockItem' && (
             <EditStockItemTab
               stockItems={stockItems}
               initialItemId={initialItemId}
@@ -233,7 +195,7 @@ export const ProcurementOperationsDialog: React.FC<ProcurementOperationsDialogPr
             />
           )}
 
-          {activeTab === 'delivery' && (
+          {initialTab === 'delivery' && (
             <StockDeliveryTab
               stockItems={stockItems}
               issuerName={issuerName}
@@ -251,7 +213,7 @@ export const ProcurementOperationsDialog: React.FC<ProcurementOperationsDialogPr
             />
           )}
 
-          {activeTab === 'issue' && (
+          {initialTab === 'issue' && (
             <IssueRequestTab
               stockItems={stockItems}
               departments={departments}
@@ -262,7 +224,7 @@ export const ProcurementOperationsDialog: React.FC<ProcurementOperationsDialogPr
             />
           )}
 
-          {activeTab === 'adjustment' && onSaveAdjustment && (
+          {initialTab === 'adjustment' && onSaveAdjustment && (
             <StockAdjustmentTab
               stockItems={stockItems}
               issuerName={issuerName}
@@ -277,7 +239,7 @@ export const ProcurementOperationsDialog: React.FC<ProcurementOperationsDialogPr
               onClose={onClose}
             />
           )}
-        </div>
-      </DraggableResizableModal>
+      </div>
+    </DraggableResizableModal>
   );
 };
