@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import type { Request, Response } from 'express';
+import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { GoogleGenAI, Type, ThinkingLevel } from '@google/genai';
@@ -744,10 +745,33 @@ async function startServer() {
     }
   });
 
+  const httpServer = http.createServer(app);
+  const hmrDisabled = process.env.DISABLE_HMR === 'true';
+
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        ...(hmrDisabled ? { ws: false as const } : {}),
+        hmr: hmrDisabled ? false : { server: httpServer },
+        watch: hmrDisabled ? null : {},
+      },
+      plugins: hmrDisabled
+        ? [
+            {
+              name: 'disable-vite-client-hmr-ws',
+              transform(code, id) {
+                if (id.replace(/\\/g, '/').endsWith('/vite/dist/client/client.mjs')) {
+                  return code.replace(
+                    'transport.connect(createHMRHandler(handleMessage));',
+                    '/* HMR WebSocket disabled */'
+                  );
+                }
+              },
+            },
+          ]
+        : [],
       appType: 'spa',
     });
     app.use(vite.middlewares);
@@ -760,7 +784,7 @@ async function startServer() {
   }
 
   const port = Number(process.env.PORT || 3000);
-  app.listen(port, '0.0.0.0', () => {
+  httpServer.listen(port, '0.0.0.0', () => {
     console.log(`Paramount Exports server running on http://0.0.0.0:${port}`);
   });
 }
